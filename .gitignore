@@ -41,6 +41,9 @@ specs/
 tasks/
 CLAUDE.md
 
+# Git hooks (kept local, symlinked into worktrees)
+.githooks/
+
 # Claude Code (local config)
 .claude/
 
