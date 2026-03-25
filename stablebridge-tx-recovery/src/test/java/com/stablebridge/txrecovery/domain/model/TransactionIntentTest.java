@@ -14,8 +14,10 @@ class TransactionIntentTest {
 
     @Test
     void shouldCreateTransactionIntent() {
+        // given
         var now = Instant.now();
 
+        // when
         var intent = TransactionIntent.builder()
                 .intentId("intent-001")
                 .chain("ethereum")
@@ -31,6 +33,7 @@ class TransactionIntentTest {
                 .createdAt(now)
                 .build();
 
+        // then
         var expected = TransactionIntent.builder()
                 .intentId("intent-001")
                 .chain("ethereum")
@@ -51,6 +54,7 @@ class TransactionIntentTest {
 
     @Test
     void shouldCreateTransactionIntent_whenOptionalFieldsAreNull() {
+        // when
         var intent = TransactionIntent.builder()
                 .intentId("intent-002")
                 .chain("base")
@@ -59,6 +63,7 @@ class TransactionIntentTest {
                 .token("ETH")
                 .build();
 
+        // then
         var expected = TransactionIntent.builder()
                 .intentId("intent-002")
                 .chain("base")
@@ -72,6 +77,7 @@ class TransactionIntentTest {
 
     @Test
     void shouldThrowNullPointerException_whenIntentIdIsNull() {
+        // when / then
         assertThatThrownBy(() -> TransactionIntent.builder()
                 .intentId(null)
                 .chain("ethereum")
@@ -84,6 +90,7 @@ class TransactionIntentTest {
 
     @Test
     void shouldThrowNullPointerException_whenChainIsNull() {
+        // when / then
         assertThatThrownBy(() -> TransactionIntent.builder()
                 .intentId("intent-001")
                 .chain(null)
@@ -96,6 +103,7 @@ class TransactionIntentTest {
 
     @Test
     void shouldThrowNullPointerException_whenToAddressIsNull() {
+        // when / then
         assertThatThrownBy(() -> TransactionIntent.builder()
                 .intentId("intent-001")
                 .chain("ethereum")
@@ -108,6 +116,7 @@ class TransactionIntentTest {
 
     @Test
     void shouldThrowNullPointerException_whenAmountIsNull() {
+        // when / then
         assertThatThrownBy(() -> TransactionIntent.builder()
                 .intentId("intent-001")
                 .chain("ethereum")
@@ -120,6 +129,7 @@ class TransactionIntentTest {
 
     @Test
     void shouldThrowNullPointerException_whenTokenIsNull() {
+        // when / then
         assertThatThrownBy(() -> TransactionIntent.builder()
                 .intentId("intent-001")
                 .chain("ethereum")
