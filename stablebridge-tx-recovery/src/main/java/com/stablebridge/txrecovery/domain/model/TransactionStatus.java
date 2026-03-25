@@ -13,5 +13,9 @@ public enum TransactionStatus {
     FINALIZED,
     DROPPED,
     FAILED,
-    CANCELLED
+    CANCELLED;
+
+    public boolean isTerminal() {
+        return this == FINALIZED || this == FAILED || this == CANCELLED;
+    }
 }
