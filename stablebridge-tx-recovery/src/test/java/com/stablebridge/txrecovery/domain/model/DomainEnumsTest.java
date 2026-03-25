@@ -13,14 +13,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 class DomainEnumsTest {
 
-    static <E extends Enum<E>> void assertEnumContains(Class<E> enumClass, String... expectedNames) {
-        var values = enumClass.getEnumConstants();
-        assertThat(values).hasSize(expectedNames.length);
-        for (String name : expectedNames) {
-            assertThat(Enum.valueOf(enumClass, name)).isNotNull();
-        }
-    }
-
     static Stream<Arguments> enumDefinitions() {
         return Stream.of(
                 Arguments.of(TransactionStatus.class, new String[] {
@@ -64,7 +56,7 @@ class DomainEnumsTest {
                 }));
     }
 
-    @ParameterizedTest(name = "{0}")
+    @ParameterizedTest(name = "{0} has correct enum values")
     @MethodSource("enumDefinitions")
     void shouldContainExpectedValues(Class<? extends Enum<?>> enumClass, String[] expectedNames) {
         // when
@@ -98,17 +90,31 @@ class DomainEnumsTest {
                 .toList();
 
         // then
-        assertThat(nonTerminal).hasSize(10);
+        var expectedNonTerminalCount = TransactionStatus.values().length - 3;
+        assertThat(nonTerminal).hasSize(expectedNonTerminalCount);
     }
 
-    @Test
-    void shouldThrowIllegalArgumentException_whenInvalidEnumValue() {
+    @ParameterizedTest(name = "{0} rejects invalid value")
+    @MethodSource("allEnumClasses")
+    void shouldThrowIllegalArgumentException_whenInvalidEnumValue(Class<? extends Enum<?>> enumClass) {
         // when / then
-        assertThatThrownBy(() -> TransactionStatus.valueOf("INVALID"))
+        assertThatThrownBy(() -> Enum.valueOf(enumClass.asSubclass(Enum.class), "INVALID"))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> StuckReason.valueOf("INVALID"))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> RecoveryAction.valueOf("INVALID"))
-                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    static Stream<Arguments> allEnumClasses() {
+        return Stream.of(
+                Arguments.of(TransactionStatus.class),
+                Arguments.of(StuckReason.class),
+                Arguments.of(RecoveryAction.class),
+                Arguments.of(RecoveryOutcome.class),
+                Arguments.of(AddressTier.class),
+                Arguments.of(AddressStatus.class),
+                Arguments.of(ChainFamily.class),
+                Arguments.of(FeeUrgency.class),
+                Arguments.of(SubmissionStrategy.class),
+                Arguments.of(StuckSeverity.class),
+                Arguments.of(ApprovalAction.class),
+                Arguments.of(NonceAccountStatus.class));
     }
 }
