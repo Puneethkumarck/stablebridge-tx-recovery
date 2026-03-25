@@ -1,6 +1,6 @@
 [versions]
 spring-boot = "4.0.3"
-spring-dependency-management = "1.1.9"
+spring-dependency-management = "1.1.7"
 lombok = "1.18.44"
 mapstruct = "1.6.3"
 resilience4j = "2.3.0"
