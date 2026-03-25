@@ -1,14 +1,16 @@
 package com.stablebridge.txrecovery.domain.event;
 
+import static com.stablebridge.txrecovery.domain.model.TransactionStatus.RECEIVED;
+import static com.stablebridge.txrecovery.domain.model.TransactionStatus.SIGNING;
+import static com.stablebridge.txrecovery.domain.model.TransactionStatus.SUBMITTED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
-
-import com.stablebridge.txrecovery.domain.model.TransactionStatus;
 
 class TransactionLifecycleEventTest {
 
@@ -23,8 +25,8 @@ class TransactionLifecycleEventTest {
                 .intentId("intent-001")
                 .transactionHash("0xabc123")
                 .chain("ethereum")
-                .status(TransactionStatus.SUBMITTED)
-                .previousStatus(TransactionStatus.SIGNING)
+                .status(SUBMITTED)
+                .previousStatus(SIGNING)
                 .timestamp(now)
                 .metadata(Map.of("gasPrice", "50gwei"))
                 .build();
@@ -35,8 +37,8 @@ class TransactionLifecycleEventTest {
                 .intentId("intent-001")
                 .transactionHash("0xabc123")
                 .chain("ethereum")
-                .status(TransactionStatus.SUBMITTED)
-                .previousStatus(TransactionStatus.SIGNING)
+                .status(SUBMITTED)
+                .previousStatus(SIGNING)
                 .timestamp(now)
                 .metadata(Map.of("gasPrice", "50gwei"))
                 .build();
@@ -51,7 +53,7 @@ class TransactionLifecycleEventTest {
                 .eventId("evt-002")
                 .intentId("intent-002")
                 .chain("base")
-                .status(TransactionStatus.RECEIVED)
+                .status(RECEIVED)
                 .timestamp(Instant.now())
                 .build();
 
@@ -60,7 +62,7 @@ class TransactionLifecycleEventTest {
                 .eventId("evt-002")
                 .intentId("intent-002")
                 .chain("base")
-                .status(TransactionStatus.RECEIVED)
+                .status(RECEIVED)
                 .timestamp(event.timestamp())
                 .build();
 
@@ -74,7 +76,7 @@ class TransactionLifecycleEventTest {
                 .eventId(null)
                 .intentId("intent-001")
                 .chain("ethereum")
-                .status(TransactionStatus.RECEIVED)
+                .status(RECEIVED)
                 .timestamp(Instant.now())
                 .build())
                 .isInstanceOf(NullPointerException.class);
@@ -87,7 +89,7 @@ class TransactionLifecycleEventTest {
                 .eventId("evt-001")
                 .intentId(null)
                 .chain("ethereum")
-                .status(TransactionStatus.RECEIVED)
+                .status(RECEIVED)
                 .timestamp(Instant.now())
                 .build())
                 .isInstanceOf(NullPointerException.class);
@@ -100,7 +102,7 @@ class TransactionLifecycleEventTest {
                 .eventId("evt-001")
                 .intentId("intent-001")
                 .chain(null)
-                .status(TransactionStatus.RECEIVED)
+                .status(RECEIVED)
                 .timestamp(Instant.now())
                 .build())
                 .isInstanceOf(NullPointerException.class);
@@ -126,7 +128,7 @@ class TransactionLifecycleEventTest {
                 .eventId("evt-001")
                 .intentId("intent-001")
                 .chain("ethereum")
-                .status(TransactionStatus.RECEIVED)
+                .status(RECEIVED)
                 .timestamp(null)
                 .build())
                 .isInstanceOf(NullPointerException.class);
@@ -135,7 +137,7 @@ class TransactionLifecycleEventTest {
     @Test
     void shouldDefensivelyCopyMetadata() {
         // given
-        var mutableMap = new java.util.HashMap<String, String>();
+        var mutableMap = new HashMap<String, String>();
         mutableMap.put("key", "value");
 
         // when
@@ -143,7 +145,7 @@ class TransactionLifecycleEventTest {
                 .eventId("evt-001")
                 .intentId("intent-001")
                 .chain("ethereum")
-                .status(TransactionStatus.RECEIVED)
+                .status(RECEIVED)
                 .timestamp(Instant.now())
                 .metadata(mutableMap)
                 .build();
