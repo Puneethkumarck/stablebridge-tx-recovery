@@ -70,7 +70,7 @@ class DomainEnumsTest {
 
     @Test
     void shouldIdentifyTerminalTransactionStatuses() {
-        // given
+        // when
         var terminalStatuses = Arrays.stream(TransactionStatus.values())
                 .filter(TransactionStatus::isTerminal)
                 .toList();
@@ -84,7 +84,7 @@ class DomainEnumsTest {
 
     @Test
     void shouldIdentifyNonTerminalTransactionStatuses() {
-        // given
+        // when
         var nonTerminal = Arrays.stream(TransactionStatus.values())
                 .filter(s -> !s.isTerminal())
                 .toList();
