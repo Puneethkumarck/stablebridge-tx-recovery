@@ -29,5 +29,6 @@ public record TransactionIntent(
         Objects.requireNonNull(toAddress);
         Objects.requireNonNull(amount);
         Objects.requireNonNull(token);
+        metadata = metadata == null ? null : Map.copyOf(metadata);
     }
 }
