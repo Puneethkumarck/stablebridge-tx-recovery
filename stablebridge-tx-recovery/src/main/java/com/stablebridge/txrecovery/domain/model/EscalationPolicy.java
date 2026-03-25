@@ -11,5 +11,6 @@ public record EscalationPolicy(
 
     public EscalationPolicy {
         Objects.requireNonNull(tiers);
+        tiers = List.copyOf(tiers);
     }
 }

@@ -16,5 +16,6 @@ public record SignedTransaction(
         Objects.requireNonNull(chain);
         Objects.requireNonNull(signedPayload);
         Objects.requireNonNull(signerAddress);
+        signedPayload = signedPayload.clone();
     }
 }
