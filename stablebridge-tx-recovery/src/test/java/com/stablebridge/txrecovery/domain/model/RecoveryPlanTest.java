@@ -12,78 +12,81 @@ class RecoveryPlanTest {
 
     @Test
     void shouldCreateSpeedUpPlan() {
-        // given
         var fee = FeeEstimate.builder()
                 .estimatedCost(new BigDecimal("0.005"))
                 .denomination("ETH")
                 .urgency(FeeUrgency.FAST)
                 .build();
 
-        // when
         var plan = RecoveryPlan.SpeedUp.builder()
                 .originalTxHash("0xabc123")
                 .newFee(fee)
                 .build();
 
-        // then
-        assertThat(plan).isInstanceOf(RecoveryPlan.class);
-        assertThat(plan.originalTxHash()).isEqualTo("0xabc123");
-        assertThat(plan.newFee()).isEqualTo(fee);
+        var expected = RecoveryPlan.SpeedUp.builder()
+                .originalTxHash("0xabc123")
+                .newFee(fee)
+                .build();
+
+        assertThat(plan).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
     void shouldCreateCancelPlan() {
-        // when
         var plan = RecoveryPlan.Cancel.builder()
                 .originalTxHash("0xdef456")
                 .build();
 
-        // then
-        assertThat(plan).isInstanceOf(RecoveryPlan.class);
-        assertThat(plan.originalTxHash()).isEqualTo("0xdef456");
+        var expected = RecoveryPlan.Cancel.builder()
+                .originalTxHash("0xdef456")
+                .build();
+
+        assertThat(plan).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
     void shouldCreateResubmitPlan() {
-        // when
         var plan = RecoveryPlan.Resubmit.builder()
                 .originalTxHash("0xghi789")
                 .build();
 
-        // then
-        assertThat(plan).isInstanceOf(RecoveryPlan.class);
-        assertThat(plan.originalTxHash()).isEqualTo("0xghi789");
+        var expected = RecoveryPlan.Resubmit.builder()
+                .originalTxHash("0xghi789")
+                .build();
+
+        assertThat(plan).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
     void shouldCreateWaitPlan() {
-        // when
         var plan = RecoveryPlan.Wait.builder()
                 .estimatedClearance(Duration.ofMinutes(5))
                 .reason("Mempool congestion expected to clear")
                 .build();
 
-        // then
-        assertThat(plan).isInstanceOf(RecoveryPlan.class);
-        assertThat(plan.estimatedClearance()).isEqualTo(Duration.ofMinutes(5));
-        assertThat(plan.reason()).isEqualTo("Mempool congestion expected to clear");
+        var expected = RecoveryPlan.Wait.builder()
+                .estimatedClearance(Duration.ofMinutes(5))
+                .reason("Mempool congestion expected to clear")
+                .build();
+
+        assertThat(plan).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
     void shouldCreateWaitPlan_whenEstimatedClearanceIsNull() {
-        // when
         var plan = RecoveryPlan.Wait.builder()
                 .reason("Unknown clearance time")
                 .build();
 
-        // then
-        assertThat(plan.estimatedClearance()).isNull();
-        assertThat(plan.reason()).isEqualTo("Unknown clearance time");
+        var expected = RecoveryPlan.Wait.builder()
+                .reason("Unknown clearance time")
+                .build();
+
+        assertThat(plan).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
     void shouldPatternMatchAllVariants() {
-        // given
         var fee = FeeEstimate.builder()
                 .estimatedCost(new BigDecimal("0.005"))
                 .denomination("ETH")
@@ -104,7 +107,6 @@ class RecoveryPlanTest {
                 .reason("congestion")
                 .build();
 
-        // when / then — exhaustive switch
         assertThat(describeAction(speedUp)).isEqualTo("speed-up");
         assertThat(describeAction(cancel)).isEqualTo("cancel");
         assertThat(describeAction(resubmit)).isEqualTo("resubmit");
@@ -113,14 +115,12 @@ class RecoveryPlanTest {
 
     @Test
     void shouldThrowNullPointerException_whenSpeedUpOriginalTxHashIsNull() {
-        // given
         var fee = FeeEstimate.builder()
                 .estimatedCost(new BigDecimal("0.005"))
                 .denomination("ETH")
                 .urgency(FeeUrgency.FAST)
                 .build();
 
-        // when / then
         assertThatThrownBy(() -> RecoveryPlan.SpeedUp.builder()
                 .originalTxHash(null)
                 .newFee(fee)
@@ -130,7 +130,6 @@ class RecoveryPlanTest {
 
     @Test
     void shouldThrowNullPointerException_whenSpeedUpNewFeeIsNull() {
-        // when / then
         assertThatThrownBy(() -> RecoveryPlan.SpeedUp.builder()
                 .originalTxHash("0xabc")
                 .newFee(null)
@@ -140,7 +139,6 @@ class RecoveryPlanTest {
 
     @Test
     void shouldThrowNullPointerException_whenCancelOriginalTxHashIsNull() {
-        // when / then
         assertThatThrownBy(() -> RecoveryPlan.Cancel.builder()
                 .originalTxHash(null)
                 .build())
@@ -149,7 +147,6 @@ class RecoveryPlanTest {
 
     @Test
     void shouldThrowNullPointerException_whenResubmitOriginalTxHashIsNull() {
-        // when / then
         assertThatThrownBy(() -> RecoveryPlan.Resubmit.builder()
                 .originalTxHash(null)
                 .build())
@@ -158,7 +155,6 @@ class RecoveryPlanTest {
 
     @Test
     void shouldThrowNullPointerException_whenWaitReasonIsNull() {
-        // when / then
         assertThatThrownBy(() -> RecoveryPlan.Wait.builder()
                 .reason(null)
                 .build())
