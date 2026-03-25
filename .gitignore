@@ -1,0 +1,48 @@
+# Build
+build/
+out/
+.gradle/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Java
+*.class
+*.jar
+*.war
+hs_err_pid*
+
+# Gradle
+!gradle/wrapper/gradle-wrapper.jar
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.*
+
+# Project docs & specs (kept local)
+docs/
+specs/
+tasks/
+CLAUDE.md
+
+# Claude Code (local config)
+.claude/
+
+# Worktree setup marker
+.worktree-setup-done
