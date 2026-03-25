@@ -46,6 +46,7 @@ dependencies {
 
     // Test dependencies
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.boot:spring-boot-flyway")
     testImplementation(libs.archunit)
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.postgresql)
