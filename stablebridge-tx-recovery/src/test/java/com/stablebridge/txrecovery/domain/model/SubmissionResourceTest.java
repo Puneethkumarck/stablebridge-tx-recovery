@@ -9,7 +9,6 @@ class SubmissionResourceTest {
 
     @Test
     void shouldCreateEvmSubmissionResource() {
-        // when
         var resource = EvmSubmissionResource.builder()
                 .chain("ethereum")
                 .fromAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18")
@@ -17,17 +16,18 @@ class SubmissionResourceTest {
                 .tier(AddressTier.HOT)
                 .build();
 
-        // then
-        assertThat(resource).isInstanceOf(SubmissionResource.class);
-        assertThat(resource.chain()).isEqualTo("ethereum");
-        assertThat(resource.fromAddress()).isEqualTo("0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18");
-        assertThat(resource.nonce()).isEqualTo(42);
-        assertThat(resource.tier()).isEqualTo(AddressTier.HOT);
+        var expected = EvmSubmissionResource.builder()
+                .chain("ethereum")
+                .fromAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18")
+                .nonce(42)
+                .tier(AddressTier.HOT)
+                .build();
+
+        assertThat(resource).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
     void shouldCreateSolanaSubmissionResource() {
-        // when
         var resource = SolanaSubmissionResource.builder()
                 .chain("solana")
                 .fromAddress("5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d")
@@ -35,17 +35,18 @@ class SubmissionResourceTest {
                 .nonceValue("abc123nonce")
                 .build();
 
-        // then
-        assertThat(resource).isInstanceOf(SubmissionResource.class);
-        assertThat(resource.chain()).isEqualTo("solana");
-        assertThat(resource.fromAddress()).isEqualTo("5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d");
-        assertThat(resource.nonceAccountAddress()).isEqualTo("9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM");
-        assertThat(resource.nonceValue()).isEqualTo("abc123nonce");
+        var expected = SolanaSubmissionResource.builder()
+                .chain("solana")
+                .fromAddress("5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d")
+                .nonceAccountAddress("9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM")
+                .nonceValue("abc123nonce")
+                .build();
+
+        assertThat(resource).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
     void shouldAccessChainViaSubmissionResourceInterface() {
-        // given
         SubmissionResource evmResource = EvmSubmissionResource.builder()
                 .chain("base")
                 .fromAddress("0xabc")
@@ -59,14 +60,12 @@ class SubmissionResourceTest {
                 .nonceValue("nonce789")
                 .build();
 
-        // when / then
         assertThat(evmResource.chain()).isEqualTo("base");
         assertThat(solanaResource.chain()).isEqualTo("solana");
     }
 
     @Test
     void shouldAccessFromAddressViaSubmissionResourceInterface() {
-        // given
         SubmissionResource evmResource = EvmSubmissionResource.builder()
                 .chain("polygon")
                 .fromAddress("0xEvmAddr")
@@ -80,14 +79,12 @@ class SubmissionResourceTest {
                 .nonceValue("nonce")
                 .build();
 
-        // when / then
         assertThat(evmResource.fromAddress()).isEqualTo("0xEvmAddr");
         assertThat(solanaResource.fromAddress()).isEqualTo("SolAddr");
     }
 
     @Test
     void shouldPatternMatchSubmissionResourceVariants() {
-        // given
         SubmissionResource evmResource = EvmSubmissionResource.builder()
                 .chain("ethereum")
                 .fromAddress("0x123")
@@ -101,14 +98,12 @@ class SubmissionResourceTest {
                 .nonceValue("val789")
                 .build();
 
-        // when / then — exhaustive switch
         assertThat(describeResource(evmResource)).isEqualTo("evm");
         assertThat(describeResource(solanaResource)).isEqualTo("solana");
     }
 
     @Test
     void shouldThrowNullPointerException_whenEvmChainIsNull() {
-        // when / then
         assertThatThrownBy(() -> EvmSubmissionResource.builder()
                 .chain(null)
                 .fromAddress("0x123")
@@ -120,7 +115,6 @@ class SubmissionResourceTest {
 
     @Test
     void shouldThrowNullPointerException_whenEvmFromAddressIsNull() {
-        // when / then
         assertThatThrownBy(() -> EvmSubmissionResource.builder()
                 .chain("ethereum")
                 .fromAddress(null)
@@ -132,7 +126,6 @@ class SubmissionResourceTest {
 
     @Test
     void shouldThrowNullPointerException_whenEvmTierIsNull() {
-        // when / then
         assertThatThrownBy(() -> EvmSubmissionResource.builder()
                 .chain("ethereum")
                 .fromAddress("0x123")
@@ -144,7 +137,6 @@ class SubmissionResourceTest {
 
     @Test
     void shouldThrowNullPointerException_whenSolanaChainIsNull() {
-        // when / then
         assertThatThrownBy(() -> SolanaSubmissionResource.builder()
                 .chain(null)
                 .fromAddress("Sol123")
@@ -156,7 +148,6 @@ class SubmissionResourceTest {
 
     @Test
     void shouldThrowNullPointerException_whenSolanaFromAddressIsNull() {
-        // when / then
         assertThatThrownBy(() -> SolanaSubmissionResource.builder()
                 .chain("solana")
                 .fromAddress(null)
@@ -168,7 +159,6 @@ class SubmissionResourceTest {
 
     @Test
     void shouldThrowNullPointerException_whenSolanaNonceAccountAddressIsNull() {
-        // when / then
         assertThatThrownBy(() -> SolanaSubmissionResource.builder()
                 .chain("solana")
                 .fromAddress("Sol123")
@@ -180,7 +170,6 @@ class SubmissionResourceTest {
 
     @Test
     void shouldThrowNullPointerException_whenSolanaNonceValueIsNull() {
-        // when / then
         assertThatThrownBy(() -> SolanaSubmissionResource.builder()
                 .chain("solana")
                 .fromAddress("Sol123")
