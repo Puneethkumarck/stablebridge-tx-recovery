@@ -1,4 +1,4 @@
-package com.stablebridge.txrecovery.support;
+package com.stablebridge.txrecovery.testutil;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

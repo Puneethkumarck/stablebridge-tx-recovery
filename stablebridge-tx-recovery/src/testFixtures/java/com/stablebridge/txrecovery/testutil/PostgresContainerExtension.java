@@ -1,4 +1,4 @@
-package com.stablebridge.txrecovery.support;
+package com.stablebridge.txrecovery.testutil;
 
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;

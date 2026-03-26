@@ -1,5 +1,6 @@
 plugins {
     java
+    `java-test-fixtures`
     id("org.springframework.boot")
     id("io.spring.dependency-management")
     id("com.diffplug.spotless")

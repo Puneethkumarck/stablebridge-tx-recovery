@@ -16,7 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
 
-import com.stablebridge.txrecovery.support.PgTest;
+import com.stablebridge.txrecovery.testutil.PgTest;
 
 @PgTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
@@ -31,7 +31,7 @@ class FlywayMigrationIntegrationTest {
     @Test
     void shouldRunAllRequiredMigrations() {
         // given
-        var requiredVersions = List.of("1", "2", "3", "4", "5");
+        var requiredVersions = List.of("1", "2", "3", "4", "5", "6");
 
         // when
         var appliedVersions = Arrays.stream(flyway.info().applied())
