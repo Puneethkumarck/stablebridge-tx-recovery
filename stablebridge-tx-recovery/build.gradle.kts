@@ -44,7 +44,17 @@ dependencies {
     // Database
     runtimeOnly("org.postgresql:postgresql")
 
+    // Test fixtures (shared across unit + integration tests)
+    testFixturesImplementation("org.assertj:assertj-core")
+    testFixturesImplementation("org.mockito:mockito-core")
+    testFixturesImplementation("org.springframework.boot:spring-boot-starter-test")
+    testFixturesImplementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    testFixturesImplementation(libs.testcontainers.junit)
+    testFixturesImplementation(libs.testcontainers.postgresql)
+    testFixturesImplementation(libs.testcontainers.kafka)
+
     // Test dependencies
+    testImplementation(testFixtures(project))
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-flyway")
     testImplementation(libs.archunit)
