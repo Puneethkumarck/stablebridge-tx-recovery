@@ -10,3 +10,5 @@ CREATE TABLE address_pool (
     retired_at      TIMESTAMPTZ,
     UNIQUE (address, chain)
 );
+
+CREATE INDEX idx_address_pool_chain_status ON address_pool (chain, status);

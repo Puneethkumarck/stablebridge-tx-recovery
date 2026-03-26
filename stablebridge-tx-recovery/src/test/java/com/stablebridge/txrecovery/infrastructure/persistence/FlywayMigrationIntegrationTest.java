@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import javax.sql.DataSource;
 
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.MigrationInfo;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -27,15 +29,18 @@ class FlywayMigrationIntegrationTest {
     private DataSource dataSource;
 
     @Test
-    void shouldRunAllMigrations() {
+    void shouldRunAllRequiredMigrations() {
         // given
-        var migrationInfo = flyway.info().applied();
+        var requiredVersions = List.of("1", "2", "3", "4", "5");
 
         // when
-        var migrationCount = migrationInfo.length;
+        var appliedVersions = Arrays.stream(flyway.info().applied())
+                .map(MigrationInfo::getVersion)
+                .map(Object::toString)
+                .toList();
 
         // then
-        assertThat(migrationCount).isEqualTo(5);
+        assertThat(appliedVersions).containsAll(requiredVersions);
     }
 
     @Test
@@ -61,5 +66,34 @@ class FlywayMigrationIntegrationTest {
 
         // then
         assertThat(actualTables).containsAll(expectedTables);
+    }
+
+    @Test
+    void shouldSeedDefaultEscalationPolicies() throws Exception {
+        // when
+        int count;
+        try (var connection = dataSource.getConnection();
+                var stmt = connection.createStatement();
+                var rs = stmt.executeQuery("SELECT COUNT(*) FROM escalation_policy WHERE chain = '*'")) {
+            rs.next();
+            count = rs.getInt(1);
+        }
+
+        // then
+        assertThat(count).isEqualTo(8);
+    }
+
+    @Test
+    void shouldSeedDefaultGasBudgetConfig() throws Exception {
+        // when / then
+        try (var connection = dataSource.getConnection();
+                var stmt = connection.createStatement();
+                var rs = stmt.executeQuery(
+                        "SELECT percentage, absolute_min, absolute_max FROM gas_budget_config WHERE chain = '*'")) {
+            assertThat(rs.next()).isTrue();
+            assertThat(rs.getBigDecimal("percentage")).isEqualByComparingTo("0.01");
+            assertThat(rs.getBigDecimal("absolute_min")).isEqualByComparingTo("5");
+            assertThat(rs.getBigDecimal("absolute_max")).isEqualByComparingTo("500");
+        }
     }
 }

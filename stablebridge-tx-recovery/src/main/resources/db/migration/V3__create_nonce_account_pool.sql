@@ -8,3 +8,5 @@ CREATE TABLE nonce_account_pool (
     allocated_to_tx     UUID,
     UNIQUE (nonce_account, chain)
 );
+
+CREATE INDEX idx_nonce_account_pool_allocated_to_tx ON nonce_account_pool (allocated_to_tx) WHERE allocated_to_tx IS NOT NULL;

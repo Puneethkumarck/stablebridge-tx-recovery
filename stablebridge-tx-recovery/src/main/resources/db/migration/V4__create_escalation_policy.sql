@@ -1,9 +1,9 @@
 CREATE TABLE escalation_policy (
     id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     chain              VARCHAR NOT NULL,
-    level              INT NOT NULL,
-    stuck_threshold_ms BIGINT NOT NULL,
-    gas_multiplier     NUMERIC NOT NULL,
+    level              INT NOT NULL CHECK (level >= 1),
+    stuck_threshold_ms BIGINT NOT NULL CHECK (stuck_threshold_ms > 0),
+    gas_multiplier     NUMERIC NOT NULL CHECK (gas_multiplier > 0),
     requires_human     BOOLEAN NOT NULL DEFAULT FALSE,
     description        VARCHAR,
     UNIQUE (chain, level)
