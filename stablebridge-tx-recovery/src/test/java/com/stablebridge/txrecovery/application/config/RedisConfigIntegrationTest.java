@@ -6,7 +6,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import com.stablebridge.txrecovery.domain.address.port.NonceManager;
 import com.stablebridge.txrecovery.testutil.RedisTest;
 
 @RedisTest
@@ -14,6 +16,10 @@ class RedisConfigIntegrationTest {
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
+
+    @MockitoBean
+    @SuppressWarnings("unused")
+    private NonceManager nonceManager;
 
     @Nested
     class RedisOperations {

@@ -18,6 +18,32 @@ spring:
 str:
   kafka:
     enabled-chains: ethereum_mainnet,solana_mainnet
+  evm:
+    chains:
+      - name: ethereum
+        rpc-urls:
+          - ${EVM_ETHEREUM_RPC_URL:http://localhost:8545}
+        max-fee-cap-gwei: 200
+        block-time: PT12S
+        rpc-timeout: PT5S
+        rate-limit-per-second: 25
+        rate-limit-burst: 50
+      - name: base
+        rpc-urls:
+          - ${EVM_BASE_RPC_URL:http://localhost:8546}
+        max-fee-cap-gwei: 5
+        block-time: PT2S
+        rpc-timeout: PT5S
+        rate-limit-per-second: 25
+        rate-limit-burst: 50
+      - name: polygon
+        rpc-urls:
+          - ${EVM_POLYGON_RPC_URL:http://localhost:8547}
+        max-fee-cap-gwei: 500
+        block-time: PT2S
+        rpc-timeout: PT5S
+        rate-limit-per-second: 25
+        rate-limit-burst: 50
   temporal:
     target: ${TEMPORAL_FRONTEND_URL:127.0.0.1:7233}
     namespace: stablebridge-tx-recovery
