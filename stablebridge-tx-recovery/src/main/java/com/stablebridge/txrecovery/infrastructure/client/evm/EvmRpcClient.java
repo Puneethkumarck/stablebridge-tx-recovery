@@ -6,6 +6,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Executors;
@@ -101,7 +102,7 @@ public class EvmRpcClient {
     }
 
     public BigInteger estimateGas(String from, String to, String data, String value) {
-        var params = new java.util.LinkedHashMap<String, String>();
+        var params = new LinkedHashMap<String, String>();
         params.put("from", from);
         params.put("to", to);
         if (data != null) {

@@ -15,4 +15,9 @@ record EvmReceipt(
         String status,
         List<EvmLog> logs,
         String contractAddress,
-        String type) {}
+        String type) {
+
+    EvmReceipt {
+        logs = logs == null ? List.of() : List.copyOf(logs);
+    }
+}

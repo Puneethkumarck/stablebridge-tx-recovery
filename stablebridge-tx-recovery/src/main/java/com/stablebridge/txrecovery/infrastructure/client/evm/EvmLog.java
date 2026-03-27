@@ -11,4 +11,9 @@ record EvmLog(
         String transactionHash,
         String transactionIndex,
         String logIndex,
-        boolean removed) {}
+        boolean removed) {
+
+    EvmLog {
+        topics = topics == null ? List.of() : List.copyOf(topics);
+    }
+}

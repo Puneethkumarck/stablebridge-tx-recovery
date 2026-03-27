@@ -11,4 +11,9 @@ record EvmBlock(
         String gasUsed,
         String baseFeePerGas,
         String miner,
-        List<Object> transactions) {}
+        List<Object> transactions) {
+
+    EvmBlock {
+        transactions = transactions == null ? List.of() : List.copyOf(transactions);
+    }
+}

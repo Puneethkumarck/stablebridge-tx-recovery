@@ -54,6 +54,7 @@ dependencies {
     testFixturesImplementation(libs.testcontainers.postgresql)
     testFixturesImplementation(libs.testcontainers.kafka)
     testFixturesImplementation("org.springframework.boot:spring-boot-starter-data-redis")
+    testFixturesImplementation(libs.wiremock)
 
     // Test dependencies
     testImplementation(testFixtures(project))

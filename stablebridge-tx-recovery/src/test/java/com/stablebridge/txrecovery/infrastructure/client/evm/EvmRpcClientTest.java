@@ -5,6 +5,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.stablebridge.txrecovery.testutil.stubs.EvmRpcStubs.stubJsonRpcResponse;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -62,14 +63,15 @@ class EvmRpcClientTest {
             // given
             var signedTx = "0xf86c0a8502540be40082520894...";
             var expectedHash = "0xabc123def456";
-            stubJsonRpcResponse("eth_sendRawTransaction", "\"" + expectedHash + "\"");
+            stubJsonRpcResponse(wireMockServer, "eth_sendRawTransaction", "\"" + expectedHash + "\"");
 
             // when
             var result = client.sendRawTransaction(signedTx);
 
             // then
             assertThat(result).isEqualTo(expectedHash);
-            wireMockServer.verify(postRequestedFor(urlEqualTo("/")).withRequestBody(containing("eth_sendRawTransaction")));
+            wireMockServer.verify(
+                    postRequestedFor(urlEqualTo("/")).withRequestBody(containing("eth_sendRawTransaction")));
         }
     }
 
@@ -81,6 +83,7 @@ class EvmRpcClientTest {
             // given
             var txHash = "0xabc123";
             stubJsonRpcResponse(
+                    wireMockServer,
                     "eth_getTransactionByHash",
                     """
                     {
@@ -103,17 +106,30 @@ class EvmRpcClientTest {
             var result = client.getTransactionByHash(txHash);
 
             // then
+            var expected = new EvmTransaction(
+                    "0xabc123",
+                    "0x1",
+                    "0xblock",
+                    "0xa",
+                    "0x0",
+                    "0xsender",
+                    "0xreceiver",
+                    "0xde0b6b3a7640000",
+                    "0x5208",
+                    "0x4a817c800",
+                    null,
+                    null,
+                    "0x",
+                    "0x2");
             assertThat(result).isPresent();
-            assertThat(result.get().hash()).isEqualTo("0xabc123");
-            assertThat(result.get().from()).isEqualTo("0xsender");
-            assertThat(result.get().to()).isEqualTo("0xreceiver");
+            assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
         }
 
         @Test
         void shouldReturnEmptyWhenTransactionNotFound() {
             // given
             var txHash = "0xnonexistent";
-            stubJsonRpcResponse("eth_getTransactionByHash", "null");
+            stubJsonRpcResponse(wireMockServer, "eth_getTransactionByHash", "null");
 
             // when
             var result = client.getTransactionByHash(txHash);
@@ -131,6 +147,7 @@ class EvmRpcClientTest {
             // given
             var txHash = "0xabc123";
             stubJsonRpcResponse(
+                    wireMockServer,
                     "eth_getTransactionReceipt",
                     """
                     {
@@ -153,17 +170,29 @@ class EvmRpcClientTest {
             var result = client.getTransactionReceipt(txHash);
 
             // then
+            var expected = new EvmReceipt(
+                    "0xabc123",
+                    "0x0",
+                    "0xblock",
+                    "0xa",
+                    "0xsender",
+                    "0xreceiver",
+                    "0x5208",
+                    "0x5208",
+                    "0x4a817c800",
+                    "0x1",
+                    List.of(),
+                    null,
+                    "0x2");
             assertThat(result).isPresent();
-            assertThat(result.get().transactionHash()).isEqualTo("0xabc123");
-            assertThat(result.get().status()).isEqualTo("0x1");
-            assertThat(result.get().logs()).isEmpty();
+            assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
         }
 
         @Test
         void shouldReturnEmptyWhenReceiptNotFound() {
             // given
             var txHash = "0xnonexistent";
-            stubJsonRpcResponse("eth_getTransactionReceipt", "null");
+            stubJsonRpcResponse(wireMockServer, "eth_getTransactionReceipt", "null");
 
             // when
             var result = client.getTransactionReceipt(txHash);
@@ -180,7 +209,7 @@ class EvmRpcClientTest {
         void shouldReturnNonce() {
             // given
             var address = "0xsender";
-            stubJsonRpcResponse("eth_getTransactionCount", "\"0xa\"");
+            stubJsonRpcResponse(wireMockServer, "eth_getTransactionCount", "\"0xa\"");
 
             // when
             var result = client.getTransactionCount(address, "latest");
@@ -196,7 +225,7 @@ class EvmRpcClientTest {
         @Test
         void shouldReturnEstimatedGas() {
             // given
-            stubJsonRpcResponse("eth_estimateGas", "\"0x5208\"");
+            stubJsonRpcResponse(wireMockServer, "eth_estimateGas", "\"0x5208\"");
 
             // when
             var result = client.estimateGas("0xfrom", "0xto", "0x", null);
@@ -208,7 +237,7 @@ class EvmRpcClientTest {
         @Test
         void shouldEstimateGasWithValueParameter() {
             // given
-            stubJsonRpcResponse("eth_estimateGas", "\"0x5208\"");
+            stubJsonRpcResponse(wireMockServer, "eth_estimateGas", "\"0x5208\"");
 
             // when
             var result = client.estimateGas("0xfrom", "0xto", null, "0xde0b6b3a7640000");
@@ -225,6 +254,7 @@ class EvmRpcClientTest {
         void shouldReturnFeeHistory() {
             // given
             stubJsonRpcResponse(
+                    wireMockServer,
                     "eth_feeHistory",
                     """
                     {
@@ -239,9 +269,12 @@ class EvmRpcClientTest {
             var result = client.feeHistory(2, "latest", List.of(25.0f, 75.0f));
 
             // then
-            assertThat(result.oldestBlock()).isEqualTo("0xa");
-            assertThat(result.baseFeePerGas()).containsExactly("0x10", "0x12", "0x14");
-            assertThat(result.gasUsedRatio()).containsExactly(0.5f, 0.6f);
+            var expected = new EvmFeeHistory(
+                    "0xa",
+                    List.of("0x10", "0x12", "0x14"),
+                    List.of(0.5f, 0.6f),
+                    List.of(List.of("0x1", "0x2"), List.of("0x3", "0x4")));
+            assertThat(result).usingRecursiveComparison().isEqualTo(expected);
         }
     }
 
@@ -252,6 +285,7 @@ class EvmRpcClientTest {
         void shouldReturnBlock() {
             // given
             stubJsonRpcResponse(
+                    wireMockServer,
                     "eth_getBlockByNumber",
                     """
                     {
@@ -271,9 +305,17 @@ class EvmRpcClientTest {
             var result = client.getBlockByNumber("latest", false);
 
             // then
-            assertThat(result.number()).isEqualTo("0xa");
-            assertThat(result.baseFeePerGas()).isEqualTo("0x3b9aca00");
-            assertThat(result.transactions()).isEmpty();
+            var expected = new EvmBlock(
+                    "0xa",
+                    "0xblockhash",
+                    "0xparenthash",
+                    "0x5f5e100",
+                    "0x1c9c380",
+                    "0x5208",
+                    "0x3b9aca00",
+                    "0xminer",
+                    List.of());
+            assertThat(result).usingRecursiveComparison().isEqualTo(expected);
         }
     }
 
@@ -283,7 +325,7 @@ class EvmRpcClientTest {
         @Test
         void shouldReturnGasPrice() {
             // given
-            stubJsonRpcResponse("eth_gasPrice", "\"0x3b9aca00\"");
+            stubJsonRpcResponse(wireMockServer, "eth_gasPrice", "\"0x3b9aca00\"");
 
             // when
             var result = client.gasPrice();
@@ -300,6 +342,7 @@ class EvmRpcClientTest {
         void shouldReturnBaseFeeFromLatestBlock() {
             // given
             stubJsonRpcResponse(
+                    wireMockServer,
                     "eth_getBlockByNumber",
                     """
                     {
@@ -326,6 +369,7 @@ class EvmRpcClientTest {
         void shouldThrowWhenBaseFeeNotAvailable() {
             // given
             stubJsonRpcResponse(
+                    wireMockServer,
                     "eth_getBlockByNumber",
                     """
                     {
@@ -374,9 +418,11 @@ class EvmRpcClientTest {
             var results = client.executeBatch(requests, new TypeReference<List<JsonRpcResponse<String>>>() {});
 
             // then
+            var expectedFirst = new JsonRpcResponse<>("2.0", 1L, "0x3b9aca00", null);
+            var expectedSecond = new JsonRpcResponse<>("2.0", 2L, "0xa", null);
             assertThat(results).hasSize(2);
-            assertThat(results.get(0).result()).isEqualTo("0x3b9aca00");
-            assertThat(results.get(1).result()).isEqualTo("0xa");
+            assertThat(results.get(0)).usingRecursiveComparison().isEqualTo(expectedFirst);
+            assertThat(results.get(1)).usingRecursiveComparison().isEqualTo(expectedSecond);
         }
     }
 
@@ -488,9 +534,12 @@ class EvmRpcClientTest {
 
             // then
             assertThat(cb.getName()).isEqualTo("evm-rpc-" + CHAIN);
-            assertThat(cb.getCircuitBreakerConfig().getFailureRateThreshold()).isEqualTo(50f);
-            assertThat(cb.getCircuitBreakerConfig().getSlidingWindowSize()).isEqualTo(10);
-            assertThat(cb.getCircuitBreakerConfig().getMinimumNumberOfCalls()).isEqualTo(5);
+            assertThat(cb.getCircuitBreakerConfig())
+                    .extracting(
+                            config -> config.getFailureRateThreshold(),
+                            config -> config.getSlidingWindowSize(),
+                            config -> config.getMinimumNumberOfCalls())
+                    .containsExactly(50f, 10, 5);
         }
 
         @Test
@@ -500,8 +549,11 @@ class EvmRpcClientTest {
 
             // then
             assertThat(rl.getName()).isEqualTo("evm-rpc-" + CHAIN);
-            assertThat(rl.getRateLimiterConfig().getLimitForPeriod()).isEqualTo(RATE_LIMIT_PER_SECOND);
-            assertThat(rl.getRateLimiterConfig().getLimitRefreshPeriod()).isEqualTo(Duration.ofSeconds(1));
+            assertThat(rl.getRateLimiterConfig())
+                    .extracting(
+                            config -> config.getLimitForPeriod(),
+                            config -> config.getLimitRefreshPeriod())
+                    .containsExactly(RATE_LIMIT_PER_SECOND, Duration.ofSeconds(1));
         }
     }
 
@@ -513,6 +565,7 @@ class EvmRpcClientTest {
             // given
             var txHash = "0xabc123";
             stubJsonRpcResponse(
+                    wireMockServer,
                     "eth_getTransactionReceipt",
                     """
                     {
@@ -547,24 +600,32 @@ class EvmRpcClientTest {
             var result = client.getTransactionReceipt(txHash);
 
             // then
+            var expectedLog = new EvmLog(
+                    "0xcontract",
+                    List.of("0xtopic1", "0xtopic2"),
+                    "0xdata",
+                    "0xa",
+                    "0xblock",
+                    "0xabc123",
+                    "0x0",
+                    "0x0",
+                    false);
+            var expected = new EvmReceipt(
+                    "0xabc123",
+                    "0x0",
+                    "0xblock",
+                    "0xa",
+                    "0xsender",
+                    "0xcontract",
+                    "0xb000",
+                    "0x7000",
+                    "0x4a817c800",
+                    "0x1",
+                    List.of(expectedLog),
+                    null,
+                    "0x2");
             assertThat(result).isPresent();
-            assertThat(result.get().logs()).hasSize(1);
-            assertThat(result.get().logs().getFirst().address()).isEqualTo("0xcontract");
-            assertThat(result.get().logs().getFirst().topics()).containsExactly("0xtopic1", "0xtopic2");
+            assertThat(result.get()).usingRecursiveComparison().isEqualTo(expected);
         }
-    }
-
-    private void stubJsonRpcResponse(String method, String resultJson) {
-        var responseBody = """
-                {"jsonrpc": "2.0", "id": 1, "result": %s}
-                """
-                .formatted(resultJson);
-
-        wireMockServer.stubFor(post(urlEqualTo("/"))
-                .withRequestBody(containing(method))
-                .willReturn(aResponse()
-                        .withStatus(200)
-                        .withHeader("Content-Type", "application/json")
-                        .withBody(responseBody)));
     }
 }
