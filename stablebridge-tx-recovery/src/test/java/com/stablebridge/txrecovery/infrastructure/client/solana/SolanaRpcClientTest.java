@@ -110,6 +110,8 @@ class SolanaRpcClientTest {
             // when/then
             assertThatThrownBy(() -> client.sendTransaction(SOME_SIGNED_TX))
                     .isInstanceOf(SolanaRpcException.class)
+                    .hasMessageContaining("All Solana RPC endpoints exhausted")
+                    .cause()
                     .hasMessageContaining("Transaction simulation failed");
         }
     }
@@ -516,6 +518,8 @@ class SolanaRpcClientTest {
             // when/then
             assertThatThrownBy(() -> client.sendTransaction(SOME_SIGNED_TX))
                     .isInstanceOf(SolanaRpcException.class)
+                    .hasMessageContaining("All Solana RPC endpoints exhausted")
+                    .cause()
                     .hasMessageContaining("HTTP 503");
         }
 
@@ -542,6 +546,8 @@ class SolanaRpcClientTest {
             // when/then
             assertThatThrownBy(() -> client.sendTransaction(SOME_SIGNED_TX))
                     .isInstanceOf(SolanaRpcException.class)
+                    .hasMessageContaining("All Solana RPC endpoints exhausted")
+                    .cause()
                     .hasMessageContaining("Invalid request");
         }
 
@@ -563,7 +569,52 @@ class SolanaRpcClientTest {
             // when/then
             assertThatThrownBy(() -> brokenClient.sendTransaction(SOME_SIGNED_TX))
                     .isInstanceOf(SolanaRpcException.class)
+                    .hasMessageContaining("All Solana RPC endpoints exhausted")
+                    .cause()
                     .hasMessageContaining("RPC call failed");
+        }
+
+        @Test
+        void shouldThrowDescriptiveExceptionWhenNoEndpointsConfigured() {
+            // given
+            var httpClient = HttpClient.newBuilder()
+                    .version(HttpClient.Version.HTTP_1_1)
+                    .build();
+            var objectMapper = new ObjectMapper();
+            var emptyClient = new SolanaRpcClient(
+                    httpClient,
+                    objectMapper,
+                    List.of(),
+                    CircuitBreaker.ofDefaults("empty-test"),
+                    RateLimiter.ofDefaults("empty-test"));
+
+            // when/then
+            assertThatThrownBy(() -> emptyClient.sendTransaction(SOME_SIGNED_TX))
+                    .isInstanceOf(SolanaRpcException.class)
+                    .hasMessageContaining("All Solana RPC endpoints exhausted");
+        }
+
+        @Test
+        void shouldRestoreInterruptFlagOnInterruptedException() {
+            // given
+            var badEndpoint = URI.create("http://localhost:1");
+            var httpClient = HttpClient.newBuilder()
+                    .version(HttpClient.Version.HTTP_1_1)
+                    .build();
+            var objectMapper = new ObjectMapper();
+            var interruptClient = new SolanaRpcClient(
+                    httpClient,
+                    objectMapper,
+                    List.of(badEndpoint),
+                    CircuitBreaker.ofDefaults("interrupt-test"),
+                    RateLimiter.ofDefaults("interrupt-test"));
+
+            Thread.currentThread().interrupt();
+
+            // when/then
+            assertThatThrownBy(() -> interruptClient.sendTransaction(SOME_SIGNED_TX))
+                    .isInstanceOf(RuntimeException.class);
+            assertThat(Thread.interrupted()).isTrue();
         }
     }
 

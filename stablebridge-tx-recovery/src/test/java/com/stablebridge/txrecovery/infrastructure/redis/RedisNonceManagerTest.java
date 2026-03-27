@@ -30,8 +30,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 
 import com.stablebridge.txrecovery.domain.address.model.NonceAllocation;
+import com.stablebridge.txrecovery.domain.address.port.OnChainNonceProvider;
 import com.stablebridge.txrecovery.domain.exception.NonceConcurrencyException;
-import com.stablebridge.txrecovery.infrastructure.client.evm.EvmRpcClient;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
@@ -39,7 +39,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 class RedisNonceManagerTest {
 
     @Mock private StringRedisTemplate redisTemplate;
-    @Mock private EvmRpcClient evmRpcClient;
+    @Mock private OnChainNonceProvider onChainNonceProvider;
     @Mock private HashOperations<String, Object, Object> hashOperations;
     @Mock private SetOperations<String, String> setOperations;
 
@@ -49,7 +49,7 @@ class RedisNonceManagerTest {
     @BeforeEach
     void setUp() {
         meterRegistry = new SimpleMeterRegistry();
-        nonceManager = new RedisNonceManager(redisTemplate, evmRpcClient, meterRegistry);
+        nonceManager = new RedisNonceManager(redisTemplate, onChainNonceProvider, meterRegistry);
     }
 
     @Nested
@@ -157,7 +157,7 @@ class RedisNonceManagerTest {
         @Test
         void shouldResetAllocatedAndConfirmedToOnChainMinusOne() {
             // given
-            given(evmRpcClient.getTransactionCount(SOME_ADDRESS, "latest")).willReturn(BigInteger.TEN);
+            given(onChainNonceProvider.getTransactionCount(SOME_ADDRESS, SOME_CHAIN)).willReturn(BigInteger.TEN);
             given(redisTemplate.opsForHash()).willReturn(hashOperations);
 
             // when
@@ -172,7 +172,7 @@ class RedisNonceManagerTest {
         @Test
         void shouldResetToMinusOneWhenOnChainNonceIsZero() {
             // given
-            given(evmRpcClient.getTransactionCount(SOME_ADDRESS, "latest")).willReturn(BigInteger.ZERO);
+            given(onChainNonceProvider.getTransactionCount(SOME_ADDRESS, SOME_CHAIN)).willReturn(BigInteger.ZERO);
             given(redisTemplate.opsForHash()).willReturn(hashOperations);
 
             // when
@@ -191,7 +191,7 @@ class RedisNonceManagerTest {
         @Test
         void shouldReturnGapNoncesBelowOnChainCount() {
             // given
-            given(evmRpcClient.getTransactionCount(SOME_ADDRESS, "latest")).willReturn(BigInteger.valueOf(10));
+            given(onChainNonceProvider.getTransactionCount(SOME_ADDRESS, SOME_CHAIN)).willReturn(BigInteger.valueOf(10));
             given(redisTemplate.opsForSet()).willReturn(setOperations);
             given(setOperations.members(SOME_INFLIGHT_KEY)).willReturn(Set.of("5", "7", "10", "11"));
 
@@ -206,7 +206,7 @@ class RedisNonceManagerTest {
         @Test
         void shouldReturnEmptySetWhenNoInflightNonces() {
             // given
-            given(evmRpcClient.getTransactionCount(SOME_ADDRESS, "latest")).willReturn(BigInteger.TEN);
+            given(onChainNonceProvider.getTransactionCount(SOME_ADDRESS, SOME_CHAIN)).willReturn(BigInteger.TEN);
             given(redisTemplate.opsForSet()).willReturn(setOperations);
             given(setOperations.members(SOME_INFLIGHT_KEY)).willReturn(Set.of());
 
@@ -221,7 +221,7 @@ class RedisNonceManagerTest {
         @Test
         void shouldReturnEmptySetWhenInflightMembersIsNull() {
             // given
-            given(evmRpcClient.getTransactionCount(SOME_ADDRESS, "latest")).willReturn(BigInteger.TEN);
+            given(onChainNonceProvider.getTransactionCount(SOME_ADDRESS, SOME_CHAIN)).willReturn(BigInteger.TEN);
             given(redisTemplate.opsForSet()).willReturn(setOperations);
             given(setOperations.members(SOME_INFLIGHT_KEY)).willReturn(null);
 
@@ -235,7 +235,7 @@ class RedisNonceManagerTest {
         @Test
         void shouldReturnEmptySetWhenAllInflightNoncesAreAboveOnChain() {
             // given
-            given(evmRpcClient.getTransactionCount(SOME_ADDRESS, "latest")).willReturn(BigInteger.valueOf(5));
+            given(onChainNonceProvider.getTransactionCount(SOME_ADDRESS, SOME_CHAIN)).willReturn(BigInteger.valueOf(5));
             given(redisTemplate.opsForSet()).willReturn(setOperations);
             given(setOperations.members(SOME_INFLIGHT_KEY)).willReturn(Set.of("5", "6", "7"));
 

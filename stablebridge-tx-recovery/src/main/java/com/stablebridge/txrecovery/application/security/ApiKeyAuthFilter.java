@@ -1,6 +1,8 @@
 package com.stablebridge.txrecovery.application.security;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -38,7 +40,10 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (providedKey == null || !configuredApiKey.equals(providedKey)) {
+        if (providedKey == null
+                || !MessageDigest.isEqual(
+                        configuredApiKey.getBytes(StandardCharsets.UTF_8),
+                        providedKey.getBytes(StandardCharsets.UTF_8))) {
             log.warn("Invalid or missing API key for request to {}", request.getRequestURI());
             sendUnauthorized(response);
             return;

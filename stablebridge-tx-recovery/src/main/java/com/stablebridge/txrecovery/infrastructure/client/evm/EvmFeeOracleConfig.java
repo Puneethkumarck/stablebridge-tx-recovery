@@ -18,6 +18,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.validation.annotation.Validated;
 
+import com.stablebridge.txrecovery.domain.address.port.OnChainNonceProvider;
 import com.stablebridge.txrecovery.domain.recovery.port.FeeOracle;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
@@ -67,10 +68,24 @@ public class EvmFeeOracleConfig {
 
     @Bean
     @ConditionalOnBean(EvmFeeOracleFactory.class)
-    Map<String, FeeOracle> evmFeeOracles(EvmFeeOracleFactory factory) {
-        var oracles = factory.createAll();
+    Map<String, EvmRpcClient> evmRpcClients(EvmFeeOracleFactory factory) {
+        var clients = factory.createRpcClients();
+        log.info("Created EVM RPC clients for chains: {}", clients.keySet());
+        return clients;
+    }
+
+    @Bean
+    @ConditionalOnBean(EvmFeeOracleFactory.class)
+    Map<String, FeeOracle> evmFeeOracles(EvmFeeOracleFactory factory, Map<String, EvmRpcClient> evmRpcClients) {
+        var oracles = factory.createOracles(evmRpcClients);
         log.info("Created EVM fee oracles for chains: {}", oracles.keySet());
         return oracles;
+    }
+
+    @Bean
+    @ConditionalOnBean(name = "evmRpcClients")
+    OnChainNonceProvider onChainNonceProvider(Map<String, EvmRpcClient> evmRpcClients) {
+        return new EvmOnChainNonceProvider(evmRpcClients);
     }
 
     private static void validateNoDuplicateChains(List<ChainSettings> chains) {

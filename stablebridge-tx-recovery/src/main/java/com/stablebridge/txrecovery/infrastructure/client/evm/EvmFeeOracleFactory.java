@@ -36,15 +36,22 @@ public class EvmFeeOracleFactory {
         this.rateLimiterRegistry = Objects.requireNonNull(rateLimiterRegistry);
     }
 
-    public Map<String, FeeOracle> createAll() {
+    public Map<String, EvmRpcClient> createRpcClients() {
         return chainInputs.stream()
                 .collect(Collectors.toUnmodifiableMap(
                         ChainInput::name,
-                        this::createOracle));
+                        this::createRpcClient));
     }
 
-    private FeeOracle createOracle(ChainInput input) {
-        var rpcClient = new EvmRpcClient(
+    public Map<String, FeeOracle> createOracles(Map<String, EvmRpcClient> rpcClients) {
+        return chainInputs.stream()
+                .collect(Collectors.toUnmodifiableMap(
+                        ChainInput::name,
+                        input -> createOracle(input, rpcClients.get(input.name()))));
+    }
+
+    private EvmRpcClient createRpcClient(ChainInput input) {
+        return new EvmRpcClient(
                 input.name(),
                 input.rpcUrls(),
                 input.rpcTimeout(),
@@ -52,7 +59,9 @@ public class EvmFeeOracleFactory {
                 input.rateLimitBurst(),
                 circuitBreakerRegistry,
                 rateLimiterRegistry);
+    }
 
+    private FeeOracle createOracle(ChainInput input, EvmRpcClient rpcClient) {
         var properties = EvmChainProperties.builder()
                 .chain(input.name())
                 .maxFeeCapGwei(input.maxFeeCapGwei())

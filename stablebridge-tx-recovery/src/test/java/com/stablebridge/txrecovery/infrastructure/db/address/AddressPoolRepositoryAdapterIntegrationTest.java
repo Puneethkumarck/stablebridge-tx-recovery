@@ -211,7 +211,7 @@ class AddressPoolRepositoryAdapterIntegrationTest {
             var expected = address.toBuilder().build();
             assertThat(result.get())
                     .usingRecursiveComparison()
-                    .ignoringFields("lastUsedAt")
+                    .ignoringFields("id", "lastUsedAt")
                     .isEqualTo(expected);
         }
     }

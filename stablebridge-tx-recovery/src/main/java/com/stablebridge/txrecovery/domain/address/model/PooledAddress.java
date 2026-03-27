@@ -2,11 +2,13 @@ package com.stablebridge.txrecovery.domain.address.model;
 
 import java.time.Instant;
 import java.util.Objects;
+import java.util.UUID;
 
 import lombok.Builder;
 
 @Builder(toBuilder = true)
 public record PooledAddress(
+        UUID id,
         String address,
         String chain,
         ChainFamily chainFamily,
@@ -16,6 +18,7 @@ public record PooledAddress(
         int inFlightCount,
         String signerEndpoint,
         Instant registeredAt,
+        Instant retiredAt,
         Instant lastUsedAt) {
 
     public PooledAddress {

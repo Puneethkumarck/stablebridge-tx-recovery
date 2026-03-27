@@ -12,8 +12,8 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 
 import com.stablebridge.txrecovery.domain.address.model.NonceAllocation;
 import com.stablebridge.txrecovery.domain.address.port.NonceManager;
+import com.stablebridge.txrecovery.domain.address.port.OnChainNonceProvider;
 import com.stablebridge.txrecovery.domain.exception.NonceConcurrencyException;
-import com.stablebridge.txrecovery.infrastructure.client.evm.EvmRpcClient;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +41,7 @@ public class RedisNonceManager implements NonceManager {
             Long.class);
 
     private final StringRedisTemplate redisTemplate;
-    private final EvmRpcClient evmRpcClient;
+    private final OnChainNonceProvider onChainNonceProvider;
     private final MeterRegistry meterRegistry;
 
     @Override
@@ -58,7 +58,7 @@ public class RedisNonceManager implements NonceManager {
 
                 var allocatedStr = (String) operations.opsForHash().get(hashKey, FIELD_ALLOCATED);
                 var onChainNonce =
-                        evmRpcClient.getTransactionCount(address, "latest").longValue();
+                        onChainNonceProvider.getTransactionCount(address, chain).longValue();
 
                 var nextNonce = allocatedStr == null
                         ? onChainNonce
@@ -118,7 +118,7 @@ public class RedisNonceManager implements NonceManager {
         var inflightKey = RedisKeyNamespace.nonceInflightSet(chain, address);
 
         var onChainNonce =
-                evmRpcClient.getTransactionCount(address, "latest").longValue();
+                onChainNonceProvider.getTransactionCount(address, chain).longValue();
         var resetValue = onChainNonce - 1;
 
         redisTemplate.opsForHash().put(hashKey, FIELD_ALLOCATED, String.valueOf(resetValue));
@@ -137,7 +137,7 @@ public class RedisNonceManager implements NonceManager {
     public Set<Long> detectGaps(String address, String chain) {
         var inflightKey = RedisKeyNamespace.nonceInflightSet(chain, address);
         var onChainNonce =
-                evmRpcClient.getTransactionCount(address, "latest").longValue();
+                onChainNonceProvider.getTransactionCount(address, chain).longValue();
 
         var inflightMembers = redisTemplate.opsForSet().members(inflightKey);
         if (inflightMembers == null || inflightMembers.isEmpty()) {

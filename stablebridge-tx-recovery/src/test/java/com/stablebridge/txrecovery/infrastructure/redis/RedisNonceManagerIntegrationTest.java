@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -27,6 +28,7 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import com.stablebridge.txrecovery.domain.address.model.NonceAllocation;
 import com.stablebridge.txrecovery.domain.exception.NonceConcurrencyException;
+import com.stablebridge.txrecovery.infrastructure.client.evm.EvmOnChainNonceProvider;
 import com.stablebridge.txrecovery.infrastructure.client.evm.EvmRpcClient;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
@@ -65,7 +67,8 @@ class RedisNonceManagerIntegrationTest {
                 100,
                 CircuitBreakerRegistry.ofDefaults(),
                 RateLimiterRegistry.ofDefaults());
-        nonceManager = new RedisNonceManager(redisTemplate, evmRpcClient, meterRegistry);
+        var onChainNonceProvider = new EvmOnChainNonceProvider(Map.of(SOME_CHAIN, evmRpcClient));
+        nonceManager = new RedisNonceManager(redisTemplate, onChainNonceProvider, meterRegistry);
     }
 
     @AfterEach
