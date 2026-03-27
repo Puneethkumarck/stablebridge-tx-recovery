@@ -59,7 +59,7 @@ class SolanaSubmissionResourceManagerTest {
             var intent = SOME_SOLANA_SEQUENTIAL_INTENT;
             var nonceAccount = SOME_AVAILABLE_NONCE_ACCOUNT;
 
-            given(nonceAccountPoolRepository.findAvailableByChain(SOME_CHAIN))
+            given(nonceAccountPoolRepository.findAvailableAndMarkInUse(SOME_CHAIN, intent.intentId()))
                     .willReturn(Optional.of(nonceAccount));
             given(rpcClient.getNonce(SOME_NONCE_ACCOUNT_ADDRESS, SolanaCommitment.CONFIRMED))
                     .willReturn(SOME_NONCE_VALUE);
@@ -80,9 +80,6 @@ class SolanaSubmissionResourceManagerTest {
             assertThat(result)
                     .usingRecursiveComparison()
                     .isEqualTo(expected);
-
-            then(nonceAccountPoolRepository).should()
-                    .markInUse(SOME_NONCE_ACCOUNT_ADDRESS, SOME_CHAIN, intent.intentId());
         }
 
         @Test
@@ -90,7 +87,7 @@ class SolanaSubmissionResourceManagerTest {
             // given
             var intent = SOME_SOLANA_SEQUENTIAL_INTENT;
 
-            given(nonceAccountPoolRepository.findAvailableByChain(SOME_CHAIN))
+            given(nonceAccountPoolRepository.findAvailableAndMarkInUse(SOME_CHAIN, intent.intentId()))
                     .willReturn(Optional.empty());
 
             // when / then
@@ -108,7 +105,7 @@ class SolanaSubmissionResourceManagerTest {
             var intent = SOME_SOLANA_SEQUENTIAL_INTENT;
             var nonceAccount = SOME_AVAILABLE_NONCE_ACCOUNT;
 
-            given(nonceAccountPoolRepository.findAvailableByChain(SOME_CHAIN))
+            given(nonceAccountPoolRepository.findAvailableAndMarkInUse(SOME_CHAIN, intent.intentId()))
                     .willReturn(Optional.of(nonceAccount));
             willThrow(new RuntimeException("RPC unavailable"))
                     .given(rpcClient).getNonce(SOME_NONCE_ACCOUNT_ADDRESS, SolanaCommitment.CONFIRMED);
@@ -128,7 +125,7 @@ class SolanaSubmissionResourceManagerTest {
             var intent = SOME_SOLANA_SEQUENTIAL_INTENT;
             var nonceAccount = SOME_AVAILABLE_NONCE_ACCOUNT;
 
-            given(nonceAccountPoolRepository.findAvailableByChain(SOME_CHAIN))
+            given(nonceAccountPoolRepository.findAvailableAndMarkInUse(SOME_CHAIN, intent.intentId()))
                     .willReturn(Optional.of(nonceAccount));
             given(rpcClient.getNonce(SOME_NONCE_ACCOUNT_ADDRESS, SolanaCommitment.CONFIRMED))
                     .willReturn(SOME_NONCE_VALUE);
