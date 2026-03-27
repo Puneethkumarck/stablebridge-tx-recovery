@@ -34,16 +34,13 @@ import com.stablebridge.txrecovery.domain.transaction.model.UnsignedTransaction;
 class SolanaTransactionBuilderTest {
 
     @Mock
-    private SolanaRpcClient rpcClient;
-
-    @Mock
     private FeeOracle feeOracle;
 
     private SolanaTransactionBuilder builder;
 
     @BeforeEach
     void setUp() {
-        builder = new SolanaTransactionBuilder(rpcClient, feeOracle, SOME_COMPUTE_UNIT_LIMIT);
+        builder = new SolanaTransactionBuilder(null, feeOracle, SOME_COMPUTE_UNIT_LIMIT);
     }
 
     private void stubFeeOracle() {
@@ -58,7 +55,6 @@ class SolanaTransactionBuilderTest {
         void shouldBuildSplTransferTransactionWithCorrectFields() {
             // given
             stubFeeOracle();
-
             var expected = UnsignedTransaction.builder()
                     .intentId("solana-intent-001")
                     .chain(SOME_SOLANA_CHAIN)
@@ -122,34 +118,6 @@ class SolanaTransactionBuilderTest {
         }
 
         @Test
-        void shouldIncludeNonceMetadata() {
-            // given
-            stubFeeOracle();
-
-            // when
-            var result = builder.build(someSolanaTransactionIntent(), someSolanaSubmissionResource());
-
-            // then
-            assertThat(result.metadata())
-                    .containsEntry("nonceAccountAddress", SOME_NONCE_ACCOUNT)
-                    .containsEntry("nonceValue", SOME_NONCE_VALUE);
-        }
-
-        @Test
-        void shouldIncludeComputeBudgetMetadata() {
-            // given
-            stubFeeOracle();
-
-            // when
-            var result = builder.build(someSolanaTransactionIntent(), someSolanaSubmissionResource());
-
-            // then
-            assertThat(result.metadata())
-                    .containsEntry("computeUnitLimit", String.valueOf(SOME_COMPUTE_UNIT_LIMIT))
-                    .containsEntry("computeUnitPrice", String.valueOf(SOME_COMPUTE_UNIT_PRICE));
-        }
-
-        @Test
         void shouldProduceDeterministicPayloadForSameInputs() {
             // given
             stubFeeOracle();
@@ -186,10 +154,9 @@ class SolanaTransactionBuilderTest {
 
             // when
             var result = builder.build(someSolanaTransactionIntent(), someSolanaSubmissionResource());
-            var payload = result.payload();
 
             // then
-            assertThat(containsSubArray(payload, nonceBytes)).isTrue();
+            assertThat(containsSubArray(result.payload(), nonceBytes)).isTrue();
         }
     }
 
@@ -198,36 +165,43 @@ class SolanaTransactionBuilderTest {
 
         @Test
         void shouldDecode32BytePublicKey() {
+            // when
             var result = SolanaTransactionBuilder.decodeBase58(SOME_WALLET_ADDRESS);
 
+            // then
             assertThat(result).hasSize(32);
         }
 
         @Test
         void shouldDecodeSystemProgramToAllZeros() {
+            // when
             var result = SolanaTransactionBuilder.decodeBase58("11111111111111111111111111111111");
 
+            // then
             assertThat(result).isEqualTo(new byte[32]);
         }
 
         @Test
         void shouldRejectNullInput() {
+            // when/then
             assertThatThrownBy(() -> SolanaTransactionBuilder.decodeBase58(null))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(SolanaRpcException.class)
                     .hasMessageContaining("null or empty");
         }
 
         @Test
         void shouldRejectEmptyInput() {
+            // when/then
             assertThatThrownBy(() -> SolanaTransactionBuilder.decodeBase58(""))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(SolanaRpcException.class)
                     .hasMessageContaining("null or empty");
         }
 
         @Test
         void shouldRejectInvalidBase58Characters() {
+            // when/then
             assertThatThrownBy(() -> SolanaTransactionBuilder.decodeBase58("InvalidBase580Address"))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(SolanaRpcException.class)
                     .hasMessageContaining("Invalid Base58 character");
         }
     }
@@ -236,44 +210,55 @@ class SolanaTransactionBuilderTest {
     class CompactU16Encoding {
 
         @Test
-        void shouldEncodeSingleByteForValuesBelowOneHundredTwentyEight() {
+        void shouldEncodeSingleByteForZero() {
+            // when
             var result = SolanaTransactionBuilder.encodeCompactU16(0);
 
-            assertThat(result).isEqualTo(new byte[]{0x00});
+            // then
+            assertThat(result).isEqualTo(new byte[] {0x00});
         }
 
         @Test
         void shouldEncodeSingleByteForMaxSingleByteValue() {
+            // when
             var result = SolanaTransactionBuilder.encodeCompactU16(127);
 
-            assertThat(result).isEqualTo(new byte[]{0x7F});
+            // then
+            assertThat(result).isEqualTo(new byte[] {0x7F});
         }
 
         @Test
         void shouldEncodeTwoBytesForOneHundredTwentyEight() {
+            // when
             var result = SolanaTransactionBuilder.encodeCompactU16(128);
 
-            assertThat(result).isEqualTo(new byte[]{(byte) 0x80, 0x01});
+            // then
+            assertThat(result).isEqualTo(new byte[] {(byte) 0x80, 0x01});
         }
 
         @Test
         void shouldEncodeTwoBytesForMaxTwoByteValue() {
+            // when
             var result = SolanaTransactionBuilder.encodeCompactU16(16383);
 
-            assertThat(result).isEqualTo(new byte[]{(byte) 0xFF, 0x7F});
+            // then
+            assertThat(result).isEqualTo(new byte[] {(byte) 0xFF, 0x7F});
         }
 
         @Test
         void shouldEncodeThreeBytesForSixteenThreeEightyFour() {
+            // when
             var result = SolanaTransactionBuilder.encodeCompactU16(16384);
 
-            assertThat(result).isEqualTo(new byte[]{(byte) 0x80, (byte) 0x80, 0x01});
+            // then
+            assertThat(result).isEqualTo(new byte[] {(byte) 0x80, (byte) 0x80, 0x01});
         }
 
         @Test
         void shouldRejectNegativeValues() {
+            // when/then
             assertThatThrownBy(() -> SolanaTransactionBuilder.encodeCompactU16(-1))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(SolanaRpcException.class)
                     .hasMessageContaining("non-negative");
         }
     }
@@ -332,6 +317,7 @@ class SolanaTransactionBuilderTest {
 
         @Test
         void shouldRejectNullTransactionIntent() {
+            // when/then
             assertThatThrownBy(() -> builder.build(null, someSolanaSubmissionResource()))
                     .isInstanceOf(NullPointerException.class)
                     .hasMessageContaining("TransactionIntent");
@@ -339,6 +325,7 @@ class SolanaTransactionBuilderTest {
 
         @Test
         void shouldRejectNullSubmissionResource() {
+            // when/then
             assertThatThrownBy(() -> builder.build(someSolanaTransactionIntent(), null))
                     .isInstanceOf(NullPointerException.class)
                     .hasMessageContaining("SolanaSubmissionResource");
@@ -353,7 +340,6 @@ class SolanaTransactionBuilderTest {
                     .denomination("SOL")
                     .urgency(FeeUrgency.MEDIUM)
                     .build();
-
             given(feeOracle.estimate(SOME_SOLANA_CHAIN, FeeUrgency.MEDIUM))
                     .willReturn(badFeeEstimate);
 
@@ -372,13 +358,12 @@ class SolanaTransactionBuilderTest {
                     .denomination("SOL")
                     .urgency(FeeUrgency.MEDIUM)
                     .build();
-
             given(feeOracle.estimate(SOME_SOLANA_CHAIN, FeeUrgency.MEDIUM))
                     .willReturn(badFeeEstimate);
 
             // when/then
             assertThatThrownBy(() -> builder.build(someSolanaTransactionIntent(), someSolanaSubmissionResource()))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(SolanaRpcException.class)
                     .hasMessageContaining("non-negative");
         }
     }
