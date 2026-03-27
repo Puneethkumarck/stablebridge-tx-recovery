@@ -98,7 +98,7 @@ class SolanaTransactionBuilder {
         Objects.requireNonNull(feeEstimate, "FeeEstimate must not be null");
         Objects.requireNonNull(feeEstimate.computeUnitPrice(), "FeeEstimate.computeUnitPrice must not be null");
         if (feeEstimate.computeUnitPrice().signum() < 0) {
-            throw new IllegalArgumentException("Compute unit price must be non-negative");
+            throw new SolanaRpcException(-1, "Compute unit price must be non-negative");
         }
     }
 
@@ -162,14 +162,14 @@ class SolanaTransactionBuilder {
 
     static byte[] decodeBase58(String input) {
         if (input == null || input.isEmpty()) {
-            throw new IllegalArgumentException("Base58 input must not be null or empty");
+            throw new SolanaRpcException(-1, "Base58 input must not be null or empty");
         }
 
         var bi = BigInteger.ZERO;
         for (var i = 0; i < input.length(); i++) {
             var charIndex = BASE58_ALPHABET.indexOf(input.charAt(i));
             if (charIndex < 0) {
-                throw new IllegalArgumentException("Invalid Base58 character: " + input.charAt(i));
+                throw new SolanaRpcException(-1, "Invalid Base58 character: " + input.charAt(i));
             }
             bi = bi.multiply(BigInteger.valueOf(58)).add(BigInteger.valueOf(charIndex));
         }
@@ -186,7 +186,7 @@ class SolanaTransactionBuilder {
         System.arraycopy(raw, startIndex, result, leadingZeros, significantLength);
 
         if (result.length != PUBKEY_LENGTH) {
-            throw new IllegalArgumentException(
+            throw new SolanaRpcException(-1,
                     "Decoded Base58 key must be %d bytes, got %d".formatted(PUBKEY_LENGTH, result.length));
         }
         return result;
@@ -194,7 +194,7 @@ class SolanaTransactionBuilder {
 
     static byte[] encodeCompactU16(int value) {
         if (value < 0) {
-            throw new IllegalArgumentException("Compact-u16 value must be non-negative");
+            throw new SolanaRpcException(-1, "Compact-u16 value must be non-negative");
         }
         if (value < 0x80) {
             return new byte[]{(byte) value};
