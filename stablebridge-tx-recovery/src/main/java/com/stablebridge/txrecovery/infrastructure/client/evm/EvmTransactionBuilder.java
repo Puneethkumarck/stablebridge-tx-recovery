@@ -1,11 +1,9 @@
 package com.stablebridge.txrecovery.infrastructure.client.evm;
 
-import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.util.HexFormat;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -24,7 +22,6 @@ import lombok.extern.slf4j.Slf4j;
 class EvmTransactionBuilder {
 
     private static final BigDecimal GAS_LIMIT_SAFETY_MARGIN = new BigDecimal("1.2");
-    private static final int EIP_1559_TX_TYPE = 0x02;
     private static final String ZERO_VALUE = "0x0";
     private static final String TX_TYPE_HEX = "0x02";
 
@@ -49,9 +46,9 @@ class EvmTransactionBuilder {
         var maxFeePerGas = feeEstimate.maxFeePerGas().toBigIntegerExact();
         var maxPriorityFeePerGas = feeEstimate.maxPriorityFeePerGas().toBigIntegerExact();
 
-        var rlpPayload = encodeEip1559Transaction(
-                resource.nonce(), maxPriorityFeePerGas, maxFeePerGas, gasLimit,
-                intent.tokenContractAddress(), abiData);
+        var rlpPayload = EvmEncoding.encodeEip1559Transaction(
+                chainId, resource.nonce(), maxPriorityFeePerGas, maxFeePerGas, gasLimit,
+                intent.tokenContractAddress(), BigInteger.ZERO, abiData);
 
         var metadata = Map.of(
                 "nonce", String.valueOf(resource.nonce()),
@@ -82,45 +79,5 @@ class EvmTransactionBuilder {
             throw new IllegalArgumentException(
                     "maxPriorityFeePerGas (%s) exceeds maxFeePerGas (%s)".formatted(maxPriorityFee, maxFee));
         }
-    }
-
-    private static byte[] parseEvmAddress(String address) {
-        if (address == null || address.isBlank()) {
-            throw new IllegalArgumentException("EVM address must not be null or blank");
-        }
-        var hex = address.startsWith("0x") ? address.substring(2) : address;
-        var bytes = HexFormat.of().parseHex(hex);
-        if (bytes.length != 20) {
-            throw new IllegalArgumentException("EVM address must be 20 bytes, got " + bytes.length);
-        }
-        return bytes;
-    }
-
-    private byte[] encodeEip1559Transaction(
-            long nonce,
-            BigInteger maxPriorityFeePerGas,
-            BigInteger maxFeePerGas,
-            BigInteger gasLimit,
-            String to,
-            byte[] data) {
-        var toBytes = parseEvmAddress(to);
-
-        List<Object> fields = List.of(
-                BigInteger.valueOf(chainId),
-                BigInteger.valueOf(nonce),
-                maxPriorityFeePerGas,
-                maxFeePerGas,
-                gasLimit,
-                toBytes,
-                BigInteger.ZERO,
-                data,
-                List.of());
-
-        var rlpEncoded = RlpEncoder.encode(fields);
-
-        var output = new ByteArrayOutputStream(1 + rlpEncoded.length);
-        output.write(EIP_1559_TX_TYPE);
-        output.write(rlpEncoded, 0, rlpEncoded.length);
-        return output.toByteArray();
     }
 }

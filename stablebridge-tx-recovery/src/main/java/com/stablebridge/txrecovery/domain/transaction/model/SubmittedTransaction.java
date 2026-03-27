@@ -34,6 +34,6 @@ public record SubmittedTransaction(
         Objects.requireNonNull(intentId);
         Objects.requireNonNull(chain);
         Objects.requireNonNull(status);
-        recoveryHistory = recoveryHistory == null ? null : List.copyOf(recoveryHistory);
+        recoveryHistory = recoveryHistory == null ? List.of() : List.copyOf(recoveryHistory);
     }
 }

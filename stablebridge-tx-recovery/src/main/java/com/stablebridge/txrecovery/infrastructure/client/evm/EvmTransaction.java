@@ -3,7 +3,7 @@ package com.stablebridge.txrecovery.infrastructure.client.evm;
 import lombok.Builder;
 
 @Builder(toBuilder = true)
-record EvmTransaction(
+public record EvmTransaction(
         String hash,
         String nonce,
         String blockHash,

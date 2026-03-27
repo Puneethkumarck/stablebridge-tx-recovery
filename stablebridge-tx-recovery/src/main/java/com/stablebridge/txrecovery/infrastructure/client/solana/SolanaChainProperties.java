@@ -7,13 +7,13 @@ import java.util.Objects;
 import lombok.Builder;
 
 @Builder(toBuilder = true)
-record SolanaChainProperties(
+public record SolanaChainProperties(
         String chain,
         long maxPriorityFeeMicroLamports,
         Duration blockTime,
         List<String> programAddresses) {
 
-    SolanaChainProperties {
+    public SolanaChainProperties {
         Objects.requireNonNull(chain);
         Objects.requireNonNull(blockTime);
         Objects.requireNonNull(programAddresses);

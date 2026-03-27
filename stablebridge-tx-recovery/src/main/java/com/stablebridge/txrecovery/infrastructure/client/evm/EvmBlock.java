@@ -6,7 +6,7 @@ import java.util.Optional;
 import lombok.Builder;
 
 @Builder(toBuilder = true)
-record EvmBlock(
+public record EvmBlock(
         String number,
         String hash,
         String parentHash,
@@ -17,7 +17,7 @@ record EvmBlock(
         String miner,
         List<Object> transactions) {
 
-    EvmBlock {
+    public EvmBlock {
         transactions = Optional.ofNullable(transactions).map(List::copyOf).orElse(List.of());
     }
 }

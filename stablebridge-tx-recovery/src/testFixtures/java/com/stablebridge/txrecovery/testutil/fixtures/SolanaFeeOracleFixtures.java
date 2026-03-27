@@ -1,10 +1,13 @@
-package com.stablebridge.txrecovery.infrastructure.client.solana;
+package com.stablebridge.txrecovery.testutil.fixtures;
 
 import static lombok.AccessLevel.PRIVATE;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.stream.IntStream;
+
+import com.stablebridge.txrecovery.infrastructure.client.solana.SolanaChainProperties;
+import com.stablebridge.txrecovery.infrastructure.client.solana.SolanaPrioritizationFee;
 
 import lombok.NoArgsConstructor;
 

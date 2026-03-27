@@ -7,18 +7,18 @@ import java.util.Objects;
 import lombok.Builder;
 
 @Builder(toBuilder = true)
-record EvmChainProperties(
+public record EvmChainProperties(
         String chain,
         BigDecimal maxFeeCapGwei,
         Duration blockTime) {
 
-    EvmChainProperties {
+    public EvmChainProperties {
         Objects.requireNonNull(chain);
         Objects.requireNonNull(maxFeeCapGwei);
         Objects.requireNonNull(blockTime);
     }
 
-    BigDecimal maxFeeCapWei() {
+    public BigDecimal maxFeeCapWei() {
         return maxFeeCapGwei.multiply(BigDecimal.valueOf(1_000_000_000L));
     }
 }

@@ -34,6 +34,8 @@ import com.stablebridge.txrecovery.infrastructure.client.evm.EvmRpcClient;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 @Testcontainers
 class RedisNonceManagerIntegrationTest {
@@ -59,6 +61,9 @@ class RedisNonceManagerIntegrationTest {
         connectionFactory.afterPropertiesSet();
         redisTemplate = new StringRedisTemplate(connectionFactory);
         meterRegistry = new SimpleMeterRegistry();
+        var objectMapper = JsonMapper.builder()
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .build();
         var evmRpcClient = new EvmRpcClient(
                 SOME_CHAIN,
                 List.of(wireMockServer.baseUrl()),
@@ -66,7 +71,8 @@ class RedisNonceManagerIntegrationTest {
                 100,
                 100,
                 CircuitBreakerRegistry.ofDefaults(),
-                RateLimiterRegistry.ofDefaults());
+                RateLimiterRegistry.ofDefaults(),
+                objectMapper);
         var onChainNonceProvider = new EvmOnChainNonceProvider(Map.of(SOME_CHAIN, evmRpcClient));
         nonceManager = new RedisNonceManager(redisTemplate, onChainNonceProvider, meterRegistry);
     }

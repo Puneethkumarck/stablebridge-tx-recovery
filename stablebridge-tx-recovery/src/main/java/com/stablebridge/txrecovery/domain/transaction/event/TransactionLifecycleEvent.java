@@ -28,6 +28,6 @@ public record TransactionLifecycleEvent(
         Objects.requireNonNull(chain);
         Objects.requireNonNull(status);
         Objects.requireNonNull(timestamp);
-        metadata = metadata == null ? null : Map.copyOf(metadata);
+        metadata = metadata == null ? Map.of() : Map.copyOf(metadata);
     }
 }

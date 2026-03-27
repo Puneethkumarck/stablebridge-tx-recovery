@@ -21,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.stablebridge.txrecovery.domain.address.model.AddressTier;
 import com.stablebridge.txrecovery.domain.address.port.NonceAccountPoolRepository;
 import com.stablebridge.txrecovery.domain.address.port.PoolExhaustedAlertPublisher;
 import com.stablebridge.txrecovery.domain.exception.NoAvailableAddressException;
@@ -94,9 +95,9 @@ class SolanaSubmissionResourceManagerTest {
             assertThatThrownBy(() -> resourceManager.acquire(intent))
                     .isInstanceOf(NoAvailableAddressException.class)
                     .hasMessageContaining(SOME_CHAIN)
-                    .hasMessageContaining("NONCE_ACCOUNT");
+                    .hasMessageContaining("HOT");
 
-            then(poolExhaustedAlertPublisher).should().publish(SOME_CHAIN, "NONCE_ACCOUNT");
+            then(poolExhaustedAlertPublisher).should().publish(SOME_CHAIN, AddressTier.HOT);
         }
 
         @Test
@@ -136,7 +137,7 @@ class SolanaSubmissionResourceManagerTest {
             resourceManager.acquire(intent);
 
             // then
-            then(poolExhaustedAlertPublisher).should().publish(SOME_CHAIN, "NONCE_ACCOUNT");
+            then(poolExhaustedAlertPublisher).should().publish(SOME_CHAIN, AddressTier.HOT);
         }
     }
 

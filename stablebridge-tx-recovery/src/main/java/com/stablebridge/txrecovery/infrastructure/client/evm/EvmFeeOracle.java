@@ -1,7 +1,6 @@
 package com.stablebridge.txrecovery.infrastructure.client.evm;
 
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.List;
@@ -128,7 +127,7 @@ class EvmFeeOracle implements FeeOracle {
         if (baseFees.isEmpty()) {
             throw new EvmRpcException("Fee history returned empty baseFeePerGas");
         }
-        return new BigDecimal(decodeQuantity(baseFees.getLast()));
+        return new BigDecimal(EvmHex.decodeQuantity(baseFees.getLast()));
     }
 
     BigDecimal medianRewardForPercentile(EvmFeeHistory feeHistory, int percentileIndex) {
@@ -139,7 +138,7 @@ class EvmFeeOracle implements FeeOracle {
 
         var values = rewards.stream()
                 .filter(r -> r.size() > percentileIndex)
-                .map(r -> new BigDecimal(decodeQuantity(r.get(percentileIndex))))
+                .map(r -> new BigDecimal(EvmHex.decodeQuantity(r.get(percentileIndex))))
                 .sorted()
                 .toList();
 
@@ -203,15 +202,7 @@ class EvmFeeOracle implements FeeOracle {
         if (hex == null) {
             return BigDecimal.ZERO;
         }
-        return new BigDecimal(decodeQuantity(hex));
-    }
-
-    private static BigInteger decodeQuantity(String hex) {
-        if (hex == null) {
-            throw new EvmRpcException("Cannot decode null hex quantity");
-        }
-        var stripped = hex.startsWith("0x") ? hex.substring(2) : hex;
-        return new BigInteger(stripped, 16);
+        return new BigDecimal(EvmHex.decodeQuantity(hex));
     }
 
     private Optional<FeeEstimate> readFromCache(String chain, FeeUrgency urgency) {

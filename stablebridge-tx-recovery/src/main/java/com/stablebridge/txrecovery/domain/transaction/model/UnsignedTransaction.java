@@ -25,6 +25,6 @@ public record UnsignedTransaction(
         Objects.requireNonNull(payload);
         Objects.requireNonNull(feeEstimate);
         payload = payload.clone();
-        metadata = metadata == null ? null : Map.copyOf(metadata);
+        metadata = metadata == null ? Map.of() : Map.copyOf(metadata);
     }
 }

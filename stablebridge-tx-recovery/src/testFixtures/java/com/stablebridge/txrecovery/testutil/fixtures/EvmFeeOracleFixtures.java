@@ -1,10 +1,15 @@
-package com.stablebridge.txrecovery.infrastructure.client.evm;
+package com.stablebridge.txrecovery.testutil.fixtures;
 
 import static lombok.AccessLevel.PRIVATE;
 
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
+
+import com.stablebridge.txrecovery.infrastructure.client.evm.EvmChainProperties;
+import com.stablebridge.txrecovery.infrastructure.client.evm.EvmFeeHistory;
+import com.stablebridge.txrecovery.infrastructure.client.evm.EvmFeeOracleFactory;
+import com.stablebridge.txrecovery.infrastructure.client.evm.EvmTransaction;
 
 import lombok.NoArgsConstructor;
 

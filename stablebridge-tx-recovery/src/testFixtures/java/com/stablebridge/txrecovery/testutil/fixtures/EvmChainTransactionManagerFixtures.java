@@ -1,8 +1,11 @@
-package com.stablebridge.txrecovery.infrastructure.client.evm;
+package com.stablebridge.txrecovery.testutil.fixtures;
 
 import static lombok.AccessLevel.PRIVATE;
 
 import com.stablebridge.txrecovery.domain.transaction.model.SignedTransaction;
+import com.stablebridge.txrecovery.infrastructure.client.evm.EvmBlock;
+import com.stablebridge.txrecovery.infrastructure.client.evm.EvmReceipt;
+import com.stablebridge.txrecovery.infrastructure.client.evm.EvmTransaction;
 
 import lombok.NoArgsConstructor;
 

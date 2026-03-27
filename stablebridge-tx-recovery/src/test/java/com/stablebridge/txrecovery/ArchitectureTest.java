@@ -51,11 +51,20 @@ class ArchitectureTest {
             .allowEmptyShould(true);
 
     @ArchTest
-    static final ArchRule infrastructureMustNotDependOnControllers = noClasses()
+    static final ArchRule applicationMustNotDependOnInfrastructure = noClasses()
+            .that()
+            .resideInAPackage("..application..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("..infrastructure..")
+            .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchRule infrastructureMustNotDependOnApplication = noClasses()
             .that()
             .resideInAPackage("..infrastructure..")
             .should()
             .dependOnClassesThat()
-            .resideInAPackage("..application.controller..")
+            .resideInAPackage("..application..")
             .allowEmptyShould(true);
 }

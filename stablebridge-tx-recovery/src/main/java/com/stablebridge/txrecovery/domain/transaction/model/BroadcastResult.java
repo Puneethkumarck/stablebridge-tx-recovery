@@ -17,6 +17,6 @@ public record BroadcastResult(
         Objects.requireNonNull(txHash);
         Objects.requireNonNull(chain);
         Objects.requireNonNull(broadcastedAt);
-        details = details == null ? null : Map.copyOf(details);
+        details = details == null ? Map.of() : Map.copyOf(details);
     }
 }
