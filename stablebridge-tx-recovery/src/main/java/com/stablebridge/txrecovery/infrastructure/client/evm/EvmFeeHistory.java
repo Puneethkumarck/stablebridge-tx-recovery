@@ -1,6 +1,7 @@
 package com.stablebridge.txrecovery.infrastructure.client.evm;
 
 import java.util.List;
+import java.util.Optional;
 
 record EvmFeeHistory(
         String oldestBlock,
@@ -9,10 +10,14 @@ record EvmFeeHistory(
         List<List<String>> reward) {
 
     EvmFeeHistory {
-        baseFeePerGas = baseFeePerGas == null ? List.of() : List.copyOf(baseFeePerGas);
-        gasUsedRatio = gasUsedRatio == null ? List.of() : List.copyOf(gasUsedRatio);
-        reward = reward == null ? List.of() : reward.stream()
-                .map(inner -> inner == null ? List.<String>of() : List.copyOf(inner))
-                .toList();
+        baseFeePerGas = Optional.ofNullable(baseFeePerGas).map(List::copyOf).orElse(List.of());
+        gasUsedRatio = Optional.ofNullable(gasUsedRatio).map(List::copyOf).orElse(List.of());
+        reward = Optional.ofNullable(reward)
+                .map(r -> r.stream()
+                        .map(inner -> Optional.ofNullable(inner)
+                                .map(List::copyOf)
+                                .orElse(List.of()))
+                        .toList())
+                .orElse(List.of());
     }
 }

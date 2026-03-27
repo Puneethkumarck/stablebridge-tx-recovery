@@ -5,6 +5,7 @@ import static com.stablebridge.txrecovery.infrastructure.stream.KafkaTransaction
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.admin.AdminClientConfig;
@@ -64,7 +65,7 @@ public class KafkaConfig {
     @Bean
     KafkaAdmin.NewTopics chainTopics(
             @Value("${str.kafka.enabled-chains:}") List<String> enabledChains) {
-        var chains = enabledChains.stream().filter(s -> !s.isBlank()).toList();
+        var chains = enabledChains.stream().filter(Predicate.not(String::isBlank)).toList();
 
         var topics = chains.stream()
                 .flatMap(chain -> Stream.of(buildEventTopic(chain), buildDlqTopic(chain)))

@@ -1,5 +1,7 @@
 package com.stablebridge.txrecovery.infrastructure.stream;
 
+import java.util.Optional;
+
 import org.springframework.kafka.core.KafkaTemplate;
 
 import com.stablebridge.txrecovery.domain.exception.EventSerializationException;
@@ -47,7 +49,7 @@ public class KafkaTransactionEventPublisher implements TransactionEventPublisher
     }
 
     private String resolveKey(TransactionLifecycleEvent event) {
-        return event.toAddress() != null ? event.toAddress() : event.intentId();
+        return Optional.ofNullable(event.toAddress()).orElseGet(event::intentId);
     }
 
     private String resolveTopic(String chain) {

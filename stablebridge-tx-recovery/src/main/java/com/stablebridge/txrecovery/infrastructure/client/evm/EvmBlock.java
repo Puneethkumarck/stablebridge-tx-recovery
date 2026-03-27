@@ -1,6 +1,7 @@
 package com.stablebridge.txrecovery.infrastructure.client.evm;
 
 import java.util.List;
+import java.util.Optional;
 
 record EvmBlock(
         String number,
@@ -14,6 +15,6 @@ record EvmBlock(
         List<Object> transactions) {
 
     EvmBlock {
-        transactions = transactions == null ? List.of() : List.copyOf(transactions);
+        transactions = Optional.ofNullable(transactions).map(List::copyOf).orElse(List.of());
     }
 }

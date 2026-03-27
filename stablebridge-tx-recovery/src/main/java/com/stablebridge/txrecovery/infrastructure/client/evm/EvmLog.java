@@ -1,6 +1,7 @@
 package com.stablebridge.txrecovery.infrastructure.client.evm;
 
 import java.util.List;
+import java.util.Optional;
 
 record EvmLog(
         String address,
@@ -14,6 +15,6 @@ record EvmLog(
         boolean removed) {
 
     EvmLog {
-        topics = topics == null ? List.of() : List.copyOf(topics);
+        topics = Optional.ofNullable(topics).map(List::copyOf).orElse(List.of());
     }
 }
