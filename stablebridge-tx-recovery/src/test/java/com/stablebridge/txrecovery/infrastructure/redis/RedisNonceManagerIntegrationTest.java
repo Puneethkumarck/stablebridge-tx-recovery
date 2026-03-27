@@ -31,6 +31,7 @@ import com.stablebridge.txrecovery.infrastructure.client.evm.EvmRpcClient;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 @Testcontainers
 class RedisNonceManagerIntegrationTest {
@@ -44,6 +45,7 @@ class RedisNonceManagerIntegrationTest {
 
     private WireMockServer wireMockServer;
     private StringRedisTemplate redisTemplate;
+    private SimpleMeterRegistry meterRegistry;
     private RedisNonceManager nonceManager;
 
     @BeforeEach
@@ -54,6 +56,7 @@ class RedisNonceManagerIntegrationTest {
         var connectionFactory = new LettuceConnectionFactory(redisConfig);
         connectionFactory.afterPropertiesSet();
         redisTemplate = new StringRedisTemplate(connectionFactory);
+        meterRegistry = new SimpleMeterRegistry();
         var evmRpcClient = new EvmRpcClient(
                 SOME_CHAIN,
                 List.of(wireMockServer.baseUrl()),
@@ -62,7 +65,7 @@ class RedisNonceManagerIntegrationTest {
                 100,
                 CircuitBreakerRegistry.ofDefaults(),
                 RateLimiterRegistry.ofDefaults());
-        nonceManager = new RedisNonceManager(redisTemplate, evmRpcClient);
+        nonceManager = new RedisNonceManager(redisTemplate, evmRpcClient, meterRegistry);
     }
 
     @AfterEach
@@ -272,6 +275,7 @@ class RedisNonceManagerIntegrationTest {
             // given
             stubJsonRpcResponse(wireMockServer, "eth_getTransactionCount", "\"0x0\"");
             var threadCount = 10;
+            var startGate = new CountDownLatch(1);
             var latch = new CountDownLatch(threadCount);
             var allocations = new CopyOnWriteArrayList<NonceAllocation>();
             var exceptions = new CopyOnWriteArrayList<Exception>();
@@ -281,14 +285,19 @@ class RedisNonceManagerIntegrationTest {
                 for (var i = 0; i < threadCount; i++) {
                     executor.submit(() -> {
                         try {
+                            startGate.await();
                             allocations.add(nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN));
                         } catch (NonceConcurrencyException e) {
+                            exceptions.add(e);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
                             exceptions.add(e);
                         } finally {
                             latch.countDown();
                         }
                     });
                 }
+                startGate.countDown();
                 latch.await();
             }
 

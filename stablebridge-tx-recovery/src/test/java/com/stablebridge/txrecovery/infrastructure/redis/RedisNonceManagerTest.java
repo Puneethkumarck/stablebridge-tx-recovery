@@ -18,15 +18,19 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 
 import com.stablebridge.txrecovery.domain.exception.NonceConcurrencyException;
 import com.stablebridge.txrecovery.infrastructure.client.evm.EvmRpcClient;
+
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 @ExtendWith(MockitoExtension.class)
 class RedisNonceManagerTest {
@@ -36,11 +40,13 @@ class RedisNonceManagerTest {
     @Mock private HashOperations<String, Object, Object> hashOperations;
     @Mock private SetOperations<String, String> setOperations;
 
+    private SimpleMeterRegistry meterRegistry;
     private RedisNonceManager nonceManager;
 
     @BeforeEach
     void setUp() {
-        nonceManager = new RedisNonceManager(redisTemplate, evmRpcClient);
+        meterRegistry = new SimpleMeterRegistry();
+        nonceManager = new RedisNonceManager(redisTemplate, evmRpcClient, meterRegistry);
     }
 
     @Nested
@@ -110,34 +116,26 @@ class RedisNonceManagerTest {
     @Nested
     class Confirm {
 
+        @SuppressWarnings("rawtypes")
+        private final ArgumentCaptor<RedisScript> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
+
+        @SuppressWarnings("rawtypes")
+        private final ArgumentCaptor<List> keysCaptor = ArgumentCaptor.forClass(List.class);
+
+        private final ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
+
         @Test
-        @SuppressWarnings("unchecked")
-        void shouldUpdateConfirmedFieldAndRemoveFromInflight() {
+        void shouldExecuteLuaScriptWithCorrectKeysAndArgs() {
             // given
             var allocation = someAllocation(10L);
-            given(redisTemplate.execute(org.mockito.ArgumentMatchers.<SessionCallback<List<Object>>>any()))
-                    .willReturn(List.of(true, 1L));
 
             // when
             nonceManager.confirm(allocation);
 
             // then
-            then(redisTemplate).should().execute(org.mockito.ArgumentMatchers.<SessionCallback<List<Object>>>any());
-        }
-
-        @Test
-        @SuppressWarnings("unchecked")
-        void shouldUpdateConfirmedWhenNoConfirmedFieldExists() {
-            // given
-            var allocation = someAllocation(0L);
-            given(redisTemplate.execute(org.mockito.ArgumentMatchers.<SessionCallback<List<Object>>>any()))
-                    .willReturn(List.of(true, 1L));
-
-            // when
-            nonceManager.confirm(allocation);
-
-            // then
-            then(redisTemplate).should().execute(org.mockito.ArgumentMatchers.<SessionCallback<List<Object>>>any());
+            then(redisTemplate).should().execute(scriptCaptor.capture(), keysCaptor.capture(), argsCaptor.capture());
+            assertThat(keysCaptor.getValue()).containsExactly(SOME_HASH_KEY, SOME_INFLIGHT_KEY);
+            assertThat(argsCaptor.getValue()).containsExactly("10");
         }
     }
 
@@ -160,7 +158,7 @@ class RedisNonceManagerTest {
         }
 
         @Test
-        void shouldResetToZeroWhenOnChainNonceIsZero() {
+        void shouldResetToMinusOneWhenOnChainNonceIsZero() {
             // given
             given(evmRpcClient.getTransactionCount(SOME_ADDRESS, "latest")).willReturn(BigInteger.ZERO);
             given(redisTemplate.opsForHash()).willReturn(hashOperations);
@@ -169,8 +167,8 @@ class RedisNonceManagerTest {
             nonceManager.syncFromChain(SOME_ADDRESS, SOME_CHAIN);
 
             // then
-            then(hashOperations).should().put(SOME_HASH_KEY, "allocated", "0");
-            then(hashOperations).should().put(SOME_HASH_KEY, "confirmed", "0");
+            then(hashOperations).should().put(SOME_HASH_KEY, "allocated", "-1");
+            then(hashOperations).should().put(SOME_HASH_KEY, "confirmed", "-1");
             then(redisTemplate).should().delete(SOME_INFLIGHT_KEY);
         }
     }
@@ -190,6 +188,7 @@ class RedisNonceManagerTest {
 
             // then
             assertThat(result).containsExactlyInAnyOrder(5L, 7L);
+            assertThat(meterRegistry.counter(RedisNonceManager.GAPS_COUNTER_NAME).count()).isEqualTo(2.0);
         }
 
         @Test
@@ -204,6 +203,7 @@ class RedisNonceManagerTest {
 
             // then
             assertThat(result).isEmpty();
+            assertThat(meterRegistry.counter(RedisNonceManager.GAPS_COUNTER_NAME).count()).isZero();
         }
 
         @Test
