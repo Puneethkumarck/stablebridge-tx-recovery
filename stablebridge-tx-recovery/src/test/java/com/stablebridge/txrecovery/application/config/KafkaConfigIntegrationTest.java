@@ -22,7 +22,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 
-import com.stablebridge.txrecovery.domain.address.port.NonceManager;
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionEventPublisher;
 import com.stablebridge.txrecovery.testutil.KafkaTest;
 import com.stablebridge.txrecovery.testutil.PostgresContainerExtension;
@@ -44,10 +43,6 @@ class KafkaConfigIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    @org.springframework.test.context.bean.override.mockito.MockitoBean
-    @SuppressWarnings("unused")
-    private NonceManager nonceManager;
 
     @Test
     void shouldInjectKafkaTemplate() {
