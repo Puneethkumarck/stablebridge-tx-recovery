@@ -12,6 +12,10 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
+import com.stablebridge.txrecovery.domain.address.model.AddressTier;
+import com.stablebridge.txrecovery.domain.address.model.ChainFamily;
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -32,14 +36,16 @@ class AddressPoolEntity {
     private String chain;
 
     @Column(name = "chain_family", nullable = false)
-    private String chainFamily;
-
-    @Column(nullable = false)
-    private String tier;
+    @Enumerated(EnumType.STRING)
+    private ChainFamily chainFamily;
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    private com.stablebridge.txrecovery.domain.address.model.AddressStatus status;
+    private AddressTier tier;
+
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private AddressStatus status;
 
     @Column(name = "signer_endpoint")
     private String signerEndpoint;

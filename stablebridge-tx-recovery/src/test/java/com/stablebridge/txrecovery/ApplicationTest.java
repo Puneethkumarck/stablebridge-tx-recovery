@@ -6,6 +6,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.stablebridge.txrecovery.domain.address.port.AddressPoolRepository;
 import com.stablebridge.txrecovery.domain.address.port.NonceManager;
+import com.stablebridge.txrecovery.domain.address.port.PoolExhaustedAlertPublisher;
 
 @SpringBootTest
 class ApplicationTest {
@@ -15,6 +16,9 @@ class ApplicationTest {
 
     @MockitoBean
     private NonceManager nonceManager;
+
+    @MockitoBean
+    private PoolExhaustedAlertPublisher poolExhaustedAlertPublisher;
 
     @Test
     void contextLoads() {

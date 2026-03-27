@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
+import com.stablebridge.txrecovery.domain.address.model.AddressTier;
 
 interface AddressPoolJpaRepository extends JpaRepository<AddressPoolEntity, UUID> {
 
@@ -22,7 +23,7 @@ interface AddressPoolJpaRepository extends JpaRepository<AddressPoolEntity, UUID
             LIMIT 1
             """)
     Optional<AddressPoolEntity> findBestCandidate(
-            String chain, String tier, AddressStatus status, int maxInFlight);
+            String chain, AddressTier tier, AddressStatus status, int maxInFlight);
 
     @Modifying
     @Query("""

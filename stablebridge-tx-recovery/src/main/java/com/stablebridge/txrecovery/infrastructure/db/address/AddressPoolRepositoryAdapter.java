@@ -3,7 +3,7 @@ package com.stablebridge.txrecovery.infrastructure.db.address;
 import java.time.Instant;
 import java.util.Optional;
 
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
@@ -13,7 +13,7 @@ import com.stablebridge.txrecovery.domain.address.port.AddressPoolRepository;
 
 import lombok.RequiredArgsConstructor;
 
-@Component
+@Repository
 @RequiredArgsConstructor
 class AddressPoolRepositoryAdapter implements AddressPoolRepository {
 
@@ -24,7 +24,7 @@ class AddressPoolRepositoryAdapter implements AddressPoolRepository {
     @Transactional(readOnly = true)
     public Optional<PooledAddress> findBestCandidate(
             String chain, AddressTier tier, AddressStatus status, int maxInFlight) {
-        return jpaRepository.findBestCandidate(chain, tier.name(), status, maxInFlight)
+        return jpaRepository.findBestCandidate(chain, tier, status, maxInFlight)
                 .map(mapper::toDomain);
     }
 
