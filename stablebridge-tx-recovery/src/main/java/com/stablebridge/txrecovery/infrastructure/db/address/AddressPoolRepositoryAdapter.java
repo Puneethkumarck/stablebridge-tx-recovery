@@ -21,7 +21,7 @@ class AddressPoolRepositoryAdapter implements AddressPoolRepository {
     private final AddressPoolEntityMapper mapper;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public Optional<PooledAddress> findBestCandidate(
             String chain, AddressTier tier, AddressStatus status, int maxInFlight) {
         return jpaRepository.findBestCandidate(chain, tier, status, maxInFlight)

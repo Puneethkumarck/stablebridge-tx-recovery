@@ -120,7 +120,8 @@ public class SolanaRpcClient {
                 lastException = e;
             }
         }
-        throw lastException;
+        throw new SolanaRpcException(
+                "All Solana RPC endpoints exhausted", lastException);
     }
 
     private <T> T executeRequest(
@@ -153,6 +154,9 @@ public class SolanaRpcClient {
             return rpcResponse.result();
         } catch (SolanaRpcException e) {
             throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new SolanaRpcException("RPC call interrupted for " + endpoint, e);
         } catch (Exception e) {
             throw new SolanaRpcException("RPC call failed: " + rpcRequest.method(), e);
         }

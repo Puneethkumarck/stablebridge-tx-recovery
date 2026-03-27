@@ -25,6 +25,8 @@ class EvmChainTransactionManager implements ChainTransactionManager {
 
     private static final String ALREADY_KNOWN = "already known";
     private static final String NONCE_TOO_LOW = "nonce too low";
+    private static final int PENDING_MAP_MAX_SIZE = 10_000;
+    private static final long PENDING_MAP_EVICTION_BLOCKS = 7_200L;
 
     private final EvmRpcClient rpcClient;
     private final EvmTransactionBuilder transactionBuilder;
@@ -119,6 +121,7 @@ class EvmChainTransactionManager implements ChainTransactionManager {
             return TransactionStatus.PENDING;
         }
         var currentBlockNum = decodeBlockNumber(currentBlock.number());
+        evictStaleEntries(currentBlockNum);
         var firstSeen = pendingFirstSeen.computeIfAbsent(txHash, _ -> currentBlockNum);
         var blocksSinceSeen = currentBlockNum - firstSeen;
 
@@ -127,6 +130,14 @@ class EvmChainTransactionManager implements ChainTransactionManager {
         }
 
         return TransactionStatus.PENDING;
+    }
+
+    private void evictStaleEntries(long currentBlockNum) {
+        if (pendingFirstSeen.size() <= PENDING_MAP_MAX_SIZE) {
+            return;
+        }
+        pendingFirstSeen.entrySet().removeIf(
+                entry -> (currentBlockNum - entry.getValue()) > PENDING_MAP_EVICTION_BLOCKS);
     }
 
     private void validateChain(String chain) {

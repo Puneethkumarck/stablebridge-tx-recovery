@@ -14,7 +14,6 @@ public record SolanaNonceAccount(
     public SolanaNonceAccount {
         Objects.requireNonNull(nonceAccountAddress);
         Objects.requireNonNull(authorityAddress);
-        Objects.requireNonNull(nonceValue);
         Objects.requireNonNull(status);
     }
 }

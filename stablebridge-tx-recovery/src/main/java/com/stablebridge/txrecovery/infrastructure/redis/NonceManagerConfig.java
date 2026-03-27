@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import com.stablebridge.txrecovery.domain.address.port.NonceManager;
-import com.stablebridge.txrecovery.infrastructure.client.evm.EvmRpcClient;
+import com.stablebridge.txrecovery.domain.address.port.OnChainNonceProvider;
 
 import io.micrometer.core.instrument.MeterRegistry;
 
@@ -19,8 +19,8 @@ public class NonceManagerConfig {
     @Bean
     NonceManager nonceManager(
             StringRedisTemplate stringRedisTemplate,
-            EvmRpcClient evmRpcClient,
+            OnChainNonceProvider onChainNonceProvider,
             MeterRegistry meterRegistry) {
-        return new RedisNonceManager(stringRedisTemplate, evmRpcClient, meterRegistry);
+        return new RedisNonceManager(stringRedisTemplate, onChainNonceProvider, meterRegistry);
     }
 }

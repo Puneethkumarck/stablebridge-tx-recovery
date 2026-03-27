@@ -24,4 +24,11 @@ public final class SolanaNonceAccountFixtures {
     public static final SolanaNonceAccount SOME_IN_USE_NONCE_ACCOUNT = SOME_AVAILABLE_NONCE_ACCOUNT.toBuilder()
             .status(NonceAccountStatus.IN_USE)
             .build();
+
+    public static final SolanaNonceAccount SOME_REGISTERED_NONCE_ACCOUNT = SolanaNonceAccount.builder()
+            .nonceAccountAddress(SOME_NONCE_ACCOUNT_ADDRESS)
+            .authorityAddress(SOME_AUTHORITY_ADDRESS)
+            .nonceValue(null)
+            .status(NonceAccountStatus.AVAILABLE)
+            .build();
 }

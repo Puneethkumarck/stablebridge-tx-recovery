@@ -41,10 +41,10 @@ class EvmFeeOracleFactoryTest {
     }
 
     @Nested
-    class CreateAll {
+    class CreateRpcClients {
 
         @Test
-        void shouldCreateOracleForEachChainInput() {
+        void shouldCreateClientForEachChainInput() {
             // given
             var factory = new EvmFeeOracleFactory(
                     List.of(SOME_ETHEREUM_CHAIN_INPUT, SOME_BASE_CHAIN_INPUT, SOME_POLYGON_CHAIN_INPUT),
@@ -54,7 +54,7 @@ class EvmFeeOracleFactoryTest {
                     rateLimiterRegistry);
 
             // when
-            var result = factory.createAll();
+            var result = factory.createRpcClients();
 
             // then
             assertThat(result).hasSize(3).containsKeys("ethereum", "base", "polygon");
@@ -71,7 +71,7 @@ class EvmFeeOracleFactoryTest {
                     rateLimiterRegistry);
 
             // when
-            var result = factory.createAll();
+            var result = factory.createRpcClients();
 
             // then
             assertThat(result).isUnmodifiable();
@@ -88,10 +88,50 @@ class EvmFeeOracleFactoryTest {
                     rateLimiterRegistry);
 
             // when
-            var result = factory.createAll();
+            var result = factory.createRpcClients();
 
             // then
             assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
+    class CreateOracles {
+
+        @Test
+        void shouldCreateOracleForEachChainInput() {
+            // given
+            var factory = new EvmFeeOracleFactory(
+                    List.of(SOME_ETHEREUM_CHAIN_INPUT, SOME_BASE_CHAIN_INPUT, SOME_POLYGON_CHAIN_INPUT),
+                    redisTemplate,
+                    objectMapper,
+                    circuitBreakerRegistry,
+                    rateLimiterRegistry);
+            var rpcClients = factory.createRpcClients();
+
+            // when
+            var result = factory.createOracles(rpcClients);
+
+            // then
+            assertThat(result).hasSize(3).containsKeys("ethereum", "base", "polygon");
+        }
+
+        @Test
+        void shouldReturnImmutableMap() {
+            // given
+            var factory = new EvmFeeOracleFactory(
+                    List.of(SOME_ETHEREUM_CHAIN_INPUT),
+                    redisTemplate,
+                    objectMapper,
+                    circuitBreakerRegistry,
+                    rateLimiterRegistry);
+            var rpcClients = factory.createRpcClients();
+
+            // when
+            var result = factory.createOracles(rpcClients);
+
+            // then
+            assertThat(result).isUnmodifiable();
         }
 
         @Test
@@ -103,9 +143,10 @@ class EvmFeeOracleFactoryTest {
                     objectMapper,
                     circuitBreakerRegistry,
                     rateLimiterRegistry);
+            var rpcClients = factory.createRpcClients();
 
             // when
-            var result = factory.createAll();
+            var result = factory.createOracles(rpcClients);
 
             // then
             result.forEach((chain, oracle) ->
