@@ -288,6 +288,47 @@ class EvmTransactionBuilderTest {
         }
 
         @Test
+        void shouldRejectNegativeMaxFeePerGas() {
+            // given
+            var badFeeEstimate = FeeEstimate.builder()
+                    .maxFeePerGas(new BigDecimal("-1000000000"))
+                    .maxPriorityFeePerGas(SOME_MAX_PRIORITY_FEE_PER_GAS)
+                    .estimatedCost(SOME_ESTIMATED_COST)
+                    .denomination(SOME_DENOMINATION)
+                    .urgency(FeeUrgency.MEDIUM)
+                    .build();
+
+            given(feeOracle.estimate(SOME_CHAIN, FeeUrgency.MEDIUM)).willReturn(badFeeEstimate);
+
+            // when / then
+            assertThatThrownBy(() -> builder.build(someTransactionIntent(), someEvmSubmissionResource()))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("non-negative");
+        }
+
+        @Test
+        void shouldRejectFractionalWeiInMaxFeePerGas() {
+            // given
+            var badFeeEstimate = FeeEstimate.builder()
+                    .maxFeePerGas(new BigDecimal("3000000000.5"))
+                    .maxPriorityFeePerGas(SOME_MAX_PRIORITY_FEE_PER_GAS)
+                    .estimatedCost(SOME_ESTIMATED_COST)
+                    .denomination(SOME_DENOMINATION)
+                    .urgency(FeeUrgency.MEDIUM)
+                    .build();
+
+            var abiData = Erc20AbiEncoder.encodeTransfer(SOME_TO_ADDRESS, SOME_RAW_AMOUNT);
+            var dataHex = "0x" + HexFormat.of().formatHex(abiData);
+            given(feeOracle.estimate(SOME_CHAIN, FeeUrgency.MEDIUM)).willReturn(badFeeEstimate);
+            given(rpcClient.estimateGas(SOME_FROM_ADDRESS, SOME_TOKEN_CONTRACT, dataHex, "0x0"))
+                    .willReturn(SOME_ESTIMATED_GAS);
+
+            // when / then
+            assertThatThrownBy(() -> builder.build(someTransactionIntent(), someEvmSubmissionResource()))
+                    .isInstanceOf(ArithmeticException.class);
+        }
+
+        @Test
         void shouldRejectPriorityFeeExceedingMaxFee() {
             // given
             var badFeeEstimate = FeeEstimate.builder()
