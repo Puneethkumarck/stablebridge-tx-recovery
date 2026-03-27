@@ -2,8 +2,11 @@ package com.stablebridge.txrecovery.infrastructure.client.evm;
 
 import static com.stablebridge.txrecovery.testutil.fixtures.EvmTransactionFixtures.SOME_CHAIN;
 import static com.stablebridge.txrecovery.testutil.fixtures.EvmTransactionFixtures.SOME_CHAIN_ID;
+import static com.stablebridge.txrecovery.testutil.fixtures.EvmTransactionFixtures.SOME_DENOMINATION;
+import static com.stablebridge.txrecovery.testutil.fixtures.EvmTransactionFixtures.SOME_ESTIMATED_COST;
 import static com.stablebridge.txrecovery.testutil.fixtures.EvmTransactionFixtures.SOME_ESTIMATED_GAS;
 import static com.stablebridge.txrecovery.testutil.fixtures.EvmTransactionFixtures.SOME_FROM_ADDRESS;
+import static com.stablebridge.txrecovery.testutil.fixtures.EvmTransactionFixtures.SOME_MAX_PRIORITY_FEE_PER_GAS;
 import static com.stablebridge.txrecovery.testutil.fixtures.EvmTransactionFixtures.SOME_RAW_AMOUNT;
 import static com.stablebridge.txrecovery.testutil.fixtures.EvmTransactionFixtures.SOME_TOKEN_CONTRACT;
 import static com.stablebridge.txrecovery.testutil.fixtures.EvmTransactionFixtures.SOME_TO_ADDRESS;
@@ -11,9 +14,11 @@ import static com.stablebridge.txrecovery.testutil.fixtures.EvmTransactionFixtur
 import static com.stablebridge.txrecovery.testutil.fixtures.EvmTransactionFixtures.someFeeEstimate;
 import static com.stablebridge.txrecovery.testutil.fixtures.EvmTransactionFixtures.someTransactionIntent;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.HexFormat;
 import java.util.List;
@@ -26,6 +31,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.stablebridge.txrecovery.domain.recovery.model.FeeEstimate;
 import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
 import com.stablebridge.txrecovery.domain.recovery.port.FeeOracle;
 import com.stablebridge.txrecovery.domain.transaction.model.UnsignedTransaction;
@@ -212,6 +218,92 @@ class EvmTransactionBuilderTest {
             var result = RlpEncoder.encode(items);
 
             assertThat(result).isEqualTo(new byte[] {(byte) 0xc2, 0x01, 0x02});
+        }
+    }
+
+    @Nested
+    class InputValidation {
+
+        @Test
+        void shouldRejectAddressShorterThan20Bytes() {
+            // given
+            var shortAddress = "0x1234567890abcdef1234567890abcdef1234"; // 19 bytes
+
+            // when / then
+            assertThatThrownBy(() -> Erc20AbiEncoder.encodeTransfer(shortAddress, SOME_RAW_AMOUNT))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("20 bytes");
+        }
+
+        @Test
+        void shouldRejectAddressLongerThan20Bytes() {
+            // given
+            var longAddress = "0x1234567890abcdef1234567890abcdef1234567890aa"; // 21 bytes
+
+            // when / then
+            assertThatThrownBy(() -> Erc20AbiEncoder.encodeTransfer(longAddress, SOME_RAW_AMOUNT))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("20 bytes");
+        }
+
+        @Test
+        void shouldRejectNegativeAmount() {
+            // given
+            var negativeAmount = BigInteger.valueOf(-1);
+
+            // when / then
+            assertThatThrownBy(() -> Erc20AbiEncoder.encodeTransfer(SOME_TO_ADDRESS, negativeAmount))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("non-negative");
+        }
+
+        @Test
+        void shouldRejectAmountExceedingUint256() {
+            // given
+            var tooLarge = BigInteger.TWO.pow(256);
+
+            // when / then
+            assertThatThrownBy(() -> Erc20AbiEncoder.encodeTransfer(SOME_TO_ADDRESS, tooLarge))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("uint256");
+        }
+
+        @Test
+        void shouldRejectNullMaxFeePerGas() {
+            // given
+            var badFeeEstimate = FeeEstimate.builder()
+                    .maxFeePerGas(null)
+                    .maxPriorityFeePerGas(SOME_MAX_PRIORITY_FEE_PER_GAS)
+                    .estimatedCost(SOME_ESTIMATED_COST)
+                    .denomination(SOME_DENOMINATION)
+                    .urgency(FeeUrgency.MEDIUM)
+                    .build();
+
+            given(feeOracle.estimate(SOME_CHAIN, FeeUrgency.MEDIUM)).willReturn(badFeeEstimate);
+
+            // when / then
+            assertThatThrownBy(() -> builder.build(someTransactionIntent(), someEvmSubmissionResource()))
+                    .isInstanceOf(NullPointerException.class)
+                    .hasMessageContaining("maxFeePerGas");
+        }
+
+        @Test
+        void shouldRejectPriorityFeeExceedingMaxFee() {
+            // given
+            var badFeeEstimate = FeeEstimate.builder()
+                    .maxFeePerGas(new BigDecimal("1000000000"))
+                    .maxPriorityFeePerGas(new BigDecimal("2000000000"))
+                    .estimatedCost(SOME_ESTIMATED_COST)
+                    .denomination(SOME_DENOMINATION)
+                    .urgency(FeeUrgency.MEDIUM)
+                    .build();
+
+            given(feeOracle.estimate(SOME_CHAIN, FeeUrgency.MEDIUM)).willReturn(badFeeEstimate);
+
+            // when / then
+            assertThatThrownBy(() -> builder.build(someTransactionIntent(), someEvmSubmissionResource()))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("exceeds maxFeePerGas");
         }
     }
 }

@@ -7,7 +7,9 @@ import java.math.RoundingMode;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
+import com.stablebridge.txrecovery.domain.recovery.model.FeeEstimate;
 import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
 import com.stablebridge.txrecovery.domain.recovery.port.FeeOracle;
 import com.stablebridge.txrecovery.domain.transaction.model.EvmSubmissionResource;
@@ -35,6 +37,7 @@ class EvmTransactionBuilder {
         var dataHex = "0x" + HexFormat.of().formatHex(abiData);
 
         var feeEstimate = feeOracle.estimate(intent.chain(), FeeUrgency.MEDIUM);
+        validateFeeEstimate(feeEstimate);
 
         var estimatedGas = rpcClient.estimateGas(
                 resource.fromAddress(), intent.tokenContractAddress(), dataHex, ZERO_VALUE);
@@ -67,6 +70,25 @@ class EvmTransactionBuilder {
                 .build();
     }
 
+    private static void validateFeeEstimate(FeeEstimate feeEstimate) {
+        Objects.requireNonNull(feeEstimate.maxFeePerGas(), "FeeEstimate.maxFeePerGas must not be null");
+        Objects.requireNonNull(feeEstimate.maxPriorityFeePerGas(), "FeeEstimate.maxPriorityFeePerGas must not be null");
+        if (feeEstimate.maxPriorityFeePerGas().compareTo(feeEstimate.maxFeePerGas()) > 0) {
+            throw new IllegalArgumentException(
+                    "maxPriorityFeePerGas (%s) exceeds maxFeePerGas (%s)".formatted(
+                            feeEstimate.maxPriorityFeePerGas(), feeEstimate.maxFeePerGas()));
+        }
+    }
+
+    private static byte[] parseEvmAddress(String address) {
+        var hex = address.startsWith("0x") ? address.substring(2) : address;
+        var bytes = HexFormat.of().parseHex(hex);
+        if (bytes.length != 20) {
+            throw new IllegalArgumentException("EVM address must be 20 bytes, got " + bytes.length);
+        }
+        return bytes;
+    }
+
     private byte[] encodeEip1559Transaction(
             long nonce,
             BigInteger maxPriorityFeePerGas,
@@ -74,7 +96,7 @@ class EvmTransactionBuilder {
             BigInteger gasLimit,
             String to,
             byte[] data) {
-        var toBytes = HexFormat.of().parseHex(to.startsWith("0x") ? to.substring(2) : to);
+        var toBytes = parseEvmAddress(to);
 
         List<Object> fields = List.of(
                 BigInteger.valueOf(chainId),

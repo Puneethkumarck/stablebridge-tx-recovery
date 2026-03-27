@@ -10,14 +10,16 @@ final class Erc20AbiEncoder {
     private static final int SELECTOR_SIZE = 4;
     private static final int ENCODED_SIZE = SELECTOR_SIZE + WORD_SIZE + WORD_SIZE;
     private static final int ADDRESS_BYTE_LENGTH = 20;
+    private static final BigInteger UINT256_MAX = BigInteger.TWO.pow(256).subtract(BigInteger.ONE);
 
     private Erc20AbiEncoder() {}
 
     static byte[] encodeTransfer(String recipientAddress, BigInteger amount) {
+        var addressBytes = parseAndValidateAddress(recipientAddress);
+        validateAmount(amount);
+
         var result = new byte[ENCODED_SIZE];
         System.arraycopy(TRANSFER_SELECTOR, 0, result, 0, SELECTOR_SIZE);
-
-        var addressBytes = parseAddress(recipientAddress);
         System.arraycopy(addressBytes, 0, result, SELECTOR_SIZE + WORD_SIZE - ADDRESS_BYTE_LENGTH, ADDRESS_BYTE_LENGTH);
 
         var amountBytes = toUint256(amount);
@@ -26,9 +28,23 @@ final class Erc20AbiEncoder {
         return result;
     }
 
-    private static byte[] parseAddress(String address) {
+    private static byte[] parseAndValidateAddress(String address) {
         var hex = address.startsWith("0x") ? address.substring(2) : address;
-        return HexFormat.of().parseHex(hex);
+        var bytes = HexFormat.of().parseHex(hex);
+        if (bytes.length != ADDRESS_BYTE_LENGTH) {
+            throw new IllegalArgumentException(
+                    "EVM address must be 20 bytes, got " + bytes.length);
+        }
+        return bytes;
+    }
+
+    private static void validateAmount(BigInteger amount) {
+        if (amount.signum() < 0) {
+            throw new IllegalArgumentException("Transfer amount must be non-negative, got " + amount);
+        }
+        if (amount.compareTo(UINT256_MAX) > 0) {
+            throw new IllegalArgumentException("Transfer amount exceeds uint256 max");
+        }
     }
 
     private static byte[] toUint256(BigInteger value) {
