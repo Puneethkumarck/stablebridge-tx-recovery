@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 
 import java.util.Optional;
 
@@ -23,6 +24,7 @@ import com.stablebridge.txrecovery.domain.address.model.AddressTier;
 import com.stablebridge.txrecovery.domain.address.model.NonceAllocation;
 import com.stablebridge.txrecovery.domain.address.port.AddressPoolRepository;
 import com.stablebridge.txrecovery.domain.address.port.NonceManager;
+import com.stablebridge.txrecovery.domain.address.port.PoolExhaustedAlertPublisher;
 import com.stablebridge.txrecovery.domain.exception.NoAvailableAddressException;
 import com.stablebridge.txrecovery.domain.transaction.model.EvmSubmissionResource;
 import com.stablebridge.txrecovery.domain.transaction.model.SubmissionStrategy;
@@ -30,17 +32,23 @@ import com.stablebridge.txrecovery.domain.transaction.model.SubmissionStrategy;
 @ExtendWith(MockitoExtension.class)
 class EvmSubmissionResourceManagerTest {
 
+    private static final int MAX_PIPELINE_DEPTH = 20;
+
     @Mock
     private AddressPoolRepository addressPoolRepository;
 
     @Mock
     private NonceManager nonceManager;
 
+    @Mock
+    private PoolExhaustedAlertPublisher poolExhaustedAlertPublisher;
+
     private EvmSubmissionResourceManager resourceManager;
 
     @BeforeEach
     void setUp() {
-        resourceManager = new EvmSubmissionResourceManager(addressPoolRepository, nonceManager);
+        resourceManager = new EvmSubmissionResourceManager(
+                addressPoolRepository, nonceManager, poolExhaustedAlertPublisher, MAX_PIPELINE_DEPTH);
     }
 
     @Nested
@@ -58,7 +66,7 @@ class EvmSubmissionResourceManagerTest {
                     .build();
 
             given(addressPoolRepository.findBestCandidate(
-                    intent.chain(), AddressTier.HOT, AddressStatus.ACTIVE, 20))
+                    intent.chain(), AddressTier.HOT, AddressStatus.ACTIVE, MAX_PIPELINE_DEPTH))
                     .willReturn(Optional.of(candidate));
             given(nonceManager.allocate(candidate.address(), intent.chain()))
                     .willReturn(allocation);
@@ -94,7 +102,7 @@ class EvmSubmissionResourceManagerTest {
                     .build();
 
             given(addressPoolRepository.findBestCandidate(
-                    intent.chain(), AddressTier.PRIORITY, AddressStatus.ACTIVE, 20))
+                    intent.chain(), AddressTier.PRIORITY, AddressStatus.ACTIVE, MAX_PIPELINE_DEPTH))
                     .willReturn(Optional.of(candidate));
             given(nonceManager.allocate(candidate.address(), intent.chain()))
                     .willReturn(allocation);
@@ -116,12 +124,12 @@ class EvmSubmissionResourceManagerTest {
         }
 
         @Test
-        void shouldThrowWhenPoolExhausted() {
+        void shouldThrowAndPublishAlertWhenPoolExhausted() {
             // given
             var intent = SOME_PIPELINED_INTENT;
 
             given(addressPoolRepository.findBestCandidate(
-                    intent.chain(), AddressTier.HOT, AddressStatus.ACTIVE, 20))
+                    intent.chain(), AddressTier.HOT, AddressStatus.ACTIVE, MAX_PIPELINE_DEPTH))
                     .willReturn(Optional.empty());
 
             // when / then
@@ -129,6 +137,31 @@ class EvmSubmissionResourceManagerTest {
                     .isInstanceOf(NoAvailableAddressException.class)
                     .hasMessageContaining(intent.chain())
                     .hasMessageContaining("HOT");
+
+            then(poolExhaustedAlertPublisher).should().publish(intent.chain(), "HOT");
+        }
+
+        @Test
+        void shouldDecrementInFlightCountWhenNonceAllocationFails() {
+            // given
+            var intent = SOME_PIPELINED_INTENT;
+            var candidate = SOME_ACTIVE_HOT_ADDRESS;
+
+            given(addressPoolRepository.findBestCandidate(
+                    intent.chain(), AddressTier.HOT, AddressStatus.ACTIVE, MAX_PIPELINE_DEPTH))
+                    .willReturn(Optional.of(candidate));
+            willThrow(new RuntimeException("Redis unavailable"))
+                    .given(nonceManager).allocate(candidate.address(), intent.chain());
+
+            // when / then
+            assertThatThrownBy(() -> resourceManager.acquire(intent))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("Redis unavailable");
+
+            then(addressPoolRepository).should()
+                    .incrementInFlightCount(candidate.address(), intent.chain());
+            then(addressPoolRepository).should()
+                    .decrementInFlightCount(candidate.address(), intent.chain());
         }
     }
 
