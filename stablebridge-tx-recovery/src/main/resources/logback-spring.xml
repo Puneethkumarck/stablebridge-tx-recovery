@@ -18,22 +18,7 @@
 
     <springProfile name="prod | staging">
         <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-                <includeMdcKeyName>transactionId</includeMdcKeyName>
-                <includeMdcKeyName>intentId</includeMdcKeyName>
-                <includeMdcKeyName>chain</includeMdcKeyName>
-                <includeMdcKeyName>txHash</includeMdcKeyName>
-                <includeMdcKeyName>fromAddress</includeMdcKeyName>
-                <includeMdcKeyName>toAddress</includeMdcKeyName>
-                <includeMdcKeyName>amount</includeMdcKeyName>
-                <includeMdcKeyName>token</includeMdcKeyName>
-                <includeMdcKeyName>status</includeMdcKeyName>
-                <includeMdcKeyName>retryCount</includeMdcKeyName>
-                <includeMdcKeyName>gasSpent</includeMdcKeyName>
-                <includeMdcKeyName>escalationTier</includeMdcKeyName>
-                <includeMdcKeyName>traceId</includeMdcKeyName>
-                <includeMdcKeyName>latencyMs</includeMdcKeyName>
-            </encoder>
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder"/>
         </appender>
 
         <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
@@ -44,22 +29,7 @@
                 <maxHistory>30</maxHistory>
                 <totalSizeCap>3GB</totalSizeCap>
             </rollingPolicy>
-            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-                <includeMdcKeyName>transactionId</includeMdcKeyName>
-                <includeMdcKeyName>intentId</includeMdcKeyName>
-                <includeMdcKeyName>chain</includeMdcKeyName>
-                <includeMdcKeyName>txHash</includeMdcKeyName>
-                <includeMdcKeyName>fromAddress</includeMdcKeyName>
-                <includeMdcKeyName>toAddress</includeMdcKeyName>
-                <includeMdcKeyName>amount</includeMdcKeyName>
-                <includeMdcKeyName>token</includeMdcKeyName>
-                <includeMdcKeyName>status</includeMdcKeyName>
-                <includeMdcKeyName>retryCount</includeMdcKeyName>
-                <includeMdcKeyName>gasSpent</includeMdcKeyName>
-                <includeMdcKeyName>escalationTier</includeMdcKeyName>
-                <includeMdcKeyName>traceId</includeMdcKeyName>
-                <includeMdcKeyName>latencyMs</includeMdcKeyName>
-            </encoder>
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder"/>
         </appender>
 
         <logger name="com.stablebridge" level="INFO"/>
