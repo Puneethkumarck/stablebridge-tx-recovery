@@ -88,7 +88,7 @@ class EvmChainTransactionManagerTest {
 
             // when/then
             assertThatThrownBy(() -> manager.build(intent, resource))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(EvmRpcException.class)
                     .hasMessageContaining("Expected EvmSubmissionResource");
         }
     }
@@ -180,7 +180,7 @@ class EvmChainTransactionManagerTest {
 
             // when/then
             assertThatThrownBy(() -> manager.broadcast(polygonSignedTx, "polygon"))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(EvmRpcException.class)
                     .hasMessageContaining("Manager for chain ethereum cannot serve chain polygon");
         }
     }
@@ -236,6 +236,22 @@ class EvmChainTransactionManagerTest {
                 // then
                 assertThat(result).isEqualTo(TransactionStatus.FAILED);
             }
+
+            @Test
+            void shouldReturnConfirmedWhenLatestBlockIsNull() {
+                // given
+                given(rpcClient.getChain()).willReturn(SOME_CHAIN);
+                given(rpcClient.getTransactionReceipt(SOME_TX_HASH))
+                        .willReturn(Optional.of(SOME_SUCCESS_RECEIPT));
+                given(rpcClient.getBlockByNumber("latest", false))
+                        .willReturn(null);
+
+                // when
+                var result = manager.checkStatus(SOME_TX_HASH, SOME_CHAIN);
+
+                // then
+                assertThat(result).isEqualTo(TransactionStatus.CONFIRMED);
+            }
         }
 
         @Nested
@@ -273,6 +289,24 @@ class EvmChainTransactionManagerTest {
 
                 // then
                 assertThat(result).isEqualTo(TransactionStatus.DROPPED);
+            }
+
+            @Test
+            void shouldReturnPendingWhenLatestBlockIsNull() {
+                // given
+                given(rpcClient.getChain()).willReturn(SOME_CHAIN);
+                given(rpcClient.getTransactionReceipt(SOME_TX_HASH))
+                        .willReturn(Optional.empty());
+                given(rpcClient.getTransactionByHash(SOME_TX_HASH))
+                        .willReturn(Optional.of(SOME_MEMPOOL_TX));
+                given(rpcClient.getBlockByNumber("latest", false))
+                        .willReturn(null);
+
+                // when
+                var result = manager.checkStatus(SOME_TX_HASH, SOME_CHAIN);
+
+                // then
+                assertThat(result).isEqualTo(TransactionStatus.PENDING);
             }
 
             @Test
@@ -333,7 +367,7 @@ class EvmChainTransactionManagerTest {
 
             // when/then
             assertThatThrownBy(() -> manager.checkStatus(SOME_TX_HASH, "polygon"))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(EvmRpcException.class)
                     .hasMessageContaining("Manager for chain ethereum cannot serve chain polygon");
         }
     }
