@@ -1,0 +1,1 @@
+ALTER TABLE nonce_account_pool ADD COLUMN version BIGINT NOT NULL DEFAULT 0;

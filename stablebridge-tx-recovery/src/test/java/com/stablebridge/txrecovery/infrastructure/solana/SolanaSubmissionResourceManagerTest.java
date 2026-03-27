@@ -170,7 +170,7 @@ class SolanaSubmissionResourceManagerTest {
     class Consume {
 
         @Test
-        void shouldReadNewNonceAndMarkAvailable() {
+        void shouldReadNewNonceAndConsumeAtomically() {
             // given
             var resource = SolanaSubmissionResource.builder()
                     .chain(SOME_CHAIN)
@@ -187,9 +187,28 @@ class SolanaSubmissionResourceManagerTest {
 
             // then
             then(nonceAccountPoolRepository).should()
-                    .updateNonceValue(SOME_NONCE_ACCOUNT_ADDRESS, SOME_CHAIN, SOME_NEW_NONCE_VALUE);
-            then(nonceAccountPoolRepository).should()
-                    .markAvailable(SOME_NONCE_ACCOUNT_ADDRESS, SOME_CHAIN);
+                    .consumeAndRelease(SOME_NONCE_ACCOUNT_ADDRESS, SOME_CHAIN, SOME_NEW_NONCE_VALUE);
+        }
+
+        @Test
+        void shouldPropagateExceptionWhenNonceReadFailsDuringConsume() {
+            // given
+            var resource = SolanaSubmissionResource.builder()
+                    .chain(SOME_CHAIN)
+                    .fromAddress(SOME_AVAILABLE_NONCE_ACCOUNT.authorityAddress())
+                    .nonceAccountAddress(SOME_NONCE_ACCOUNT_ADDRESS)
+                    .nonceValue(SOME_NONCE_VALUE)
+                    .build();
+
+            willThrow(new RuntimeException("RPC unavailable"))
+                    .given(rpcClient).getNonce(SOME_NONCE_ACCOUNT_ADDRESS, SolanaCommitment.CONFIRMED);
+
+            // when / then
+            assertThatThrownBy(() -> resourceManager.consume(resource))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("RPC unavailable");
+
+            then(nonceAccountPoolRepository).shouldHaveNoInteractions();
         }
     }
 }
