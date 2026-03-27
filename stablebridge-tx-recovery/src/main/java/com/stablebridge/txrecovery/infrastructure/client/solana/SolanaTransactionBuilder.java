@@ -1,6 +1,7 @@
 package com.stablebridge.txrecovery.infrastructure.client.solana;
 
 import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -11,6 +12,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import org.bouncycastle.math.ec.rfc8032.Ed25519;
 
 import com.stablebridge.txrecovery.domain.recovery.model.FeeEstimate;
 import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
@@ -70,9 +73,9 @@ class SolanaTransactionBuilder {
         var destAta = deriveAta(destKey, mintKey);
 
         var instructions = List.of(
+                buildAdvanceNonceInstruction(nonceAccountKey, fromKey),
                 buildSetComputeUnitLimitInstruction(defaultComputeUnitLimit),
                 buildSetComputeUnitPriceInstruction(computeUnitPrice),
-                buildAdvanceNonceInstruction(nonceAccountKey, fromKey),
                 buildSplTransferInstruction(sourceAta, destAta, fromKey, intent.rawAmount()));
 
         var payload = serializeMessage(fromKey, nonceBlockhash, instructions);
@@ -99,6 +102,9 @@ class SolanaTransactionBuilder {
         Objects.requireNonNull(feeEstimate.computeUnitPrice(), "FeeEstimate.computeUnitPrice must not be null");
         if (feeEstimate.computeUnitPrice().signum() < 0) {
             throw new SolanaRpcException(-1, "Compute unit price must be non-negative");
+        }
+        if (feeEstimate.computeUnitPrice().compareTo(BigDecimal.valueOf(Long.MAX_VALUE)) > 0) {
+            throw new SolanaRpcException(-1, "Compute unit price exceeds maximum long value");
         }
     }
 
@@ -137,6 +143,10 @@ class SolanaTransactionBuilder {
 
     private static SolanaInstruction buildSplTransferInstruction(
             byte[] sourceAta, byte[] destAta, byte[] authority, BigInteger amount) {
+        if (amount.signum() < 0 || amount.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
+            throw new SolanaRpcException(-1,
+                    "SPL transfer amount must be in range 0..%d, got %s".formatted(Long.MAX_VALUE, amount));
+        }
         var data = ByteBuffer.allocate(9).order(ByteOrder.LITTLE_ENDIAN)
                 .put(SPL_TRANSFER_INSTRUCTION)
                 .putLong(amount.longValueExact())
@@ -150,14 +160,26 @@ class SolanaTransactionBuilder {
 
     @SneakyThrows
     static byte[] deriveAta(byte[] wallet, byte[] mint) {
-        var digest = MessageDigest.getInstance("SHA-256");
-        digest.update(wallet);
-        digest.update(TOKEN_PROGRAM_ID);
-        digest.update(mint);
-        digest.update(ATA_PROGRAM_ID);
-        digest.update("ProgramDerivedAddress".getBytes());
-        var hash = digest.digest();
-        return Arrays.copyOfRange(hash, 0, PUBKEY_LENGTH);
+        return findProgramAddress(ATA_PROGRAM_ID, wallet, TOKEN_PROGRAM_ID, mint);
+    }
+
+    @SneakyThrows
+    private static byte[] findProgramAddress(byte[] programId, byte[]... seeds) {
+        var markerBytes = "ProgramDerivedAddress".getBytes();
+        for (var bump = 255; bump >= 0; bump--) {
+            var digest = MessageDigest.getInstance("SHA-256");
+            for (var seed : seeds) {
+                digest.update(seed);
+            }
+            digest.update((byte) bump);
+            digest.update(programId);
+            digest.update(markerBytes);
+            var hash = digest.digest();
+            if (!Ed25519.validatePublicKeyFull(hash, 0)) {
+                return hash;
+            }
+        }
+        throw new SolanaRpcException(-1, "Unable to derive PDA: no valid off-curve address found");
     }
 
     static byte[] decodeBase58(String input) {
@@ -193,8 +215,8 @@ class SolanaTransactionBuilder {
     }
 
     static byte[] encodeCompactU16(int value) {
-        if (value < 0) {
-            throw new SolanaRpcException(-1, "Compact-u16 value must be non-negative");
+        if (value < 0 || value > 0xFFFF) {
+            throw new SolanaRpcException(-1, "Compact-u16 value must be in range 0..65535");
         }
         if (value < 0x80) {
             return new byte[]{(byte) value};
@@ -302,8 +324,8 @@ class SolanaTransactionBuilder {
     private record SolanaInstruction(byte[] programId, List<AccountMeta> accounts, byte[] data) {}
 
     private static final class AccountProperties {
-        boolean writable;
-        boolean signer;
+        private final boolean writable;
+        private final boolean signer;
 
         AccountProperties(boolean writable, boolean signer) {
             this.writable = writable;
@@ -311,9 +333,9 @@ class SolanaTransactionBuilder {
         }
 
         AccountProperties merge(AccountProperties other) {
-            this.writable = this.writable || other.writable;
-            this.signer = this.signer || other.signer;
-            return this;
+            return new AccountProperties(
+                    this.writable || other.writable,
+                    this.signer || other.signer);
         }
     }
 
