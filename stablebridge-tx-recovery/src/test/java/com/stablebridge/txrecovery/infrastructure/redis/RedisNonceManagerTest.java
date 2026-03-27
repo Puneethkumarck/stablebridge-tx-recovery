@@ -7,13 +7,11 @@ import static com.stablebridge.txrecovery.testutil.fixtures.NonceAllocationFixtu
 import static com.stablebridge.txrecovery.testutil.fixtures.NonceAllocationFixtures.someAllocation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
 import java.math.BigInteger;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -55,18 +53,23 @@ class RedisNonceManagerTest {
     @Nested
     class Allocate {
 
+        @SuppressWarnings("rawtypes")
+        private final ArgumentCaptor<SessionCallback> sessionCallbackCaptor =
+                ArgumentCaptor.forClass(SessionCallback.class);
+
         @Test
         @SuppressWarnings("unchecked")
         void shouldAllocateNonceFromOnChainWhenFirstAllocation() {
             // given
-            given(redisTemplate.execute(
-                    argThat((SessionCallback<List<Object>> callback) -> Objects.nonNull(callback))))
+            given(redisTemplate.execute(sessionCallbackCaptor.capture()))
                     .willReturn(List.of(true, 1L));
 
             // when
             var result = nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
 
             // then
+            assertThat(sessionCallbackCaptor.getValue()).isNotNull();
+
             var expected = NonceAllocation.builder()
                     .address(SOME_ADDRESS)
                     .chain(SOME_CHAIN)
@@ -82,8 +85,7 @@ class RedisNonceManagerTest {
         @SuppressWarnings("unchecked")
         void shouldThrowNonceConcurrencyExceptionWhenWatchFails() {
             // given
-            given(redisTemplate.execute(
-                    argThat((SessionCallback<List<Object>> callback) -> Objects.nonNull(callback))))
+            given(redisTemplate.execute(sessionCallbackCaptor.capture()))
                     .willReturn(null);
 
             // when/then
@@ -91,20 +93,23 @@ class RedisNonceManagerTest {
                     .isInstanceOf(NonceConcurrencyException.class)
                     .hasMessageContaining(SOME_ADDRESS)
                     .hasMessageContaining(SOME_CHAIN);
+
+            assertThat(sessionCallbackCaptor.getValue()).isNotNull();
         }
 
         @Test
         @SuppressWarnings("unchecked")
         void shouldThrowNonceConcurrencyExceptionWhenExecReturnsEmpty() {
             // given
-            given(redisTemplate.execute(
-                    argThat((SessionCallback<List<Object>> callback) -> Objects.nonNull(callback))))
+            given(redisTemplate.execute(sessionCallbackCaptor.capture()))
                     .willReturn(List.of());
 
             // when/then
             assertThatThrownBy(() -> nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN))
                     .isInstanceOf(NonceConcurrencyException.class)
                     .hasMessageContaining(SOME_ADDRESS);
+
+            assertThat(sessionCallbackCaptor.getValue()).isNotNull();
         }
     }
 

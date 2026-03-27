@@ -6,13 +6,13 @@ import java.util.Optional;
 import lombok.Builder;
 
 @Builder(toBuilder = true)
-record EvmFeeHistory(
+public record EvmFeeHistory(
         String oldestBlock,
         List<String> baseFeePerGas,
         List<Float> gasUsedRatio,
         List<List<String>> reward) {
 
-    EvmFeeHistory {
+    public EvmFeeHistory {
         baseFeePerGas = Optional.ofNullable(baseFeePerGas).map(List::copyOf).orElse(List.of());
         gasUsedRatio = Optional.ofNullable(gasUsedRatio).map(List::copyOf).orElse(List.of());
         reward = Optional.ofNullable(reward)

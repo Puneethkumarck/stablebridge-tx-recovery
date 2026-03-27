@@ -33,7 +33,7 @@ public class EvmSubmissionResourceManager implements SubmissionResourceManager {
         var candidate = addressPoolRepository.findBestCandidate(
                         chain, tier, AddressStatus.ACTIVE, maxPipelineDepth)
                 .orElseThrow(() -> {
-                    poolExhaustedAlertPublisher.publish(chain, tier.name());
+                    poolExhaustedAlertPublisher.publish(chain, tier);
                     return new NoAvailableAddressException(chain, tier.name());
                 });
 

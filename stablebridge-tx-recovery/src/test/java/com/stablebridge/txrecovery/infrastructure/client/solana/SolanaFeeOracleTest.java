@@ -1,12 +1,12 @@
 package com.stablebridge.txrecovery.infrastructure.client.solana;
 
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaFeeOracleFixtures.SOME_BLOCK_TIME;
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaFeeOracleFixtures.SOME_CHAIN;
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaFeeOracleFixtures.SOME_EMPTY_FEES;
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaFeeOracleFixtures.SOME_MAX_PRIORITY_FEE_MICRO_LAMPORTS;
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaFeeOracleFixtures.SOME_PRIORITIZATION_FEES;
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaFeeOracleFixtures.SOME_PROGRAM_ADDRESSES;
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaFeeOracleFixtures.SOME_SOLANA_PROPERTIES;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaFeeOracleFixtures.SOME_BLOCK_TIME;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaFeeOracleFixtures.SOME_CHAIN;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaFeeOracleFixtures.SOME_EMPTY_FEES;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaFeeOracleFixtures.SOME_MAX_PRIORITY_FEE_MICRO_LAMPORTS;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaFeeOracleFixtures.SOME_PRIORITIZATION_FEES;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaFeeOracleFixtures.SOME_PROGRAM_ADDRESSES;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaFeeOracleFixtures.SOME_SOLANA_PROPERTIES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;

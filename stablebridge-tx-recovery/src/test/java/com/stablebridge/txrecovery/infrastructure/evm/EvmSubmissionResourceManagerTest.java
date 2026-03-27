@@ -138,7 +138,7 @@ class EvmSubmissionResourceManagerTest {
                     .hasMessageContaining(intent.chain())
                     .hasMessageContaining("HOT");
 
-            then(poolExhaustedAlertPublisher).should().publish(intent.chain(), "HOT");
+            then(poolExhaustedAlertPublisher).should().publish(intent.chain(), AddressTier.HOT);
         }
 
         @Test

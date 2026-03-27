@@ -6,7 +6,7 @@ import java.util.Optional;
 import lombok.Builder;
 
 @Builder(toBuilder = true)
-record EvmLog(
+public record EvmLog(
         String address,
         List<String> topics,
         String data,
@@ -17,7 +17,7 @@ record EvmLog(
         String logIndex,
         boolean removed) {
 
-    EvmLog {
+    public EvmLog {
         topics = Optional.ofNullable(topics).map(List::copyOf).orElse(List.of());
     }
 }

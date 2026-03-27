@@ -1,4 +1,4 @@
-package com.stablebridge.txrecovery.infrastructure.client.evm;
+package com.stablebridge.txrecovery.testutil.fixtures;
 
 import static lombok.AccessLevel.PRIVATE;
 
@@ -11,6 +11,8 @@ import com.stablebridge.txrecovery.domain.recovery.model.FeeEstimate;
 import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
 import com.stablebridge.txrecovery.domain.transaction.model.SubmittedTransaction;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
+import com.stablebridge.txrecovery.infrastructure.client.evm.EvmReceipt;
+import com.stablebridge.txrecovery.infrastructure.client.evm.EvmTransaction;
 
 import lombok.NoArgsConstructor;
 

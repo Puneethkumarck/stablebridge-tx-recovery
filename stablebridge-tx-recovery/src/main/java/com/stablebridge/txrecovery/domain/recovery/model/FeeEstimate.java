@@ -20,6 +20,6 @@ public record FeeEstimate(
         Objects.requireNonNull(estimatedCost);
         Objects.requireNonNull(denomination);
         Objects.requireNonNull(urgency);
-        details = details == null ? null : Map.copyOf(details);
+        details = details == null ? Map.of() : Map.copyOf(details);
     }
 }

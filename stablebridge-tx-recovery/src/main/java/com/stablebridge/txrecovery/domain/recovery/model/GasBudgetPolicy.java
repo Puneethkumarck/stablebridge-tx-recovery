@@ -1,6 +1,7 @@
 package com.stablebridge.txrecovery.domain.recovery.model;
 
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.util.Objects;
 
 import lombok.Builder;
@@ -18,7 +19,7 @@ public record GasBudgetPolicy(
     }
 
     public BigDecimal calculateBudget(BigDecimal txValueUsd) {
-        var percentBudget = txValueUsd.multiply(percentage);
+        var percentBudget = txValueUsd.multiply(percentage, MathContext.DECIMAL128);
         return percentBudget.max(absoluteMinUsd).min(absoluteMaxUsd);
     }
 }

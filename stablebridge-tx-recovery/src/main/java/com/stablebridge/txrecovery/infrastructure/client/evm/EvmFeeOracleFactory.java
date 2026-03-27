@@ -58,7 +58,8 @@ public class EvmFeeOracleFactory {
                 input.rateLimitPerSecond(),
                 input.rateLimitBurst(),
                 circuitBreakerRegistry,
-                rateLimiterRegistry);
+                rateLimiterRegistry,
+                objectMapper);
     }
 
     private FeeOracle createOracle(ChainInput input, EvmRpcClient rpcClient) {

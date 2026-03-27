@@ -24,6 +24,8 @@ import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 class EvmRpcClientTest {
 
@@ -40,6 +42,9 @@ class EvmRpcClientTest {
         wireMockServer = new WireMockServer(WireMockConfiguration.wireMockConfig().dynamicPort());
         wireMockServer.start();
 
+        var objectMapper = JsonMapper.builder()
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .build();
         client = new EvmRpcClient(
                 CHAIN,
                 List.of(wireMockServer.baseUrl()),
@@ -47,7 +52,8 @@ class EvmRpcClientTest {
                 RATE_LIMIT_PER_SECOND,
                 RATE_LIMIT_BURST,
                 CircuitBreakerRegistry.ofDefaults(),
-                RateLimiterRegistry.ofDefaults());
+                RateLimiterRegistry.ofDefaults(),
+                objectMapper);
     }
 
     @AfterEach
@@ -503,6 +509,9 @@ class EvmRpcClientTest {
                                 .withHeader("Content-Type", "application/json")
                                 .withBody("{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x3b9aca00\"}")));
 
+                var fallbackObjectMapper = JsonMapper.builder()
+                        .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                        .build();
                 var fallbackClient = new EvmRpcClient(
                         CHAIN,
                         List.of(primaryServer.baseUrl(), secondaryServer.baseUrl()),
@@ -510,7 +519,8 @@ class EvmRpcClientTest {
                         RATE_LIMIT_PER_SECOND,
                         RATE_LIMIT_BURST,
                         CircuitBreakerRegistry.ofDefaults(),
-                        RateLimiterRegistry.ofDefaults());
+                        RateLimiterRegistry.ofDefaults(),
+                        fallbackObjectMapper);
 
                 // when
                 var result = fallbackClient.gasPrice();

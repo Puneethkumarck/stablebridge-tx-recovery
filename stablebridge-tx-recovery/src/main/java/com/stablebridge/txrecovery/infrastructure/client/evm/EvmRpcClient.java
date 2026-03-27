@@ -20,9 +20,7 @@ import io.github.resilience4j.ratelimiter.RateLimiterConfig;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
 
 @Slf4j
 public class EvmRpcClient {
@@ -45,19 +43,17 @@ public class EvmRpcClient {
             int rateLimitPerSecond,
             int rateLimitBurst,
             CircuitBreakerRegistry circuitBreakerRegistry,
-            RateLimiterRegistry rateLimiterRegistry) {
+            RateLimiterRegistry rateLimiterRegistry,
+            ObjectMapper objectMapper) {
         this.chain = chain;
         this.rpcUrls = List.copyOf(rpcUrls);
         this.timeout = timeout;
+        this.objectMapper = objectMapper;
 
         this.httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(timeout)
                 .executor(Executors.newVirtualThreadPerTaskExecutor())
-                .build();
-
-        this.objectMapper = JsonMapper.builder()
-                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .build();
 
         this.circuitBreaker = circuitBreakerRegistry.circuitBreaker(
@@ -98,7 +94,7 @@ public class EvmRpcClient {
     public BigInteger getTransactionCount(String address, String blockTag) {
         var request = JsonRpcRequest.create("eth_getTransactionCount", List.of(address, blockTag));
         var hex = executeWithResilience(request, new TypeReference<JsonRpcResponse<String>>() {});
-        return decodeQuantity(hex);
+        return EvmHex.decodeQuantity(hex);
     }
 
     public BigInteger estimateGas(String from, String to, String data, String value) {
@@ -109,12 +105,12 @@ public class EvmRpcClient {
         Optional.ofNullable(value).ifPresent(v -> params.put("value", v));
         var request = JsonRpcRequest.create("eth_estimateGas", List.of(params));
         var hex = executeWithResilience(request, new TypeReference<JsonRpcResponse<String>>() {});
-        return decodeQuantity(hex);
+        return EvmHex.decodeQuantity(hex);
     }
 
     public EvmFeeHistory feeHistory(int blockCount, String newestBlock, List<Float> rewardPercentiles) {
         var request =
-                JsonRpcRequest.create("eth_feeHistory", List.of(encodeQuantity(blockCount), newestBlock, rewardPercentiles));
+                JsonRpcRequest.create("eth_feeHistory", List.of(EvmHex.encodeQuantity(blockCount), newestBlock, rewardPercentiles));
         return executeWithResilience(request, new TypeReference<JsonRpcResponse<EvmFeeHistory>>() {});
     }
 
@@ -126,7 +122,7 @@ public class EvmRpcClient {
     public BigInteger gasPrice() {
         var request = JsonRpcRequest.create("eth_gasPrice", List.of());
         var hex = executeWithResilience(request, new TypeReference<JsonRpcResponse<String>>() {});
-        return decodeQuantity(hex);
+        return EvmHex.decodeQuantity(hex);
     }
 
     public BigInteger getBaseFee() {
@@ -134,7 +130,7 @@ public class EvmRpcClient {
         if (block == null || block.baseFeePerGas() == null) {
             throw new EvmRpcException("Base fee not available for chain " + chain);
         }
-        return decodeQuantity(block.baseFeePerGas());
+        return EvmHex.decodeQuantity(block.baseFeePerGas());
     }
 
     public <T> List<JsonRpcResponse<T>> executeBatch(
@@ -221,18 +217,6 @@ public class EvmRpcClient {
         } catch (Exception e) {
             throw new EvmRpcException("RPC call failed for " + url, e);
         }
-    }
-
-    private static BigInteger decodeQuantity(String hex) {
-        if (hex == null) {
-            throw new EvmRpcException("Cannot decode null hex quantity");
-        }
-        var stripped = hex.startsWith("0x") ? hex.substring(2) : hex;
-        return new BigInteger(stripped, 16);
-    }
-
-    private static String encodeQuantity(long value) {
-        return "0x" + Long.toHexString(value);
     }
 
     public String getChain() {

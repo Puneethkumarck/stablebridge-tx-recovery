@@ -6,7 +6,7 @@ import java.util.Optional;
 import lombok.Builder;
 
 @Builder(toBuilder = true)
-record EvmReceipt(
+public record EvmReceipt(
         String transactionHash,
         String transactionIndex,
         String blockHash,
@@ -21,7 +21,7 @@ record EvmReceipt(
         String contractAddress,
         String type) {
 
-    EvmReceipt {
+    public EvmReceipt {
         logs = Optional.ofNullable(logs).map(List::copyOf).orElse(List.of());
     }
 }

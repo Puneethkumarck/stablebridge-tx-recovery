@@ -1,8 +1,8 @@
 package com.stablebridge.txrecovery.infrastructure.client.evm;
 
-import static com.stablebridge.txrecovery.infrastructure.client.evm.EvmFeeOracleFixtures.SOME_BASE_CHAIN_INPUT;
-import static com.stablebridge.txrecovery.infrastructure.client.evm.EvmFeeOracleFixtures.SOME_ETHEREUM_CHAIN_INPUT;
-import static com.stablebridge.txrecovery.infrastructure.client.evm.EvmFeeOracleFixtures.SOME_POLYGON_CHAIN_INPUT;
+import static com.stablebridge.txrecovery.testutil.fixtures.EvmFeeOracleFixtures.SOME_BASE_CHAIN_INPUT;
+import static com.stablebridge.txrecovery.testutil.fixtures.EvmFeeOracleFixtures.SOME_ETHEREUM_CHAIN_INPUT;
+import static com.stablebridge.txrecovery.testutil.fixtures.EvmFeeOracleFixtures.SOME_POLYGON_CHAIN_INPUT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 

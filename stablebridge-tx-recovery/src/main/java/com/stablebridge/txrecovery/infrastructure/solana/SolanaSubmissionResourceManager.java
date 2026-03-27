@@ -1,5 +1,6 @@
 package com.stablebridge.txrecovery.infrastructure.solana;
 
+import com.stablebridge.txrecovery.domain.address.model.AddressTier;
 import com.stablebridge.txrecovery.domain.address.port.NonceAccountPoolRepository;
 import com.stablebridge.txrecovery.domain.address.port.PoolExhaustedAlertPublisher;
 import com.stablebridge.txrecovery.domain.exception.NoAvailableAddressException;
@@ -17,7 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class SolanaSubmissionResourceManager implements SubmissionResourceManager {
 
-    private static final String NONCE_ACCOUNT = "NONCE_ACCOUNT";
+    private static final AddressTier NONCE_ACCOUNT_TIER = AddressTier.HOT;
 
     private final NonceAccountPoolRepository nonceAccountPoolRepository;
     private final SolanaRpcClient rpcClient;
@@ -30,8 +31,8 @@ public class SolanaSubmissionResourceManager implements SubmissionResourceManage
 
         var nonceAccount = nonceAccountPoolRepository.findAvailableAndMarkInUse(chain, intent.intentId())
                 .orElseThrow(() -> {
-                    poolExhaustedAlertPublisher.publish(chain, NONCE_ACCOUNT);
-                    return new NoAvailableAddressException(chain, NONCE_ACCOUNT);
+                    poolExhaustedAlertPublisher.publish(chain, NONCE_ACCOUNT_TIER);
+                    return new NoAvailableAddressException(chain, NONCE_ACCOUNT_TIER.name());
                 });
 
         String nonceValue;
@@ -45,7 +46,7 @@ public class SolanaSubmissionResourceManager implements SubmissionResourceManage
 
         var availableCount = nonceAccountPoolRepository.countAvailableByChain(chain);
         if (availableCount < minAvailable) {
-            poolExhaustedAlertPublisher.publish(chain, NONCE_ACCOUNT);
+            poolExhaustedAlertPublisher.publish(chain, NONCE_ACCOUNT_TIER);
         }
 
         log.info("Acquired nonce account: chain={} authority={} nonceAccount={} nonce={}",
