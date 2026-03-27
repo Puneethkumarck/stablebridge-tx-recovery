@@ -9,6 +9,8 @@ import static com.stablebridge.txrecovery.infrastructure.client.evm.EvmChainTran
 import static com.stablebridge.txrecovery.infrastructure.client.evm.EvmChainTransactionManagerFixtures.SOME_LATEST_BLOCK_CONFIRMED;
 import static com.stablebridge.txrecovery.infrastructure.client.evm.EvmChainTransactionManagerFixtures.SOME_LATEST_BLOCK_FINALIZED;
 import static com.stablebridge.txrecovery.infrastructure.client.evm.EvmChainTransactionManagerFixtures.SOME_MEMPOOL_TX;
+import static com.stablebridge.txrecovery.infrastructure.client.evm.EvmChainTransactionManagerFixtures.SOME_SIGNED_PAYLOAD_HEX;
+import static com.stablebridge.txrecovery.infrastructure.client.evm.EvmChainTransactionManagerFixtures.SOME_SIGNED_TRANSACTION;
 import static com.stablebridge.txrecovery.infrastructure.client.evm.EvmChainTransactionManagerFixtures.SOME_STUCK_THRESHOLD_BLOCKS;
 import static com.stablebridge.txrecovery.infrastructure.client.evm.EvmChainTransactionManagerFixtures.SOME_SUCCESS_RECEIPT;
 import static com.stablebridge.txrecovery.infrastructure.client.evm.EvmChainTransactionManagerFixtures.SOME_TX_HASH;
@@ -19,6 +21,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
+import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +32,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.stablebridge.txrecovery.domain.transaction.model.BroadcastResult;
 import com.stablebridge.txrecovery.domain.transaction.model.SignedTransaction;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
 import com.stablebridge.txrecovery.domain.transaction.model.UnsignedTransaction;
@@ -94,62 +99,57 @@ class EvmChainTransactionManagerTest {
         @Test
         void shouldReturnBroadcastResultOnSuccess() {
             // given
-            var signedTx = SignedTransaction.builder()
-                    .intentId("intent-001")
-                    .chain(SOME_CHAIN)
-                    .signedPayload(new byte[] {0x01, 0x02, 0x03})
-                    .signerAddress("0x1111111111111111111111111111111111111111")
-                    .build();
             given(rpcClient.getChain()).willReturn(SOME_CHAIN);
-            given(rpcClient.sendRawTransaction("0x010203")).willReturn(SOME_BROADCAST_TX_HASH);
+            given(rpcClient.sendRawTransaction(SOME_SIGNED_PAYLOAD_HEX)).willReturn(SOME_BROADCAST_TX_HASH);
 
             // when
-            var result = manager.broadcast(signedTx, SOME_CHAIN);
+            var result = manager.broadcast(SOME_SIGNED_TRANSACTION, SOME_CHAIN);
 
             // then
-            assertThat(result.txHash()).isEqualTo(SOME_BROADCAST_TX_HASH);
-            assertThat(result.chain()).isEqualTo(SOME_CHAIN);
-            assertThat(result.broadcastedAt()).isNotNull();
+            var expected = BroadcastResult.builder()
+                    .txHash(SOME_BROADCAST_TX_HASH)
+                    .chain(SOME_CHAIN)
+                    .broadcastedAt(Instant.now())
+                    .build();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .ignoringFields("broadcastedAt")
+                    .isEqualTo(expected);
         }
 
         @Test
         void shouldHandleAlreadyKnownAsSuccess() {
             // given
-            var signedTx = SignedTransaction.builder()
-                    .intentId("intent-001")
-                    .chain(SOME_CHAIN)
-                    .signedPayload(new byte[] {0x01, 0x02, 0x03})
-                    .signerAddress("0x1111111111111111111111111111111111111111")
-                    .build();
             given(rpcClient.getChain()).willReturn(SOME_CHAIN);
-            given(rpcClient.sendRawTransaction("0x010203"))
+            given(rpcClient.sendRawTransaction(SOME_SIGNED_PAYLOAD_HEX))
                     .willThrow(new EvmRpcException("JSON-RPC error [-32000]: already known", false));
 
             // when
-            var result = manager.broadcast(signedTx, SOME_CHAIN);
+            var result = manager.broadcast(SOME_SIGNED_TRANSACTION, SOME_CHAIN);
 
             // then
+            var expected = BroadcastResult.builder()
+                    .txHash("placeholder")
+                    .chain(SOME_CHAIN)
+                    .broadcastedAt(Instant.now())
+                    .details(Map.of("note", "Transaction already known by node"))
+                    .build();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .ignoringFields("broadcastedAt", "txHash")
+                    .isEqualTo(expected);
             assertThat(result.txHash()).startsWith("0x");
-            assertThat(result.chain()).isEqualTo(SOME_CHAIN);
-            assertThat(result.broadcastedAt()).isNotNull();
-            assertThat(result.details()).containsEntry("note", "Transaction already known by node");
         }
 
         @Test
         void shouldThrowNonRetryableForNonceTooLow() {
             // given
-            var signedTx = SignedTransaction.builder()
-                    .intentId("intent-001")
-                    .chain(SOME_CHAIN)
-                    .signedPayload(new byte[] {0x01, 0x02, 0x03})
-                    .signerAddress("0x1111111111111111111111111111111111111111")
-                    .build();
             given(rpcClient.getChain()).willReturn(SOME_CHAIN);
-            given(rpcClient.sendRawTransaction("0x010203"))
+            given(rpcClient.sendRawTransaction(SOME_SIGNED_PAYLOAD_HEX))
                     .willThrow(new EvmRpcException("JSON-RPC error [-32000]: nonce too low", false));
 
             // when/then
-            assertThatThrownBy(() -> manager.broadcast(signedTx, SOME_CHAIN))
+            assertThatThrownBy(() -> manager.broadcast(SOME_SIGNED_TRANSACTION, SOME_CHAIN))
                     .isInstanceOf(EvmRpcException.class)
                     .hasMessageContaining("Nonce too low");
         }
@@ -157,18 +157,12 @@ class EvmChainTransactionManagerTest {
         @Test
         void shouldPropagateTransientErrors() {
             // given
-            var signedTx = SignedTransaction.builder()
-                    .intentId("intent-001")
-                    .chain(SOME_CHAIN)
-                    .signedPayload(new byte[] {0x01, 0x02, 0x03})
-                    .signerAddress("0x1111111111111111111111111111111111111111")
-                    .build();
             given(rpcClient.getChain()).willReturn(SOME_CHAIN);
-            given(rpcClient.sendRawTransaction("0x010203"))
+            given(rpcClient.sendRawTransaction(SOME_SIGNED_PAYLOAD_HEX))
                     .willThrow(new EvmRpcException("Connection timeout"));
 
             // when/then
-            assertThatThrownBy(() -> manager.broadcast(signedTx, SOME_CHAIN))
+            assertThatThrownBy(() -> manager.broadcast(SOME_SIGNED_TRANSACTION, SOME_CHAIN))
                     .isInstanceOf(EvmRpcException.class)
                     .hasMessageContaining("Connection timeout");
         }
@@ -176,7 +170,7 @@ class EvmChainTransactionManagerTest {
         @Test
         void shouldThrowWhenChainMismatch() {
             // given
-            var signedTx = SignedTransaction.builder()
+            var polygonSignedTx = SignedTransaction.builder()
                     .intentId("intent-001")
                     .chain("polygon")
                     .signedPayload(new byte[] {0x01})
@@ -185,7 +179,7 @@ class EvmChainTransactionManagerTest {
             given(rpcClient.getChain()).willReturn(SOME_CHAIN);
 
             // when/then
-            assertThatThrownBy(() -> manager.broadcast(signedTx, "polygon"))
+            assertThatThrownBy(() -> manager.broadcast(polygonSignedTx, "polygon"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Manager for chain ethereum cannot serve chain polygon");
         }
@@ -285,7 +279,6 @@ class EvmChainTransactionManagerTest {
             void shouldReturnStuckWhenPendingBeyondThreshold() {
                 // given
                 given(rpcClient.getChain()).willReturn(SOME_CHAIN);
-
                 given(rpcClient.getTransactionReceipt(SOME_TX_HASH))
                         .willReturn(Optional.empty());
                 given(rpcClient.getTransactionByHash(SOME_TX_HASH))
