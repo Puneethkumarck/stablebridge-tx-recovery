@@ -30,3 +30,5 @@ str:
     signing-activity:
       start-to-close-timeout: PT10S
       max-attempts: 2
+      initial-interval: PT1S
+      backoff-coefficient: 2.0

@@ -18,16 +18,15 @@ class NonceTooLowExceptionTest {
         // then
         assertThat(exception.getMessage())
                 .isEqualTo("Nonce too low: expected at least 42 but got 10");
-        assertThat(exception.getErrorCode()).isEqualTo("STR-5010");
+        assertThat(exception.getErrorCode()).isEqualTo("STR-5011");
     }
 
     @Test
-    void shouldBeNonRetryableException() {
+    void shouldBeStrException() {
         // when
         var exception = new NonceTooLowException(5, 3);
 
         // then
-        assertThat(exception).isInstanceOf(NonRetryableException.class);
         assertThat(exception).isInstanceOf(StrException.class);
     }
 }

@@ -9,7 +9,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.boot.health.contributor.Status;
+import org.springframework.boot.health.contributor.Health;
 
 import io.grpc.health.v1.HealthCheckResponse;
 import io.temporal.serviceclient.WorkflowServiceStubs;
@@ -41,11 +41,15 @@ class TemporalHealthIndicatorTest {
         var health = healthIndicator.health();
 
         // then
-        assertThat(health.getStatus()).isEqualTo(Status.UP);
-        assertThat(health.getDetails())
-                .containsEntry("target", "localhost:7233")
-                .containsEntry("namespace", "stablebridge-tx-recovery")
-                .containsEntry("taskQueue", "str-transaction-lifecycle");
+        var expected = Health.up()
+                .withDetail("target", "localhost:7233")
+                .withDetail("namespace", "stablebridge-tx-recovery")
+                .withDetail("taskQueue", "str-transaction-lifecycle")
+                .build();
+
+        assertThat(health)
+                .usingRecursiveComparison()
+                .isEqualTo(expected);
     }
 
     @Test
@@ -59,9 +63,13 @@ class TemporalHealthIndicatorTest {
         var health = healthIndicator.health();
 
         // then
-        assertThat(health.getStatus()).isEqualTo(Status.DOWN);
-        assertThat(health.getDetails())
-                .containsEntry("target", "localhost:7233")
-                .containsKey("error");
+        var expected = Health.down()
+                .withDetail("target", "localhost:7233")
+                .withException(connectionException)
+                .build();
+
+        assertThat(health)
+                .usingRecursiveComparison()
+                .isEqualTo(expected);
     }
 }
