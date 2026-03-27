@@ -35,4 +35,17 @@ public final class TransactionIntentFixtures {
             .intentId("intent-002")
             .strategy(SubmissionStrategy.PIPELINED)
             .build();
+
+    public static final TransactionIntent SOME_SOLANA_SEQUENTIAL_INTENT = TransactionIntent.builder()
+            .intentId("intent-solana-001")
+            .chain("solana-mainnet")
+            .toAddress("RecipientSol11111111111111111111111111111111")
+            .amount(new BigDecimal("100.00"))
+            .token("USDC")
+            .tokenDecimals(6)
+            .rawAmount(BigInteger.valueOf(100_000_000L))
+            .tokenContractAddress("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+            .strategy(SubmissionStrategy.SEQUENTIAL)
+            .createdAt(Instant.parse("2026-01-01T00:00:00Z"))
+            .build();
 }
