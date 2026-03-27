@@ -12,6 +12,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
+    implementation("org.apache.commons:commons-pool2")
 
     // Lombok
     compileOnly(libs.lombok)
@@ -52,6 +53,7 @@ dependencies {
     testFixturesImplementation(libs.testcontainers.junit)
     testFixturesImplementation(libs.testcontainers.postgresql)
     testFixturesImplementation(libs.testcontainers.kafka)
+    testFixturesImplementation("org.springframework.boot:spring-boot-starter-data-redis")
 
     // Test dependencies
     testImplementation(testFixtures(project))
