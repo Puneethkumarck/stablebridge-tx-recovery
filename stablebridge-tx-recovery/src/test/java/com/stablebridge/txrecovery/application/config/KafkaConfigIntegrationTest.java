@@ -24,6 +24,8 @@ import com.stablebridge.txrecovery.domain.transaction.port.TransactionEventPubli
 import com.stablebridge.txrecovery.testutil.KafkaTest;
 import com.stablebridge.txrecovery.testutil.PostgresContainerExtension;
 
+import tools.jackson.databind.ObjectMapper;
+
 @KafkaTest
 @ExtendWith(PostgresContainerExtension.class)
 class KafkaConfigIntegrationTest {
@@ -36,6 +38,9 @@ class KafkaConfigIntegrationTest {
 
     @Autowired
     private TransactionEventPublisher transactionEventPublisher;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
     void shouldInjectKafkaTemplate() {
@@ -81,6 +86,45 @@ class KafkaConfigIntegrationTest {
             assertThat(record.key()).isEqualTo("0xrecipient");
             assertThat(record.value()).contains("ethereum_mainnet");
         }
+    }
+
+    @Test
+    void shouldSerializeTimestampAsIso8601() {
+        // given
+        var event = TransactionLifecycleEvent.builder()
+                .eventId(UUID.randomUUID().toString())
+                .intentId(UUID.randomUUID().toString())
+                .toAddress("0xrecipient")
+                .chain("ethereum_mainnet")
+                .status(SUBMITTED)
+                .timestamp(Instant.parse("2026-03-27T12:00:00Z"))
+                .build();
+
+        // when
+        var json = objectMapper.writeValueAsString(event);
+
+        // then
+        assertThat(json).contains("2026-03-27T12:00:00Z");
+        assertThat(json).doesNotContain("1.74");
+    }
+
+    @Test
+    void shouldSerializeEnumAsString() {
+        // given
+        var event = TransactionLifecycleEvent.builder()
+                .eventId(UUID.randomUUID().toString())
+                .intentId(UUID.randomUUID().toString())
+                .toAddress("0xrecipient")
+                .chain("ethereum_mainnet")
+                .status(SUBMITTED)
+                .timestamp(Instant.now())
+                .build();
+
+        // when
+        var json = objectMapper.writeValueAsString(event);
+
+        // then
+        assertThat(json).contains("\"SUBMITTED\"");
     }
 
     @SuppressWarnings("unchecked")
