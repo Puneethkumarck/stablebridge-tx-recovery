@@ -1,7 +1,5 @@
 package com.stablebridge.txrecovery.application.config;
 
-import java.time.Duration;
-
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -13,6 +11,7 @@ import com.stablebridge.txrecovery.domain.exception.NonceTooLowException;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowClientOptions;
+import io.temporal.client.WorkflowOptions;
 import io.temporal.common.RetryOptions;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.serviceclient.WorkflowServiceStubsOptions;
@@ -57,6 +56,15 @@ public class TemporalConfig {
     }
 
     @Bean
+    WorkflowOptions workflowOptions(TemporalProperties properties) {
+        return WorkflowOptions.newBuilder()
+                .setTaskQueue(properties.taskQueue())
+                .setWorkflowExecutionTimeout(properties.workflowExecutionTimeout())
+                .setWorkflowRunTimeout(properties.workflowRunTimeout())
+                .build();
+    }
+
+    @Bean
     ActivityOptions rpcActivityOptions(TemporalProperties properties) {
         var rpc = properties.rpcActivity();
         return ActivityOptions.newBuilder()
@@ -79,8 +87,8 @@ public class TemporalConfig {
                 .setStartToCloseTimeout(signing.startToCloseTimeout())
                 .setRetryOptions(RetryOptions.newBuilder()
                         .setMaximumAttempts(signing.maxAttempts())
-                        .setInitialInterval(Duration.ofSeconds(1))
-                        .setBackoffCoefficient(2.0)
+                        .setInitialInterval(signing.initialInterval())
+                        .setBackoffCoefficient(signing.backoffCoefficient())
                         .setDoNotRetry(
                                 NonRetryableException.class.getName(),
                                 NonceTooLowException.class.getName())

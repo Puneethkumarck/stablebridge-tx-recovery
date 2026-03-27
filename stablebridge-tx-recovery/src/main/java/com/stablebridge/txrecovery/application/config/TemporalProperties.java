@@ -31,7 +31,7 @@ public record TemporalProperties(
             rpcActivity = new RpcActivityProperties(null, null, null, null);
         }
         if (signingActivity == null) {
-            signingActivity = new SigningActivityProperties(null, null);
+            signingActivity = new SigningActivityProperties(null, null, null, null);
         }
     }
 
@@ -59,7 +59,9 @@ public record TemporalProperties(
 
     public record SigningActivityProperties(
             Duration startToCloseTimeout,
-            Integer maxAttempts) {
+            Integer maxAttempts,
+            Duration initialInterval,
+            Double backoffCoefficient) {
 
         public SigningActivityProperties {
             if (startToCloseTimeout == null) {
@@ -67,6 +69,12 @@ public record TemporalProperties(
             }
             if (maxAttempts == null) {
                 maxAttempts = 2;
+            }
+            if (initialInterval == null) {
+                initialInterval = Duration.ofSeconds(1);
+            }
+            if (backoffCoefficient == null) {
+                backoffCoefficient = 2.0;
             }
         }
     }
