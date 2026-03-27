@@ -1,7 +1,5 @@
 package com.stablebridge.txrecovery.infrastructure.solana;
 
-import org.springframework.transaction.annotation.Transactional;
-
 import com.stablebridge.txrecovery.domain.address.port.NonceAccountPoolRepository;
 import com.stablebridge.txrecovery.domain.address.port.PoolExhaustedAlertPublisher;
 import com.stablebridge.txrecovery.domain.exception.NoAvailableAddressException;
@@ -12,9 +10,11 @@ import com.stablebridge.txrecovery.domain.transaction.port.SubmissionResourceMan
 import com.stablebridge.txrecovery.infrastructure.client.solana.SolanaCommitment;
 import com.stablebridge.txrecovery.infrastructure.client.solana.SolanaRpcClient;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@RequiredArgsConstructor
 public class SolanaSubmissionResourceManager implements SubmissionResourceManager {
 
     private static final String NONCE_ACCOUNT = "NONCE_ACCOUNT";
@@ -24,45 +24,22 @@ public class SolanaSubmissionResourceManager implements SubmissionResourceManage
     private final PoolExhaustedAlertPublisher poolExhaustedAlertPublisher;
     private final int minAvailable;
 
-    public SolanaSubmissionResourceManager(
-            NonceAccountPoolRepository nonceAccountPoolRepository,
-            SolanaRpcClient rpcClient,
-            PoolExhaustedAlertPublisher poolExhaustedAlertPublisher,
-            int minAvailable) {
-        if (minAvailable <= 0) {
-            throw new IllegalArgumentException("minAvailable must be positive, got: " + minAvailable);
-        }
-        this.nonceAccountPoolRepository = nonceAccountPoolRepository;
-        this.rpcClient = rpcClient;
-        this.poolExhaustedAlertPublisher = poolExhaustedAlertPublisher;
-        this.minAvailable = minAvailable;
-    }
-
     @Override
-    @Transactional
     public SubmissionResource acquire(TransactionIntent intent) {
         var chain = intent.chain();
 
-        var nonceAccount = nonceAccountPoolRepository.findAvailableByChain(chain)
+        var nonceAccount = nonceAccountPoolRepository.findAvailableAndMarkInUse(chain, intent.intentId())
                 .orElseThrow(() -> {
                     poolExhaustedAlertPublisher.publish(chain, NONCE_ACCOUNT);
                     return new NoAvailableAddressException(chain, NONCE_ACCOUNT);
                 });
-
-        nonceAccountPoolRepository.markInUse(
-                nonceAccount.nonceAccountAddress(), chain, intent.intentId());
 
         String nonceValue;
         try {
             nonceValue = rpcClient.getNonce(
                     nonceAccount.nonceAccountAddress(), SolanaCommitment.CONFIRMED);
         } catch (RuntimeException ex) {
-            try {
-                nonceAccountPoolRepository.markAvailable(nonceAccount.nonceAccountAddress(), chain);
-            } catch (RuntimeException rollbackEx) {
-                log.error("Failed to rollback nonce account to AVAILABLE: address={} chain={}",
-                        nonceAccount.nonceAccountAddress(), chain, rollbackEx);
-            }
+            nonceAccountPoolRepository.markAvailable(nonceAccount.nonceAccountAddress(), chain);
             throw ex;
         }
 
@@ -84,10 +61,7 @@ public class SolanaSubmissionResourceManager implements SubmissionResourceManage
 
     @Override
     public void release(SubmissionResource resource) {
-        if (!(resource instanceof SolanaSubmissionResource solanaResource)) {
-            throw new IllegalArgumentException(
-                    "Expected SolanaSubmissionResource, got " + resource.getClass().getSimpleName());
-        }
+        var solanaResource = (SolanaSubmissionResource) resource;
 
         nonceAccountPoolRepository.markAvailable(
                 solanaResource.nonceAccountAddress(), solanaResource.chain());
@@ -98,10 +72,7 @@ public class SolanaSubmissionResourceManager implements SubmissionResourceManage
 
     @Override
     public void consume(SubmissionResource resource) {
-        if (!(resource instanceof SolanaSubmissionResource solanaResource)) {
-            throw new IllegalArgumentException(
-                    "Expected SolanaSubmissionResource, got " + resource.getClass().getSimpleName());
-        }
+        var solanaResource = (SolanaSubmissionResource) resource;
 
         var newNonceValue = rpcClient.getNonce(
                 solanaResource.nonceAccountAddress(), SolanaCommitment.CONFIRMED);

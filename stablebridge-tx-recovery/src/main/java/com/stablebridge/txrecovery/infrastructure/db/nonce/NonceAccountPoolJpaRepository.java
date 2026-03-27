@@ -45,13 +45,5 @@ interface NonceAccountPoolJpaRepository extends JpaRepository<NonceAccountPoolEn
     int updateNonceValueAndMarkAvailable(
             String nonceAccount, String chain, String nonceValue, NonceAccountStatus status);
 
-    @Modifying
-    @Query("""
-            UPDATE NonceAccountPoolEntity n
-            SET n.currentNonceValue = :nonceValue
-            WHERE n.nonceAccount = :nonceAccount AND n.chain = :chain
-            """)
-    int updateNonceValue(String nonceAccount, String chain, String nonceValue);
-
     long countByChainAndStatus(String chain, NonceAccountStatus status);
 }

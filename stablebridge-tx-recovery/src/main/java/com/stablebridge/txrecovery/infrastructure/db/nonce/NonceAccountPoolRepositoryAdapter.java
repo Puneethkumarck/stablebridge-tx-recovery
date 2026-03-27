@@ -9,6 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.stablebridge.txrecovery.domain.address.model.NonceAccountStatus;
 import com.stablebridge.txrecovery.domain.address.model.SolanaNonceAccount;
 import com.stablebridge.txrecovery.domain.address.port.NonceAccountPoolRepository;
+import com.stablebridge.txrecovery.domain.exception.NonceAccountNotFoundException;
+import com.stablebridge.txrecovery.domain.exception.NonceConcurrencyException;
 
 import lombok.RequiredArgsConstructor;
 
@@ -20,21 +22,17 @@ class NonceAccountPoolRepositoryAdapter implements NonceAccountPoolRepository {
     private final NonceAccountPoolEntityMapper mapper;
 
     @Override
-    @Transactional(readOnly = true)
-    public Optional<SolanaNonceAccount> findAvailableByChain(String chain) {
-        return jpaRepository.findFirstByChainAndStatus(chain, NonceAccountStatus.AVAILABLE)
-                .map(mapper::toDomain);
-    }
-
-    @Override
     @Transactional
-    public void markInUse(String nonceAccountAddress, String chain, String allocatedToTx) {
-        var updated = jpaRepository.updateStatusAndAllocatedToTx(
-                nonceAccountAddress, chain, NonceAccountStatus.IN_USE, UUID.fromString(allocatedToTx));
-        if (updated == 0) {
-            throw new IllegalStateException(
-                    "Nonce account not found: address=%s chain=%s".formatted(nonceAccountAddress, chain));
-        }
+    public Optional<SolanaNonceAccount> findAvailableAndMarkInUse(String chain, String allocatedToTx) {
+        var entity = jpaRepository.findFirstByChainAndStatus(chain, NonceAccountStatus.AVAILABLE);
+        entity.ifPresent(e -> {
+            var updated = jpaRepository.updateStatusAndAllocatedToTx(
+                    e.getNonceAccount(), chain, NonceAccountStatus.IN_USE, UUID.fromString(allocatedToTx));
+            if (updated == 0) {
+                throw new NonceConcurrencyException(e.getNonceAccount(), chain);
+            }
+        });
+        return entity.map(mapper::toDomain);
     }
 
     @Override
@@ -43,18 +41,7 @@ class NonceAccountPoolRepositoryAdapter implements NonceAccountPoolRepository {
         var updated = jpaRepository.updateStatusAndAllocatedToTx(
                 nonceAccountAddress, chain, NonceAccountStatus.AVAILABLE, null);
         if (updated == 0) {
-            throw new IllegalStateException(
-                    "Nonce account not found: address=%s chain=%s".formatted(nonceAccountAddress, chain));
-        }
-    }
-
-    @Override
-    @Transactional
-    public void updateNonceValue(String nonceAccountAddress, String chain, String newNonceValue) {
-        var updated = jpaRepository.updateNonceValue(nonceAccountAddress, chain, newNonceValue);
-        if (updated == 0) {
-            throw new IllegalStateException(
-                    "Nonce account not found: address=%s chain=%s".formatted(nonceAccountAddress, chain));
+            throw new NonceAccountNotFoundException(nonceAccountAddress, chain);
         }
     }
 
@@ -64,8 +51,7 @@ class NonceAccountPoolRepositoryAdapter implements NonceAccountPoolRepository {
         var updated = jpaRepository.updateNonceValueAndMarkAvailable(
                 nonceAccountAddress, chain, newNonceValue, NonceAccountStatus.AVAILABLE);
         if (updated == 0) {
-            throw new IllegalStateException(
-                    "Nonce account not found: address=%s chain=%s".formatted(nonceAccountAddress, chain));
+            throw new NonceAccountNotFoundException(nonceAccountAddress, chain);
         }
     }
 
