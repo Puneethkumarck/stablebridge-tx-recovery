@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import com.stablebridge.txrecovery.domain.address.port.NonceManager;
 import com.stablebridge.txrecovery.infrastructure.client.evm.EvmRpcClient;
 import com.stablebridge.txrecovery.infrastructure.redis.NonceManagerProperties;
 import com.stablebridge.txrecovery.infrastructure.redis.RedisNonceManager;
@@ -16,7 +17,7 @@ import com.stablebridge.txrecovery.infrastructure.redis.RedisNonceManager;
 public class NonceManagerConfig {
 
     @Bean
-    RedisNonceManager redisNonceManager(StringRedisTemplate stringRedisTemplate, EvmRpcClient evmRpcClient) {
+    NonceManager nonceManager(StringRedisTemplate stringRedisTemplate, EvmRpcClient evmRpcClient) {
         return new RedisNonceManager(stringRedisTemplate, evmRpcClient);
     }
 }

@@ -1,5 +1,8 @@
 package com.stablebridge.txrecovery.infrastructure.redis;
 
+import static com.stablebridge.txrecovery.testutil.fixtures.NonceAllocationFixtures.SOME_ADDRESS;
+import static com.stablebridge.txrecovery.testutil.fixtures.NonceAllocationFixtures.SOME_CHAIN;
+import static com.stablebridge.txrecovery.testutil.fixtures.NonceAllocationFixtures.someAllocation;
 import static com.stablebridge.txrecovery.testutil.stubs.EvmRpcStubs.stubJsonRpcResponse;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -32,8 +35,6 @@ import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 @Testcontainers
 class RedisNonceManagerIntegrationTest {
 
-    private static final String ADDRESS = "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD28";
-    private static final String CHAIN = "ethereum_mainnet";
     private static final int REDIS_PORT = 6379;
 
     @SuppressWarnings("resource")
@@ -54,7 +55,7 @@ class RedisNonceManagerIntegrationTest {
         connectionFactory.afterPropertiesSet();
         redisTemplate = new StringRedisTemplate(connectionFactory);
         var evmRpcClient = new EvmRpcClient(
-                CHAIN,
+                SOME_CHAIN,
                 List.of(wireMockServer.baseUrl()),
                 Duration.ofSeconds(5),
                 100,
@@ -66,8 +67,8 @@ class RedisNonceManagerIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        redisTemplate.delete(RedisKeyNamespace.nonceHash(CHAIN, ADDRESS));
-        redisTemplate.delete(RedisKeyNamespace.nonceInflightSet(CHAIN, ADDRESS));
+        redisTemplate.delete(RedisKeyNamespace.nonceHash(SOME_CHAIN, SOME_ADDRESS));
+        redisTemplate.delete(RedisKeyNamespace.nonceInflightSet(SOME_CHAIN, SOME_ADDRESS));
         wireMockServer.stop();
     }
 
@@ -80,10 +81,10 @@ class RedisNonceManagerIntegrationTest {
             stubJsonRpcResponse(wireMockServer, "eth_getTransactionCount", "\"0x5\"");
 
             // when
-            var result = nonceManager.allocate(ADDRESS, CHAIN);
+            var result = nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
 
             // then
-            var expected = NonceAllocation.builder().address(ADDRESS).chain(CHAIN).nonce(5L).build();
+            var expected = someAllocation(5L);
             assertThat(result).usingRecursiveComparison().isEqualTo(expected);
         }
 
@@ -91,13 +92,13 @@ class RedisNonceManagerIntegrationTest {
         void shouldAllocateSubsequentNonceIncrementingAllocated() {
             // given
             stubJsonRpcResponse(wireMockServer, "eth_getTransactionCount", "\"0x5\"");
-            nonceManager.allocate(ADDRESS, CHAIN);
+            nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
 
             // when
-            var result = nonceManager.allocate(ADDRESS, CHAIN);
+            var result = nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
 
             // then
-            var expected = NonceAllocation.builder().address(ADDRESS).chain(CHAIN).nonce(6L).build();
+            var expected = someAllocation(6L);
             assertThat(result).usingRecursiveComparison().isEqualTo(expected);
         }
 
@@ -105,15 +106,15 @@ class RedisNonceManagerIntegrationTest {
         void shouldSelfCorrectWhenOnChainNonceIsAhead() {
             // given
             stubJsonRpcResponse(wireMockServer, "eth_getTransactionCount", "\"0x5\"");
-            nonceManager.allocate(ADDRESS, CHAIN);
+            nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
             wireMockServer.resetAll();
             stubJsonRpcResponse(wireMockServer, "eth_getTransactionCount", "\"0xa\"");
 
             // when
-            var result = nonceManager.allocate(ADDRESS, CHAIN);
+            var result = nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
 
             // then
-            var expected = NonceAllocation.builder().address(ADDRESS).chain(CHAIN).nonce(10L).build();
+            var expected = someAllocation(10L);
             assertThat(result).usingRecursiveComparison().isEqualTo(expected);
         }
 
@@ -123,10 +124,10 @@ class RedisNonceManagerIntegrationTest {
             stubJsonRpcResponse(wireMockServer, "eth_getTransactionCount", "\"0x0\"");
 
             // when
-            nonceManager.allocate(ADDRESS, CHAIN);
+            nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
 
             // then
-            var members = redisTemplate.opsForSet().members(RedisKeyNamespace.nonceInflightSet(CHAIN, ADDRESS));
+            var members = redisTemplate.opsForSet().members(RedisKeyNamespace.nonceInflightSet(SOME_CHAIN, SOME_ADDRESS));
             assertThat(members).contains("0");
         }
 
@@ -136,15 +137,18 @@ class RedisNonceManagerIntegrationTest {
             stubJsonRpcResponse(wireMockServer, "eth_getTransactionCount", "\"0x0\"");
 
             // when
-            var first = nonceManager.allocate(ADDRESS, CHAIN);
-            var second = nonceManager.allocate(ADDRESS, CHAIN);
-            var third = nonceManager.allocate(ADDRESS, CHAIN);
+            var first = nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
+            var second = nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
+            var third = nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
 
             // then
-            assertThat(first.nonce()).isEqualTo(0L);
-            assertThat(second.nonce()).isEqualTo(1L);
-            assertThat(third.nonce()).isEqualTo(2L);
-            var members = redisTemplate.opsForSet().members(RedisKeyNamespace.nonceInflightSet(CHAIN, ADDRESS));
+            var expectedFirst = someAllocation(0L);
+            var expectedSecond = someAllocation(1L);
+            var expectedThird = someAllocation(2L);
+            assertThat(first).usingRecursiveComparison().isEqualTo(expectedFirst);
+            assertThat(second).usingRecursiveComparison().isEqualTo(expectedSecond);
+            assertThat(third).usingRecursiveComparison().isEqualTo(expectedThird);
+            var members = redisTemplate.opsForSet().members(RedisKeyNamespace.nonceInflightSet(SOME_CHAIN, SOME_ADDRESS));
             assertThat(members).containsExactlyInAnyOrder("0", "1", "2");
         }
     }
@@ -156,15 +160,15 @@ class RedisNonceManagerIntegrationTest {
         void shouldRemoveNonceFromInflightSetWithoutDecrementingAllocated() {
             // given
             stubJsonRpcResponse(wireMockServer, "eth_getTransactionCount", "\"0x5\"");
-            var allocation = nonceManager.allocate(ADDRESS, CHAIN);
+            var allocation = nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
 
             // when
             nonceManager.release(allocation);
 
             // then
-            var members = redisTemplate.opsForSet().members(RedisKeyNamespace.nonceInflightSet(CHAIN, ADDRESS));
+            var members = redisTemplate.opsForSet().members(RedisKeyNamespace.nonceInflightSet(SOME_CHAIN, SOME_ADDRESS));
             assertThat(members).doesNotContain("5");
-            var allocated = redisTemplate.opsForHash().get(RedisKeyNamespace.nonceHash(CHAIN, ADDRESS), "allocated");
+            var allocated = redisTemplate.opsForHash().get(RedisKeyNamespace.nonceHash(SOME_CHAIN, SOME_ADDRESS), "allocated");
             assertThat(allocated).isEqualTo("5");
         }
     }
@@ -176,15 +180,15 @@ class RedisNonceManagerIntegrationTest {
         void shouldUpdateConfirmedFieldMonotonically() {
             // given
             stubJsonRpcResponse(wireMockServer, "eth_getTransactionCount", "\"0x0\"");
-            nonceManager.allocate(ADDRESS, CHAIN);
-            var second = nonceManager.allocate(ADDRESS, CHAIN);
+            nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
+            var second = nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
 
             // when
             nonceManager.confirm(second);
-            nonceManager.confirm(NonceAllocation.builder().address(ADDRESS).chain(CHAIN).nonce(0L).build());
+            nonceManager.confirm(someAllocation(0L));
 
             // then
-            var confirmed = redisTemplate.opsForHash().get(RedisKeyNamespace.nonceHash(CHAIN, ADDRESS), "confirmed");
+            var confirmed = redisTemplate.opsForHash().get(RedisKeyNamespace.nonceHash(SOME_CHAIN, SOME_ADDRESS), "confirmed");
             assertThat(confirmed).isEqualTo("1");
         }
 
@@ -192,13 +196,13 @@ class RedisNonceManagerIntegrationTest {
         void shouldRemoveFromInflightSetOnConfirm() {
             // given
             stubJsonRpcResponse(wireMockServer, "eth_getTransactionCount", "\"0x0\"");
-            var allocation = nonceManager.allocate(ADDRESS, CHAIN);
+            var allocation = nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
 
             // when
             nonceManager.confirm(allocation);
 
             // then
-            var members = redisTemplate.opsForSet().members(RedisKeyNamespace.nonceInflightSet(CHAIN, ADDRESS));
+            var members = redisTemplate.opsForSet().members(RedisKeyNamespace.nonceInflightSet(SOME_CHAIN, SOME_ADDRESS));
             assertThat(members).doesNotContain("0");
         }
     }
@@ -210,19 +214,19 @@ class RedisNonceManagerIntegrationTest {
         void shouldResetStateFromOnChain() {
             // given
             stubJsonRpcResponse(wireMockServer, "eth_getTransactionCount", "\"0x5\"");
-            nonceManager.allocate(ADDRESS, CHAIN);
-            nonceManager.allocate(ADDRESS, CHAIN);
+            nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
+            nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
             wireMockServer.resetAll();
             stubJsonRpcResponse(wireMockServer, "eth_getTransactionCount", "\"0xa\"");
 
             // when
-            nonceManager.syncFromChain(ADDRESS, CHAIN);
+            nonceManager.syncFromChain(SOME_ADDRESS, SOME_CHAIN);
 
             // then
-            var hashKey = RedisKeyNamespace.nonceHash(CHAIN, ADDRESS);
+            var hashKey = RedisKeyNamespace.nonceHash(SOME_CHAIN, SOME_ADDRESS);
             assertThat(redisTemplate.opsForHash().get(hashKey, "allocated")).isEqualTo("9");
             assertThat(redisTemplate.opsForHash().get(hashKey, "confirmed")).isEqualTo("9");
-            assertThat(redisTemplate.hasKey(RedisKeyNamespace.nonceInflightSet(CHAIN, ADDRESS))).isFalse();
+            assertThat(redisTemplate.hasKey(RedisKeyNamespace.nonceInflightSet(SOME_CHAIN, SOME_ADDRESS))).isFalse();
         }
     }
 
@@ -233,15 +237,15 @@ class RedisNonceManagerIntegrationTest {
         void shouldDetectGapNonces() {
             // given
             stubJsonRpcResponse(wireMockServer, "eth_getTransactionCount", "\"0x0\"");
-            var first = nonceManager.allocate(ADDRESS, CHAIN);
-            nonceManager.allocate(ADDRESS, CHAIN);
-            nonceManager.allocate(ADDRESS, CHAIN);
+            var first = nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
+            nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
+            nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
             nonceManager.confirm(first);
             wireMockServer.resetAll();
             stubJsonRpcResponse(wireMockServer, "eth_getTransactionCount", "\"0x2\"");
 
             // when
-            var gaps = nonceManager.detectGaps(ADDRESS, CHAIN);
+            var gaps = nonceManager.detectGaps(SOME_ADDRESS, SOME_CHAIN);
 
             // then
             assertThat(gaps).containsExactly(1L);
@@ -253,7 +257,7 @@ class RedisNonceManagerIntegrationTest {
             stubJsonRpcResponse(wireMockServer, "eth_getTransactionCount", "\"0x0\"");
 
             // when
-            var gaps = nonceManager.detectGaps(ADDRESS, CHAIN);
+            var gaps = nonceManager.detectGaps(SOME_ADDRESS, SOME_CHAIN);
 
             // then
             assertThat(gaps).isEmpty();
@@ -277,7 +281,7 @@ class RedisNonceManagerIntegrationTest {
                 for (var i = 0; i < threadCount; i++) {
                     executor.submit(() -> {
                         try {
-                            allocations.add(nonceManager.allocate(ADDRESS, CHAIN));
+                            allocations.add(nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN));
                         } catch (NonceConcurrencyException e) {
                             exceptions.add(e);
                         } finally {
