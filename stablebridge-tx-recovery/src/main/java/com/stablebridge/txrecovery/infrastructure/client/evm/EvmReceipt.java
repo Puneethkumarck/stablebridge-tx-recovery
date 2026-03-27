@@ -3,6 +3,9 @@ package com.stablebridge.txrecovery.infrastructure.client.evm;
 import java.util.List;
 import java.util.Optional;
 
+import lombok.Builder;
+
+@Builder(toBuilder = true)
 record EvmReceipt(
         String transactionHash,
         String transactionIndex,

@@ -3,6 +3,9 @@ package com.stablebridge.txrecovery.infrastructure.client.evm;
 import java.util.List;
 import java.util.Optional;
 
+import lombok.Builder;
+
+@Builder(toBuilder = true)
 record EvmLog(
         String address,
         List<String> topics,

@@ -1,6 +1,6 @@
-package com.stablebridge.txrecovery.application.config;
+package com.stablebridge.txrecovery.infrastructure.redis;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -8,14 +8,12 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import com.stablebridge.txrecovery.domain.address.port.NonceManager;
 import com.stablebridge.txrecovery.infrastructure.client.evm.EvmRpcClient;
-import com.stablebridge.txrecovery.infrastructure.redis.NonceManagerProperties;
-import com.stablebridge.txrecovery.infrastructure.redis.RedisNonceManager;
 
 import io.micrometer.core.instrument.MeterRegistry;
 
 @Configuration
 @EnableConfigurationProperties(NonceManagerProperties.class)
-@ConditionalOnBean(StringRedisTemplate.class)
+@ConditionalOnProperty(name = "str.nonce.enabled", havingValue = "true")
 public class NonceManagerConfig {
 
     @Bean

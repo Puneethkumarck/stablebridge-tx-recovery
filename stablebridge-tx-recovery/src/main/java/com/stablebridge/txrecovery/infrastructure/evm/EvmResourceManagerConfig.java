@@ -1,4 +1,4 @@
-package com.stablebridge.txrecovery.application.config;
+package com.stablebridge.txrecovery.infrastructure.evm;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Configuration;
 import com.stablebridge.txrecovery.domain.address.port.AddressPoolRepository;
 import com.stablebridge.txrecovery.domain.address.port.NonceManager;
 import com.stablebridge.txrecovery.domain.address.port.PoolExhaustedAlertPublisher;
-import com.stablebridge.txrecovery.infrastructure.evm.EvmSubmissionResourceManager;
 
 @Configuration
 @ConditionalOnBean(NonceManager.class)
