@@ -17,6 +17,9 @@ record SolanaChainProperties(
         Objects.requireNonNull(chain);
         Objects.requireNonNull(blockTime);
         Objects.requireNonNull(programAddresses);
+        if (maxPriorityFeeMicroLamports <= 0) {
+            throw new IllegalArgumentException("maxPriorityFeeMicroLamports must be positive");
+        }
         programAddresses = List.copyOf(programAddresses);
     }
 }

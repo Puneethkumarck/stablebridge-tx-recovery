@@ -237,6 +237,8 @@ class SolanaFeeOracleTest {
             var result = oracle.estimate(SOME_CHAIN, FeeUrgency.SLOW);
 
             // then
+            var expected = buildExpectedEstimate(FeeUrgency.SLOW, 2500L);
+            assertThat(result).usingRecursiveComparison().isEqualTo(expected);
             assertThat(result.computeUnitPrice())
                     .isLessThan(BigDecimal.valueOf(SOME_MAX_PRIORITY_FEE_MICRO_LAMPORTS));
         }
@@ -299,12 +301,28 @@ class SolanaFeeOracleTest {
                     .willReturn(SOME_PRIORITIZATION_FEES);
 
             // when
-            var result1 = oracle.estimateReplacement(SOME_CHAIN, "txhash123", 1);
-            given(hashOperations.get(CACHE_KEY, "FAST")).willReturn(null);
-            var result3 = oracle.estimateReplacement(SOME_CHAIN, "txhash123", 3);
+            var result = oracle.estimateReplacement(SOME_CHAIN, "txhash123", 3);
 
             // then
-            assertThat(result3.computeUnitPrice()).isGreaterThan(result1.computeUnitPrice());
+            var fastPrice = BigDecimal.valueOf(10000L);
+            var escalation = new BigDecimal("1.3");
+            var escalatedPrice = fastPrice.multiply(escalation, MATH_CONTEXT)
+                    .setScale(0, RoundingMode.CEILING);
+            var cappedPrice = escalatedPrice.min(BigDecimal.valueOf(SOME_MAX_PRIORITY_FEE_MICRO_LAMPORTS));
+            var estimatedCost = computeEstimatedCost(cappedPrice);
+            var expected = FeeEstimate.builder()
+                    .computeUnitPrice(cappedPrice)
+                    .estimatedCost(estimatedCost)
+                    .denomination("SOL")
+                    .urgency(FeeUrgency.URGENT)
+                    .details(Map.of(
+                            "baseComputeUnitPrice", fastPrice.toPlainString(),
+                            "escalationMultiplier", escalation.toPlainString(),
+                            "computeUnitPrice", cappedPrice.toPlainString(),
+                            "safetyCapMicroLamports", String.valueOf(SOME_MAX_PRIORITY_FEE_MICRO_LAMPORTS),
+                            "attemptNumber", "3"))
+                    .build();
+            assertThat(result).usingRecursiveComparison().isEqualTo(expected);
         }
 
         @Test
@@ -367,7 +385,8 @@ class SolanaFeeOracleTest {
             var result = oracle.estimate(SOME_CHAIN, FeeUrgency.SLOW);
 
             // then
-            assertThat(result.computeUnitPrice()).isPositive();
+            var expected = buildExpectedEstimate(FeeUrgency.SLOW, 2500L);
+            assertThat(result).usingRecursiveComparison().isEqualTo(expected);
             then(rpcClient).should().getRecentPrioritizationFees(SOME_PROGRAM_ADDRESSES);
         }
 
@@ -538,6 +557,30 @@ class SolanaFeeOracleTest {
                     .programAddresses(null)
                     .build())
                     .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        void shouldThrowWhenMaxPriorityFeeIsZero() {
+            assertThatThrownBy(() -> SolanaChainProperties.builder()
+                    .chain(SOME_CHAIN)
+                    .maxPriorityFeeMicroLamports(0L)
+                    .blockTime(SOME_BLOCK_TIME)
+                    .programAddresses(SOME_PROGRAM_ADDRESSES)
+                    .build())
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("maxPriorityFeeMicroLamports must be positive");
+        }
+
+        @Test
+        void shouldThrowWhenMaxPriorityFeeIsNegative() {
+            assertThatThrownBy(() -> SolanaChainProperties.builder()
+                    .chain(SOME_CHAIN)
+                    .maxPriorityFeeMicroLamports(-1L)
+                    .blockTime(SOME_BLOCK_TIME)
+                    .programAddresses(SOME_PROGRAM_ADDRESSES)
+                    .build())
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("maxPriorityFeeMicroLamports must be positive");
         }
     }
 }
