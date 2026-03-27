@@ -16,6 +16,8 @@ spring:
     open-in-view: false
 
 str:
+  kafka:
+    enabled-chains: ethereum_mainnet,solana_mainnet
   temporal:
     target: ${TEMPORAL_FRONTEND_URL:127.0.0.1:7233}
     namespace: stablebridge-tx-recovery

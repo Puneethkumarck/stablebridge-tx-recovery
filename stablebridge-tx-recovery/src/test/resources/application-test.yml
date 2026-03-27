@@ -9,6 +9,8 @@ spring:
     enabled: true
 
 str:
+  kafka:
+    enabled-chains: ethereum_mainnet,solana_mainnet
   temporal:
     enabled: false
     target: 127.0.0.1:7233
