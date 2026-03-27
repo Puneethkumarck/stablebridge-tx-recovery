@@ -7,6 +7,7 @@ import java.net.http.HttpResponse;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
@@ -71,10 +72,10 @@ public class SolanaRpcClient {
         var request = new JsonRpcRequest(nextId(), "getAccountInfo", params);
         var accountInfo =
                 execute(request, new TypeReference<JsonRpcResponse<SolanaAccountInfo>>() {});
-        if (accountInfo == null || accountInfo.value() == null) {
-            throw new SolanaRpcException(-1, "Nonce account not found: " + nonceAccountAddress);
-        }
-        return accountInfo.value().data().getFirst();
+        return Optional.ofNullable(accountInfo)
+                .map(SolanaAccountInfo::value)
+                .map(v -> v.data().getFirst())
+                .orElseThrow(() -> new SolanaRpcException(-1, "Nonce account not found: " + nonceAccountAddress));
     }
 
     public boolean isBlockhashValid(String blockhash, SolanaCommitment commitment) {

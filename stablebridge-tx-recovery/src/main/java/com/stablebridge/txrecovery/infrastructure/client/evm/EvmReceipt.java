@@ -1,6 +1,7 @@
 package com.stablebridge.txrecovery.infrastructure.client.evm;
 
 import java.util.List;
+import java.util.Optional;
 
 record EvmReceipt(
         String transactionHash,
@@ -18,6 +19,6 @@ record EvmReceipt(
         String type) {
 
     EvmReceipt {
-        logs = logs == null ? List.of() : List.copyOf(logs);
+        logs = Optional.ofNullable(logs).map(List::copyOf).orElse(List.of());
     }
 }

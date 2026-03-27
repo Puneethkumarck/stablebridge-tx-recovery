@@ -105,12 +105,8 @@ public class EvmRpcClient {
         var params = new LinkedHashMap<String, String>();
         params.put("from", from);
         params.put("to", to);
-        if (data != null) {
-            params.put("data", data);
-        }
-        if (value != null) {
-            params.put("value", value);
-        }
+        Optional.ofNullable(data).ifPresent(d -> params.put("data", d));
+        Optional.ofNullable(value).ifPresent(v -> params.put("value", v));
         var request = JsonRpcRequest.create("eth_estimateGas", List.of(params));
         var hex = executeWithResilience(request, new TypeReference<JsonRpcResponse<String>>() {});
         return decodeQuantity(hex);
