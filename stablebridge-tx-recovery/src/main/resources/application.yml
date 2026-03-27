@@ -11,5 +11,22 @@ spring:
       - org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration
       - org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration
       - org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
+      - io.temporal.spring.boot.autoconfigure.TemporalAutoConfiguration
   jpa:
     open-in-view: false
+
+str:
+  temporal:
+    target: ${TEMPORAL_FRONTEND_URL:127.0.0.1:7233}
+    namespace: stablebridge-tx-recovery
+    task-queue: str-transaction-lifecycle
+    workflow-execution-timeout: PT24H
+    workflow-run-timeout: PT2H
+    rpc-activity:
+      start-to-close-timeout: PT30S
+      max-attempts: 3
+      initial-interval: PT1S
+      backoff-coefficient: 2.0
+    signing-activity:
+      start-to-close-timeout: PT10S
+      max-attempts: 2

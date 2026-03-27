@@ -30,6 +30,7 @@ resilience4j-spring-boot = { module = "io.github.resilience4j:resilience4j-sprin
 
 # Temporal
 temporal-spring-boot-starter = { module = "io.temporal:temporal-spring-boot-starter", version.ref = "temporal" }
+temporal-testing = { module = "io.temporal:temporal-testing", version.ref = "temporal" }
 
 # Observability
 logstash-logback-encoder = { module = "net.logstash.logback:logstash-logback-encoder", version.ref = "logstash-logback" }
