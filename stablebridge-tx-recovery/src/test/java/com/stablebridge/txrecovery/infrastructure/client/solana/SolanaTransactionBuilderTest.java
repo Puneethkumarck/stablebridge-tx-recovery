@@ -1,21 +1,22 @@
 package com.stablebridge.txrecovery.infrastructure.client.solana;
 
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaTransactionBuilderFixtures.SOME_COMPUTE_UNIT_LIMIT;
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaTransactionBuilderFixtures.SOME_COMPUTE_UNIT_PRICE;
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaTransactionBuilderFixtures.SOME_DESTINATION_ADDRESS;
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaTransactionBuilderFixtures.SOME_NONCE_ACCOUNT;
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaTransactionBuilderFixtures.SOME_NONCE_VALUE;
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaTransactionBuilderFixtures.SOME_SOLANA_CHAIN;
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaTransactionBuilderFixtures.SOME_WALLET_ADDRESS;
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaTransactionBuilderFixtures.someSolanaFeeEstimate;
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaTransactionBuilderFixtures.someSolanaSubmissionResource;
-import static com.stablebridge.txrecovery.infrastructure.client.solana.SolanaTransactionBuilderFixtures.someSolanaTransactionIntent;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaTransactionFixtures.SOME_COMPUTE_UNIT_LIMIT;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaTransactionFixtures.SOME_COMPUTE_UNIT_PRICE;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaTransactionFixtures.SOME_DESTINATION_ADDRESS;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaTransactionFixtures.SOME_NONCE_ACCOUNT;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaTransactionFixtures.SOME_NONCE_VALUE;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaTransactionFixtures.SOME_SOLANA_CHAIN;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaTransactionFixtures.SOME_WALLET_ADDRESS;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaTransactionFixtures.someSolanaFeeEstimate;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaTransactionFixtures.someSolanaSubmissionResource;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaTransactionFixtures.someSolanaTransactionIntent;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
 import java.math.BigDecimal;
+import java.util.HexFormat;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -150,13 +151,15 @@ class SolanaTransactionBuilderTest {
         void shouldContainRecentBlockhashInPayload() {
             // given
             stubFeeOracle();
-            var nonceBytes = SolanaTransactionBuilder.decodeBase58(SOME_NONCE_VALUE);
+            var nonceHex = HexFormat.of().formatHex(
+                    SolanaTransactionBuilder.decodeBase58(SOME_NONCE_VALUE));
 
             // when
             var result = builder.build(someSolanaTransactionIntent(), someSolanaSubmissionResource());
 
             // then
-            assertThat(containsSubArray(result.payload(), nonceBytes)).isTrue();
+            var payloadHex = HexFormat.of().formatHex(result.payload());
+            assertThat(payloadHex).contains(nonceHex);
         }
     }
 
@@ -366,21 +369,5 @@ class SolanaTransactionBuilderTest {
                     .isInstanceOf(SolanaRpcException.class)
                     .hasMessageContaining("non-negative");
         }
-    }
-
-    private static boolean containsSubArray(byte[] haystack, byte[] needle) {
-        for (var i = 0; i <= haystack.length - needle.length; i++) {
-            var found = true;
-            for (var j = 0; j < needle.length; j++) {
-                if (haystack[i + j] != needle[j]) {
-                    found = false;
-                    break;
-                }
-            }
-            if (found) {
-                return true;
-            }
-        }
-        return false;
     }
 }
