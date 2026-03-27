@@ -4,6 +4,7 @@ import static com.stablebridge.txrecovery.infrastructure.client.evm.EvmFeeOracle
 import static com.stablebridge.txrecovery.infrastructure.client.evm.EvmFeeOracleFixtures.SOME_ETHEREUM_CHAIN_INPUT;
 import static com.stablebridge.txrecovery.infrastructure.client.evm.EvmFeeOracleFixtures.SOME_POLYGON_CHAIN_INPUT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -137,6 +138,61 @@ class EvmFeeOracleFactoryTest {
                     25,
                     50);
             assertThat(input).usingRecursiveComparison().isEqualTo(expected);
+        }
+
+        @Test
+        void shouldThrowWhenNameIsNull() {
+            // when/then
+            assertThatThrownBy(() -> EvmFeeOracleFactory.ChainInput.builder()
+                    .name(null)
+                    .rpcUrls(List.of("http://localhost:8545"))
+                    .maxFeeCapGwei(new BigDecimal("200"))
+                    .blockTime(Duration.ofSeconds(12))
+                    .rpcTimeout(Duration.ofSeconds(5))
+                    .rateLimitPerSecond(25)
+                    .rateLimitBurst(50)
+                    .build())
+                    .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        void shouldThrowWhenRpcUrlsIsNull() {
+            // when/then
+            assertThatThrownBy(() -> EvmFeeOracleFactory.ChainInput.builder()
+                    .name("ethereum")
+                    .rpcUrls(null)
+                    .maxFeeCapGwei(new BigDecimal("200"))
+                    .blockTime(Duration.ofSeconds(12))
+                    .rpcTimeout(Duration.ofSeconds(5))
+                    .rateLimitPerSecond(25)
+                    .rateLimitBurst(50)
+                    .build())
+                    .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        void shouldReturnImmutableRpcUrlsList() {
+            // given
+            var input = SOME_ETHEREUM_CHAIN_INPUT;
+
+            // when/then
+            assertThat(input.rpcUrls()).isUnmodifiable();
+        }
+    }
+
+    @Nested
+    class ConstructorValidation {
+
+        @Test
+        void shouldThrowWhenChainInputsIsNull() {
+            // when/then
+            assertThatThrownBy(() -> new EvmFeeOracleFactory(
+                    null,
+                    redisTemplate,
+                    objectMapper,
+                    circuitBreakerRegistry,
+                    rateLimiterRegistry))
+                    .isInstanceOf(NullPointerException.class);
         }
     }
 }

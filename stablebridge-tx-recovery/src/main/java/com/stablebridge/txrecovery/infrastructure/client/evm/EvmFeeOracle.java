@@ -39,12 +39,18 @@ class EvmFeeOracle implements FeeOracle {
 
     @Override
     public FeeEstimate estimate(String chain, FeeUrgency urgency) {
-        return readFromCache(chain, urgency)
-                .orElseGet(() -> fetchAndCache(chain, urgency));
+        validateChain(chain);
+        return readFromCache(chainProperties.chain(), urgency)
+                .orElseGet(() -> fetchAndCache(chainProperties.chain(), urgency));
     }
 
     @Override
     public FeeEstimate estimateReplacement(String chain, String originalTxHash, int attemptNumber) {
+        validateChain(chain);
+        if (attemptNumber < 1) {
+            throw new IllegalArgumentException("attemptNumber must be >= 1, got: " + attemptNumber);
+        }
+
         var originalTx = rpcClient.getTransactionByHash(originalTxHash)
                 .orElseThrow(() -> new EvmRpcException(
                         "Original transaction not found: " + originalTxHash, false));
@@ -178,6 +184,13 @@ class EvmFeeOracle implements FeeOracle {
 
         writeToCache(chain, urgency, estimate);
         return estimate;
+    }
+
+    private void validateChain(String chain) {
+        if (!chainProperties.chain().equals(chain)) {
+            throw new IllegalArgumentException(
+                    "Oracle for chain %s cannot serve chain %s".formatted(chainProperties.chain(), chain));
+        }
     }
 
     private BigDecimal escalationMultiplierForAttempt(int attemptNumber) {

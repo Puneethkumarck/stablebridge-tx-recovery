@@ -2,14 +2,21 @@ package com.stablebridge.txrecovery.infrastructure.client.evm;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.validation.annotation.Validated;
 
 import com.stablebridge.txrecovery.domain.recovery.port.FeeOracle;
 
@@ -25,6 +32,7 @@ import tools.jackson.databind.ObjectMapper;
 public class EvmFeeOracleConfig {
 
     @Bean
+    @Validated
     @ConfigurationProperties(prefix = "str.evm")
     EvmFeeOracleSettings evmFeeOracleSettings() {
         return new EvmFeeOracleSettings();
@@ -38,6 +46,7 @@ public class EvmFeeOracleConfig {
             ObjectMapper objectMapper,
             CircuitBreakerRegistry circuitBreakerRegistry,
             RateLimiterRegistry rateLimiterRegistry) {
+        validateNoDuplicateChains(settings.getChains());
         var chainInputs = settings.getChains().stream()
                 .map(c -> new EvmFeeOracleFactory.ChainInput(
                         c.getName(),
@@ -64,19 +73,37 @@ public class EvmFeeOracleConfig {
         return oracles;
     }
 
+    private static void validateNoDuplicateChains(List<ChainSettings> chains) {
+        var seen = new HashSet<String>();
+        var duplicates = chains.stream()
+                .map(ChainSettings::getName)
+                .filter(name -> name != null && !seen.add(name))
+                .distinct()
+                .toList();
+        if (!duplicates.isEmpty()) {
+            throw new IllegalStateException("Duplicate EVM chain names: " + duplicates);
+        }
+    }
+
     @Getter
     @Setter
     public static class EvmFeeOracleSettings {
+        @Valid
         private List<ChainSettings> chains = List.of();
     }
 
     @Getter
     @Setter
     public static class ChainSettings {
+        @NotBlank
         private String name;
+        @NotEmpty
         private List<String> rpcUrls = List.of();
+        @NotNull
         private BigDecimal maxFeeCapGwei = new BigDecimal("200");
+        @NotNull
         private Duration blockTime = Duration.ofSeconds(12);
+        @NotNull
         private Duration rpcTimeout = Duration.ofSeconds(5);
         private int rateLimitPerSecond = 25;
         private int rateLimitBurst = 50;

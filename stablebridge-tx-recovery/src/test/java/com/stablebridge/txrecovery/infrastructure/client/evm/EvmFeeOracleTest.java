@@ -94,6 +94,26 @@ class EvmFeeOracleTest {
     }
 
     @Nested
+    class ChainValidation {
+
+        @Test
+        void shouldThrowWhenEstimateCalledWithWrongChain() {
+            // when/then
+            assertThatThrownBy(() -> oracle.estimate("base", FeeUrgency.FAST))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Oracle for chain ethereum cannot serve chain base");
+        }
+
+        @Test
+        void shouldThrowWhenEstimateReplacementCalledWithWrongChain() {
+            // when/then
+            assertThatThrownBy(() -> oracle.estimateReplacement("polygon", "0xoriginal", 1))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Oracle for chain ethereum cannot serve chain polygon");
+        }
+    }
+
+    @Nested
     class Estimate {
 
         @Nested
@@ -317,6 +337,22 @@ class EvmFeeOracleTest {
             assertThatThrownBy(() -> oracle.estimateReplacement(SOME_CHAIN, "0xnonexistent", 1))
                     .isInstanceOf(EvmRpcException.class)
                     .hasMessageContaining("Original transaction not found");
+        }
+
+        @Test
+        void shouldThrowWhenAttemptNumberIsZero() {
+            // when/then
+            assertThatThrownBy(() -> oracle.estimateReplacement(SOME_CHAIN, "0xoriginal", 0))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("attemptNumber must be >= 1");
+        }
+
+        @Test
+        void shouldThrowWhenAttemptNumberIsNegative() {
+            // when/then
+            assertThatThrownBy(() -> oracle.estimateReplacement(SOME_CHAIN, "0xoriginal", -1))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("attemptNumber must be >= 1");
         }
 
         @Test
