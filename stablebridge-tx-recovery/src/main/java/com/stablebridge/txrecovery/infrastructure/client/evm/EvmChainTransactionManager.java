@@ -35,8 +35,8 @@ class EvmChainTransactionManager implements ChainTransactionManager {
     @Override
     public UnsignedTransaction build(TransactionIntent intent, SubmissionResource resource) {
         if (!(resource instanceof EvmSubmissionResource evmResource)) {
-            throw new IllegalArgumentException(
-                    "Expected EvmSubmissionResource but got " + resource.getClass().getSimpleName());
+            throw new EvmRpcException(
+                    "Expected EvmSubmissionResource but got " + resource.getClass().getSimpleName(), false);
         }
         return transactionBuilder.build(intent, evmResource);
     }
@@ -95,6 +95,10 @@ class EvmChainTransactionManager implements ChainTransactionManager {
 
     private TransactionStatus classifyConfirmedTransaction(EvmReceipt receipt) {
         var currentBlock = rpcClient.getBlockByNumber("latest", false);
+        if (currentBlock == null) {
+            log.warn("Unable to fetch latest block, treating confirmed transaction as CONFIRMED");
+            return TransactionStatus.CONFIRMED;
+        }
         var receiptBlockNum = decodeBlockNumber(receipt.blockNumber());
         var currentBlockNum = decodeBlockNumber(currentBlock.number());
         var depth = currentBlockNum - receiptBlockNum;
@@ -110,6 +114,10 @@ class EvmChainTransactionManager implements ChainTransactionManager {
         }
 
         var currentBlock = rpcClient.getBlockByNumber("latest", false);
+        if (currentBlock == null) {
+            log.warn("Unable to fetch latest block for tx={}, treating as PENDING", txHash);
+            return TransactionStatus.PENDING;
+        }
         var currentBlockNum = decodeBlockNumber(currentBlock.number());
         var firstSeen = pendingFirstSeen.computeIfAbsent(txHash, _ -> currentBlockNum);
         var blocksSinceSeen = currentBlockNum - firstSeen;
@@ -123,8 +131,8 @@ class EvmChainTransactionManager implements ChainTransactionManager {
 
     private void validateChain(String chain) {
         if (!rpcClient.getChain().equals(chain)) {
-            throw new IllegalArgumentException(
-                    "Manager for chain %s cannot serve chain %s".formatted(rpcClient.getChain(), chain));
+            throw new EvmRpcException(
+                    "Manager for chain %s cannot serve chain %s".formatted(rpcClient.getChain(), chain), false);
         }
     }
 
