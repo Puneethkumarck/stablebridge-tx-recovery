@@ -14,5 +14,7 @@ public interface NonceAccountPoolRepository {
 
     void updateNonceValue(String nonceAccountAddress, String chain, String newNonceValue);
 
+    void consumeAndRelease(String nonceAccountAddress, String chain, String newNonceValue);
+
     long countAvailableByChain(String chain);
 }
