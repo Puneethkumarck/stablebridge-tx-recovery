@@ -31,6 +31,8 @@ class NonceAccountPoolRepositoryAdapter implements NonceAccountPoolRepository {
             if (updated == 0) {
                 throw new NonceConcurrencyException(e.getNonceAccount(), chain);
             }
+            e.setStatus(NonceAccountStatus.IN_USE);
+            e.setAllocatedToTx(UUID.fromString(allocatedToTx));
         });
         return entity.map(mapper::toDomain);
     }

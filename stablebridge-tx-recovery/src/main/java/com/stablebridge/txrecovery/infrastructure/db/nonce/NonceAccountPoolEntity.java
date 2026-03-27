@@ -10,7 +10,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.Version;
 
 import com.stablebridge.txrecovery.domain.address.model.NonceAccountStatus;
 
@@ -45,7 +44,4 @@ class NonceAccountPoolEntity {
 
     @Column(name = "allocated_to_tx")
     private UUID allocatedToTx;
-
-    @Version
-    private long version;
 }
