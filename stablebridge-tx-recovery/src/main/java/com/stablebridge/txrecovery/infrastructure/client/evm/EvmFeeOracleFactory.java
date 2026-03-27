@@ -12,8 +12,10 @@ import com.stablebridge.txrecovery.domain.recovery.port.FeeOracle;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
+import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.ObjectMapper;
 
+@RequiredArgsConstructor
 public class EvmFeeOracleFactory {
 
     private final List<ChainInput> chainInputs;
@@ -21,19 +23,6 @@ public class EvmFeeOracleFactory {
     private final ObjectMapper objectMapper;
     private final CircuitBreakerRegistry circuitBreakerRegistry;
     private final RateLimiterRegistry rateLimiterRegistry;
-
-    public EvmFeeOracleFactory(
-            List<ChainInput> chainInputs,
-            StringRedisTemplate redisTemplate,
-            ObjectMapper objectMapper,
-            CircuitBreakerRegistry circuitBreakerRegistry,
-            RateLimiterRegistry rateLimiterRegistry) {
-        this.chainInputs = chainInputs;
-        this.redisTemplate = redisTemplate;
-        this.objectMapper = objectMapper;
-        this.circuitBreakerRegistry = circuitBreakerRegistry;
-        this.rateLimiterRegistry = rateLimiterRegistry;
-    }
 
     public Map<String, FeeOracle> createAll() {
         var oracles = new LinkedHashMap<String, FeeOracle>();
@@ -58,6 +47,7 @@ public class EvmFeeOracleFactory {
         return Map.copyOf(oracles);
     }
 
+    @lombok.Builder(toBuilder = true)
     public record ChainInput(
             String name,
             List<String> rpcUrls,
