@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <springProfile name="!prod &amp; !staging">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - [%X{transactionId}] [%X{intentId}] [%X{chain}] %msg%n</pattern>
+            </encoder>
+        </appender>
+
+        <logger name="com.stablebridge" level="DEBUG"/>
+        <logger name="io.temporal" level="WARN"/>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <springProfile name="prod | staging">
+        <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <includeMdcKeyName>transactionId</includeMdcKeyName>
+                <includeMdcKeyName>intentId</includeMdcKeyName>
+                <includeMdcKeyName>chain</includeMdcKeyName>
+                <includeMdcKeyName>txHash</includeMdcKeyName>
+                <includeMdcKeyName>fromAddress</includeMdcKeyName>
+                <includeMdcKeyName>toAddress</includeMdcKeyName>
+                <includeMdcKeyName>amount</includeMdcKeyName>
+                <includeMdcKeyName>token</includeMdcKeyName>
+                <includeMdcKeyName>status</includeMdcKeyName>
+                <includeMdcKeyName>retryCount</includeMdcKeyName>
+                <includeMdcKeyName>gasSpent</includeMdcKeyName>
+                <includeMdcKeyName>escalationTier</includeMdcKeyName>
+                <includeMdcKeyName>traceId</includeMdcKeyName>
+                <includeMdcKeyName>latencyMs</includeMdcKeyName>
+            </encoder>
+        </appender>
+
+        <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>logs/stablebridge-tx-recovery.json</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>logs/stablebridge-tx-recovery.%d{yyyy-MM-dd}.%i.json.gz</fileNamePattern>
+                <maxFileSize>100MB</maxFileSize>
+                <maxHistory>30</maxHistory>
+                <totalSizeCap>3GB</totalSizeCap>
+            </rollingPolicy>
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <includeMdcKeyName>transactionId</includeMdcKeyName>
+                <includeMdcKeyName>intentId</includeMdcKeyName>
+                <includeMdcKeyName>chain</includeMdcKeyName>
+                <includeMdcKeyName>txHash</includeMdcKeyName>
+                <includeMdcKeyName>fromAddress</includeMdcKeyName>
+                <includeMdcKeyName>toAddress</includeMdcKeyName>
+                <includeMdcKeyName>amount</includeMdcKeyName>
+                <includeMdcKeyName>token</includeMdcKeyName>
+                <includeMdcKeyName>status</includeMdcKeyName>
+                <includeMdcKeyName>retryCount</includeMdcKeyName>
+                <includeMdcKeyName>gasSpent</includeMdcKeyName>
+                <includeMdcKeyName>escalationTier</includeMdcKeyName>
+                <includeMdcKeyName>traceId</includeMdcKeyName>
+                <includeMdcKeyName>latencyMs</includeMdcKeyName>
+            </encoder>
+        </appender>
+
+        <logger name="com.stablebridge" level="INFO"/>
+        <logger name="io.temporal" level="WARN"/>
+
+        <root level="WARN">
+            <appender-ref ref="JSON_CONSOLE"/>
+            <appender-ref ref="JSON_FILE"/>
+        </root>
+    </springProfile>
+
+</configuration>
