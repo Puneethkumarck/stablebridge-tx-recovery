@@ -262,7 +262,24 @@ class SolanaTransactionBuilderTest {
             // when/then
             assertThatThrownBy(() -> SolanaTransactionBuilder.encodeCompactU16(-1))
                     .isInstanceOf(SolanaRpcException.class)
-                    .hasMessageContaining("non-negative");
+                    .hasMessageContaining("range 0..65535");
+        }
+
+        @Test
+        void shouldRejectValuesAboveU16Max() {
+            // when/then
+            assertThatThrownBy(() -> SolanaTransactionBuilder.encodeCompactU16(65536))
+                    .isInstanceOf(SolanaRpcException.class)
+                    .hasMessageContaining("range 0..65535");
+        }
+
+        @Test
+        void shouldEncodeMaxU16Value() {
+            // when
+            var result = SolanaTransactionBuilder.encodeCompactU16(65535);
+
+            // then
+            assertThat(result).isEqualTo(new byte[] {(byte) 0xFF, (byte) 0xFF, 0x03});
         }
     }
 
