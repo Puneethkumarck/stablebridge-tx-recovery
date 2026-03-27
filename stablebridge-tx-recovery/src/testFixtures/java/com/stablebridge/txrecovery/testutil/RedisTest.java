@@ -15,5 +15,5 @@ import org.springframework.test.context.TestPropertySource;
 @SpringBootTest
 @ActiveProfiles("test")
 @TestPropertySource(properties = "str.redis.enabled=true")
-@ExtendWith(RedisContainerExtension.class)
+@ExtendWith({RedisContainerExtension.class, PostgresContainerExtension.class})
 public @interface RedisTest {}
