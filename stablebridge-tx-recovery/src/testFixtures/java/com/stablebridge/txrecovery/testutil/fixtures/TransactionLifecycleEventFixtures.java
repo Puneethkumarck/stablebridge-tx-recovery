@@ -15,9 +15,20 @@ public final class TransactionLifecycleEventFixtures {
     public static final String SOME_CHAIN_UPPER = "SOLANA_MAINNET";
     public static final String SOME_PAYLOAD = "{\"json\":true}";
 
+    public static final Instant SOME_FIXED_TIMESTAMP = Instant.parse("2026-03-27T12:00:00Z");
+
     public static final TransactionLifecycleEvent SOME_EVENT = buildEvent(SOME_TO_ADDRESS);
 
     public static final TransactionLifecycleEvent SOME_EVENT_WITHOUT_TO_ADDRESS = buildEvent(null);
+
+    public static final TransactionLifecycleEvent SOME_EVENT_WITH_FIXED_TIMESTAMP = TransactionLifecycleEvent.builder()
+            .eventId(SOME_EVENT_ID)
+            .intentId(SOME_INTENT_ID)
+            .toAddress(SOME_TO_ADDRESS)
+            .chain(SOME_CHAIN)
+            .status(SUBMITTED)
+            .timestamp(SOME_FIXED_TIMESTAMP)
+            .build();
 
     public static final TransactionLifecycleEvent SOME_EVENT_UPPER_CHAIN = TransactionLifecycleEvent.builder()
             .eventId(SOME_EVENT_ID)
