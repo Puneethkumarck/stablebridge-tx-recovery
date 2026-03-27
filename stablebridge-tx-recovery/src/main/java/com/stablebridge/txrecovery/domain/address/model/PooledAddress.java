@@ -15,7 +15,8 @@ public record PooledAddress(
         long currentNonce,
         int inFlightCount,
         String signerEndpoint,
-        Instant registeredAt) {
+        Instant registeredAt,
+        Instant lastUsedAt) {
 
     public PooledAddress {
         Objects.requireNonNull(address);
