@@ -7,3 +7,9 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+
+str:
+  temporal:
+    target: 127.0.0.1:7233
+    namespace: stablebridge-tx-recovery-test
+    task-queue: str-transaction-lifecycle-test

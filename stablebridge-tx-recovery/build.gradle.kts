@@ -65,6 +65,7 @@ dependencies {
     testImplementation(libs.testcontainers.kafka)
     testImplementation(libs.wiremock)
     testImplementation(libs.instancio)
+    testImplementation(libs.temporal.testing)
 
     // Lombok for tests
     testCompileOnly(libs.lombok)
