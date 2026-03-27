@@ -1,5 +1,6 @@
 package com.stablebridge.txrecovery.application.config;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.stereotype.Component;
@@ -11,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnBean(WorkflowServiceStubs.class)
 public class TemporalHealthIndicator implements HealthIndicator {
 
     private final WorkflowServiceStubs workflowServiceStubs;
