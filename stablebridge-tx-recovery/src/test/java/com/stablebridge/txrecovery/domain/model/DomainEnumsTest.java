@@ -11,6 +11,19 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
+import com.stablebridge.txrecovery.domain.address.model.AddressTier;
+import com.stablebridge.txrecovery.domain.address.model.ChainFamily;
+import com.stablebridge.txrecovery.domain.address.model.NonceAccountStatus;
+import com.stablebridge.txrecovery.domain.recovery.model.ApprovalAction;
+import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
+import com.stablebridge.txrecovery.domain.recovery.model.RecoveryAction;
+import com.stablebridge.txrecovery.domain.recovery.model.RecoveryOutcome;
+import com.stablebridge.txrecovery.domain.recovery.model.StuckReason;
+import com.stablebridge.txrecovery.domain.recovery.model.StuckSeverity;
+import com.stablebridge.txrecovery.domain.transaction.model.SubmissionStrategy;
+import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
+
 class DomainEnumsTest {
 
     static Stream<Arguments> enumDefinitions() {
