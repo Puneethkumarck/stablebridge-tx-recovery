@@ -15,7 +15,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import com.stablebridge.txrecovery.domain.address.port.NonceManager;
 import com.stablebridge.txrecovery.testutil.PgTest;
 
 @PgTest
@@ -28,10 +30,14 @@ class FlywayMigrationIntegrationTest {
     @Autowired
     private DataSource dataSource;
 
+    @MockitoBean
+    @SuppressWarnings("unused")
+    private NonceManager nonceManager;
+
     @Test
     void shouldRunAllRequiredMigrations() {
         // given
-        var requiredVersions = List.of("1", "2", "3", "4", "5", "6");
+        var requiredVersions = List.of("1", "2", "3", "4", "5", "6", "7");
 
         // when
         var appliedVersions = Arrays.stream(flyway.info().applied())

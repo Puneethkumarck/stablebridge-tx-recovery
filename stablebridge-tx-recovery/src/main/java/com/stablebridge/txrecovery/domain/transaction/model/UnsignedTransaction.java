@@ -23,6 +23,7 @@ public record UnsignedTransaction(
         Objects.requireNonNull(fromAddress);
         Objects.requireNonNull(toAddress);
         Objects.requireNonNull(payload);
+        Objects.requireNonNull(feeEstimate);
         payload = payload.clone();
         metadata = metadata == null ? null : Map.copyOf(metadata);
     }

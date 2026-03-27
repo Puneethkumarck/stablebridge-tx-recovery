@@ -235,7 +235,7 @@ public class EvmRpcClient {
         return "0x" + Long.toHexString(value);
     }
 
-    String getChain() {
+    public String getChain() {
         return chain;
     }
 
