@@ -16,9 +16,11 @@ import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
 import com.stablebridge.txrecovery.domain.transaction.model.UnsignedTransaction;
 import com.stablebridge.txrecovery.domain.transaction.port.ChainTransactionManager;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@RequiredArgsConstructor
 class EvmChainTransactionManager implements ChainTransactionManager {
 
     private static final String ALREADY_KNOWN = "already known";
@@ -28,19 +30,7 @@ class EvmChainTransactionManager implements ChainTransactionManager {
     private final EvmTransactionBuilder transactionBuilder;
     private final long finalityBlocks;
     private final long stuckThresholdBlocks;
-    private final ConcurrentHashMap<String, Long> pendingFirstSeen;
-
-    EvmChainTransactionManager(
-            EvmRpcClient rpcClient,
-            EvmTransactionBuilder transactionBuilder,
-            long finalityBlocks,
-            long stuckThresholdBlocks) {
-        this.rpcClient = rpcClient;
-        this.transactionBuilder = transactionBuilder;
-        this.finalityBlocks = finalityBlocks;
-        this.stuckThresholdBlocks = stuckThresholdBlocks;
-        this.pendingFirstSeen = new ConcurrentHashMap<>();
-    }
+    private final ConcurrentHashMap<String, Long> pendingFirstSeen = new ConcurrentHashMap<>();
 
     @Override
     public UnsignedTransaction build(TransactionIntent intent, SubmissionResource resource) {

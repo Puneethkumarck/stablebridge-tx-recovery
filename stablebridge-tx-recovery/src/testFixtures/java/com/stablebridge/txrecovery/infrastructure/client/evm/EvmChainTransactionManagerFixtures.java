@@ -2,6 +2,8 @@ package com.stablebridge.txrecovery.infrastructure.client.evm;
 
 import static lombok.AccessLevel.PRIVATE;
 
+import com.stablebridge.txrecovery.domain.transaction.model.SignedTransaction;
+
 import lombok.NoArgsConstructor;
 
 @NoArgsConstructor(access = PRIVATE)
@@ -9,10 +11,20 @@ public final class EvmChainTransactionManagerFixtures {
 
     public static final String SOME_CHAIN = "ethereum";
     public static final long SOME_CHAIN_ID = 1L;
+    public static final String SOME_SIGNER_ADDRESS = "0x1111111111111111111111111111111111111111";
     public static final long SOME_FINALITY_BLOCKS = 12L;
     public static final long SOME_STUCK_THRESHOLD_BLOCKS = 50L;
     public static final String SOME_TX_HASH = "0xabc123def456789";
     public static final String SOME_BROADCAST_TX_HASH = "0xbroadcast789";
+    public static final byte[] SOME_SIGNED_PAYLOAD = new byte[] {0x01, 0x02, 0x03};
+    public static final String SOME_SIGNED_PAYLOAD_HEX = "0x010203";
+
+    public static final SignedTransaction SOME_SIGNED_TRANSACTION = SignedTransaction.builder()
+            .intentId("intent-001")
+            .chain(SOME_CHAIN)
+            .signedPayload(SOME_SIGNED_PAYLOAD)
+            .signerAddress(SOME_SIGNER_ADDRESS)
+            .build();
 
     public static final EvmReceipt SOME_SUCCESS_RECEIPT = EvmReceipt.builder()
             .transactionHash(SOME_TX_HASH)
