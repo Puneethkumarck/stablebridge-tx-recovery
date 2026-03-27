@@ -29,6 +29,9 @@ final class Erc20AbiEncoder {
     }
 
     private static byte[] parseAndValidateAddress(String address) {
+        if (address == null || address.isBlank()) {
+            throw new IllegalArgumentException("Recipient address must not be null or blank");
+        }
         var hex = address.startsWith("0x") ? address.substring(2) : address;
         var bytes = HexFormat.of().parseHex(hex);
         if (bytes.length != ADDRESS_BYTE_LENGTH) {

@@ -46,8 +46,8 @@ class EvmTransactionBuilder {
                 .setScale(0, RoundingMode.CEILING)
                 .toBigInteger();
 
-        var maxFeePerGas = feeEstimate.maxFeePerGas().toBigInteger();
-        var maxPriorityFeePerGas = feeEstimate.maxPriorityFeePerGas().toBigInteger();
+        var maxFeePerGas = feeEstimate.maxFeePerGas().toBigIntegerExact();
+        var maxPriorityFeePerGas = feeEstimate.maxPriorityFeePerGas().toBigIntegerExact();
 
         var rlpPayload = encodeEip1559Transaction(
                 resource.nonce(), maxPriorityFeePerGas, maxFeePerGas, gasLimit,
@@ -71,16 +71,23 @@ class EvmTransactionBuilder {
     }
 
     private static void validateFeeEstimate(FeeEstimate feeEstimate) {
-        Objects.requireNonNull(feeEstimate.maxFeePerGas(), "FeeEstimate.maxFeePerGas must not be null");
-        Objects.requireNonNull(feeEstimate.maxPriorityFeePerGas(), "FeeEstimate.maxPriorityFeePerGas must not be null");
-        if (feeEstimate.maxPriorityFeePerGas().compareTo(feeEstimate.maxFeePerGas()) > 0) {
+        Objects.requireNonNull(feeEstimate, "FeeEstimate must not be null");
+        var maxFee = Objects.requireNonNull(feeEstimate.maxFeePerGas(), "FeeEstimate.maxFeePerGas must not be null");
+        var maxPriorityFee = Objects.requireNonNull(
+                feeEstimate.maxPriorityFeePerGas(), "FeeEstimate.maxPriorityFeePerGas must not be null");
+        if (maxFee.signum() < 0 || maxPriorityFee.signum() < 0) {
+            throw new IllegalArgumentException("EIP-1559 fee values must be non-negative");
+        }
+        if (maxPriorityFee.compareTo(maxFee) > 0) {
             throw new IllegalArgumentException(
-                    "maxPriorityFeePerGas (%s) exceeds maxFeePerGas (%s)".formatted(
-                            feeEstimate.maxPriorityFeePerGas(), feeEstimate.maxFeePerGas()));
+                    "maxPriorityFeePerGas (%s) exceeds maxFeePerGas (%s)".formatted(maxPriorityFee, maxFee));
         }
     }
 
     private static byte[] parseEvmAddress(String address) {
+        if (address == null || address.isBlank()) {
+            throw new IllegalArgumentException("EVM address must not be null or blank");
+        }
         var hex = address.startsWith("0x") ? address.substring(2) : address;
         var bytes = HexFormat.of().parseHex(hex);
         if (bytes.length != 20) {
