@@ -1,0 +1,151 @@
+package com.stablebridge.txrecovery.infrastructure.redis;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.core.RedisOperations;
+import org.springframework.data.redis.core.SessionCallback;
+import org.springframework.data.redis.core.StringRedisTemplate;
+
+import com.stablebridge.txrecovery.domain.address.model.NonceAllocation;
+import com.stablebridge.txrecovery.domain.address.port.NonceManager;
+import com.stablebridge.txrecovery.domain.exception.NonceConcurrencyException;
+import com.stablebridge.txrecovery.infrastructure.client.evm.EvmRpcClient;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+@RequiredArgsConstructor
+public class RedisNonceManager implements NonceManager {
+
+    static final String FIELD_ALLOCATED = "allocated";
+    static final String FIELD_CONFIRMED = "confirmed";
+
+    private final StringRedisTemplate redisTemplate;
+    private final EvmRpcClient evmRpcClient;
+
+    @Override
+    public NonceAllocation allocate(String address, String chain) {
+        var hashKey = RedisKeyNamespace.nonceHash(chain, address);
+        var inflightKey = RedisKeyNamespace.nonceInflightSet(chain, address);
+
+        var results = redisTemplate.execute(new SessionCallback<List<Object>>() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public List<Object> execute(RedisOperations operations) throws DataAccessException {
+                operations.watch(hashKey);
+
+                var allocatedStr = (String) operations.opsForHash().get(hashKey, FIELD_ALLOCATED);
+                var onChainNonce =
+                        evmRpcClient.getTransactionCount(address, "latest").longValue();
+
+                long nextNonce;
+                if (allocatedStr == null) {
+                    nextNonce = onChainNonce;
+                } else {
+                    var allocated = Long.parseLong(allocatedStr);
+                    nextNonce = Math.max(allocated + 1, onChainNonce);
+                }
+
+                operations.multi();
+                operations.opsForHash().put(hashKey, FIELD_ALLOCATED, String.valueOf(nextNonce));
+                operations.opsForSet().add(inflightKey, String.valueOf(nextNonce));
+
+                return operations.exec();
+            }
+        });
+
+        if (results == null || results.isEmpty()) {
+            throw new NonceConcurrencyException(address, chain);
+        }
+
+        var nonce = Long.parseLong(Optional.ofNullable(redisTemplate.opsForHash().get(hashKey, FIELD_ALLOCATED))
+                .map(Object::toString)
+                .orElseThrow(() -> new NonceConcurrencyException(address, chain)));
+
+        log.info("Allocated nonce {} for address {} on chain {}", nonce, address, chain);
+        return NonceAllocation.builder()
+                .address(address)
+                .chain(chain)
+                .nonce(nonce)
+                .build();
+    }
+
+    @Override
+    public void release(NonceAllocation allocation) {
+        var inflightKey = RedisKeyNamespace.nonceInflightSet(allocation.chain(), allocation.address());
+        redisTemplate.opsForSet().remove(inflightKey, String.valueOf(allocation.nonce()));
+        log.info(
+                "Released nonce {} for address {} on chain {}",
+                allocation.nonce(),
+                allocation.address(),
+                allocation.chain());
+    }
+
+    @Override
+    public void confirm(NonceAllocation allocation) {
+        var hashKey = RedisKeyNamespace.nonceHash(allocation.chain(), allocation.address());
+        var inflightKey = RedisKeyNamespace.nonceInflightSet(allocation.chain(), allocation.address());
+
+        var confirmedStr = redisTemplate.opsForHash().get(hashKey, FIELD_CONFIRMED);
+        var currentConfirmed = confirmedStr != null ? Long.parseLong(confirmedStr.toString()) : -1L;
+
+        if (allocation.nonce() > currentConfirmed) {
+            redisTemplate.opsForHash().put(hashKey, FIELD_CONFIRMED, String.valueOf(allocation.nonce()));
+        }
+
+        redisTemplate.opsForSet().remove(inflightKey, String.valueOf(allocation.nonce()));
+        log.info(
+                "Confirmed nonce {} for address {} on chain {}",
+                allocation.nonce(),
+                allocation.address(),
+                allocation.chain());
+    }
+
+    @Override
+    public void syncFromChain(String address, String chain) {
+        var hashKey = RedisKeyNamespace.nonceHash(chain, address);
+        var inflightKey = RedisKeyNamespace.nonceInflightSet(chain, address);
+
+        var onChainNonce =
+                evmRpcClient.getTransactionCount(address, "latest").longValue();
+        var resetValue = onChainNonce > 0 ? onChainNonce - 1 : 0;
+
+        redisTemplate.opsForHash().put(hashKey, FIELD_ALLOCATED, String.valueOf(resetValue));
+        redisTemplate.opsForHash().put(hashKey, FIELD_CONFIRMED, String.valueOf(resetValue));
+        redisTemplate.delete(inflightKey);
+
+        log.info(
+                "Synced nonce state from chain for address {} on chain {}: onChainNonce={}, reset to {}",
+                address,
+                chain,
+                onChainNonce,
+                resetValue);
+    }
+
+    public Set<Long> detectGaps(String address, String chain) {
+        var inflightKey = RedisKeyNamespace.nonceInflightSet(chain, address);
+        var onChainNonce =
+                evmRpcClient.getTransactionCount(address, "latest").longValue();
+
+        var inflightMembers = redisTemplate.opsForSet().members(inflightKey);
+        if (inflightMembers == null || inflightMembers.isEmpty()) {
+            return Set.of();
+        }
+
+        var gaps = inflightMembers.stream()
+                .map(Long::parseLong)
+                .filter(nonce -> nonce < onChainNonce)
+                .collect(Collectors.toUnmodifiableSet());
+
+        if (!gaps.isEmpty()) {
+            log.warn("Detected {} gap nonce(s) for address {} on chain {}: {}", gaps.size(), address, chain, gaps);
+        }
+
+        return gaps;
+    }
+}
