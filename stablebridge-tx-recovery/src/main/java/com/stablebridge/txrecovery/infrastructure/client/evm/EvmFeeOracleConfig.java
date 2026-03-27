@@ -1,4 +1,4 @@
-package com.stablebridge.txrecovery.application.config;
+package com.stablebridge.txrecovery.infrastructure.client.evm;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -12,10 +12,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import com.stablebridge.txrecovery.domain.recovery.port.FeeOracle;
-import com.stablebridge.txrecovery.infrastructure.client.evm.EvmFeeOracleFactory;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
 
@@ -63,21 +64,15 @@ public class EvmFeeOracleConfig {
         return oracles;
     }
 
+    @Getter
+    @Setter
     public static class EvmFeeOracleSettings {
-
         private List<ChainSettings> chains = List.of();
-
-        public List<ChainSettings> getChains() {
-            return chains;
-        }
-
-        public void setChains(List<ChainSettings> chains) {
-            this.chains = chains;
-        }
     }
 
+    @Getter
+    @Setter
     public static class ChainSettings {
-
         private String name;
         private List<String> rpcUrls = List.of();
         private BigDecimal maxFeeCapGwei = new BigDecimal("200");
@@ -85,61 +80,5 @@ public class EvmFeeOracleConfig {
         private Duration rpcTimeout = Duration.ofSeconds(5);
         private int rateLimitPerSecond = 25;
         private int rateLimitBurst = 50;
-
-        public String getName() {
-            return name;
-        }
-
-        public void setName(String name) {
-            this.name = name;
-        }
-
-        public List<String> getRpcUrls() {
-            return rpcUrls;
-        }
-
-        public void setRpcUrls(List<String> rpcUrls) {
-            this.rpcUrls = rpcUrls;
-        }
-
-        public BigDecimal getMaxFeeCapGwei() {
-            return maxFeeCapGwei;
-        }
-
-        public void setMaxFeeCapGwei(BigDecimal maxFeeCapGwei) {
-            this.maxFeeCapGwei = maxFeeCapGwei;
-        }
-
-        public Duration getBlockTime() {
-            return blockTime;
-        }
-
-        public void setBlockTime(Duration blockTime) {
-            this.blockTime = blockTime;
-        }
-
-        public Duration getRpcTimeout() {
-            return rpcTimeout;
-        }
-
-        public void setRpcTimeout(Duration rpcTimeout) {
-            this.rpcTimeout = rpcTimeout;
-        }
-
-        public int getRateLimitPerSecond() {
-            return rateLimitPerSecond;
-        }
-
-        public void setRateLimitPerSecond(int rateLimitPerSecond) {
-            this.rateLimitPerSecond = rateLimitPerSecond;
-        }
-
-        public int getRateLimitBurst() {
-            return rateLimitBurst;
-        }
-
-        public void setRateLimitBurst(int rateLimitBurst) {
-            this.rateLimitBurst = rateLimitBurst;
-        }
     }
 }

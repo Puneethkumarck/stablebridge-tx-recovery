@@ -16,10 +16,12 @@ import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
 import com.stablebridge.txrecovery.domain.recovery.port.FeeOracle;
 import com.stablebridge.txrecovery.infrastructure.redis.RedisKeyNamespace;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
+@RequiredArgsConstructor
 class EvmFeeOracle implements FeeOracle {
 
     private static final BigDecimal BASE_FEE_MULTIPLIER = new BigDecimal("1.125");
@@ -34,17 +36,6 @@ class EvmFeeOracle implements FeeOracle {
     private final EvmChainProperties chainProperties;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
-
-    EvmFeeOracle(
-            EvmRpcClient rpcClient,
-            EvmChainProperties chainProperties,
-            StringRedisTemplate redisTemplate,
-            ObjectMapper objectMapper) {
-        this.rpcClient = rpcClient;
-        this.chainProperties = chainProperties;
-        this.redisTemplate = redisTemplate;
-        this.objectMapper = objectMapper;
-    }
 
     @Override
     public FeeEstimate estimate(String chain, FeeUrgency urgency) {

@@ -55,6 +55,8 @@ dependencies {
     testFixturesImplementation(libs.testcontainers.kafka)
     testFixturesImplementation("org.springframework.boot:spring-boot-starter-data-redis")
     testFixturesImplementation(libs.wiremock)
+    testFixturesCompileOnly(libs.lombok)
+    testFixturesAnnotationProcessor(libs.lombok)
 
     // Test dependencies
     testImplementation(testFixtures(project))

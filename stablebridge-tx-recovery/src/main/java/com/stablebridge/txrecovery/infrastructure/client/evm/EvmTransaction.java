@@ -1,5 +1,8 @@
 package com.stablebridge.txrecovery.infrastructure.client.evm;
 
+import lombok.Builder;
+
+@Builder(toBuilder = true)
 record EvmTransaction(
         String hash,
         String nonce,
