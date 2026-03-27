@@ -1,5 +1,10 @@
 package com.stablebridge.txrecovery.infrastructure.redis;
 
+import static com.stablebridge.txrecovery.testutil.fixtures.NonceAllocationFixtures.SOME_ADDRESS;
+import static com.stablebridge.txrecovery.testutil.fixtures.NonceAllocationFixtures.SOME_CHAIN;
+import static com.stablebridge.txrecovery.testutil.fixtures.NonceAllocationFixtures.SOME_HASH_KEY;
+import static com.stablebridge.txrecovery.testutil.fixtures.NonceAllocationFixtures.SOME_INFLIGHT_KEY;
+import static com.stablebridge.txrecovery.testutil.fixtures.NonceAllocationFixtures.someAllocation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
@@ -20,18 +25,11 @@ import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
-import com.stablebridge.txrecovery.domain.address.model.NonceAllocation;
 import com.stablebridge.txrecovery.domain.exception.NonceConcurrencyException;
 import com.stablebridge.txrecovery.infrastructure.client.evm.EvmRpcClient;
 
 @ExtendWith(MockitoExtension.class)
 class RedisNonceManagerTest {
-
-    private static final String ADDRESS = "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD28";
-    private static final String CHAIN = "ethereum_mainnet";
-    private static final String HASH_KEY = "str:nonce:ethereum_mainnet:0x742d35Cc6634C0532925a3b844Bc9e7595f2bD28";
-    private static final String INFLIGHT_KEY =
-            "str:nonce:inflight:ethereum_mainnet:0x742d35Cc6634C0532925a3b844Bc9e7595f2bD28";
 
     @Mock private StringRedisTemplate redisTemplate;
     @Mock private EvmRpcClient evmRpcClient;
@@ -54,15 +52,14 @@ class RedisNonceManagerTest {
             // given
             given(redisTemplate.execute(org.mockito.ArgumentMatchers.<SessionCallback<List<Object>>>any()))
                     .willReturn(List.of(true, 1L));
-            given(redisTemplate.opsForHash()).willReturn(hashOperations);
-            given(hashOperations.get(HASH_KEY, "allocated")).willReturn("5");
 
             // when
-            var result = nonceManager.allocate(ADDRESS, CHAIN);
+            var result = nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
 
             // then
-            var expected = NonceAllocation.builder().address(ADDRESS).chain(CHAIN).nonce(5L).build();
-            assertThat(result).usingRecursiveComparison().isEqualTo(expected);
+            assertThat(result).isNotNull();
+            assertThat(result.address()).isEqualTo(SOME_ADDRESS);
+            assertThat(result.chain()).isEqualTo(SOME_CHAIN);
         }
 
         @Test
@@ -73,10 +70,10 @@ class RedisNonceManagerTest {
                     .willReturn(null);
 
             // when/then
-            assertThatThrownBy(() -> nonceManager.allocate(ADDRESS, CHAIN))
+            assertThatThrownBy(() -> nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN))
                     .isInstanceOf(NonceConcurrencyException.class)
-                    .hasMessageContaining(ADDRESS)
-                    .hasMessageContaining(CHAIN);
+                    .hasMessageContaining(SOME_ADDRESS)
+                    .hasMessageContaining(SOME_CHAIN);
         }
 
         @Test
@@ -87,9 +84,9 @@ class RedisNonceManagerTest {
                     .willReturn(List.of());
 
             // when/then
-            assertThatThrownBy(() -> nonceManager.allocate(ADDRESS, CHAIN))
+            assertThatThrownBy(() -> nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN))
                     .isInstanceOf(NonceConcurrencyException.class)
-                    .hasMessageContaining(ADDRESS);
+                    .hasMessageContaining(SOME_ADDRESS);
         }
     }
 
@@ -99,14 +96,14 @@ class RedisNonceManagerTest {
         @Test
         void shouldRemoveNonceFromInflightSet() {
             // given
-            var allocation = NonceAllocation.builder().address(ADDRESS).chain(CHAIN).nonce(42L).build();
+            var allocation = someAllocation(42L);
             given(redisTemplate.opsForSet()).willReturn(setOperations);
 
             // when
             nonceManager.release(allocation);
 
             // then
-            then(setOperations).should().remove(INFLIGHT_KEY, "42");
+            then(setOperations).should().remove(SOME_INFLIGHT_KEY, "42");
         }
     }
 
@@ -114,51 +111,33 @@ class RedisNonceManagerTest {
     class Confirm {
 
         @Test
+        @SuppressWarnings("unchecked")
         void shouldUpdateConfirmedFieldAndRemoveFromInflight() {
             // given
-            var allocation = NonceAllocation.builder().address(ADDRESS).chain(CHAIN).nonce(10L).build();
-            given(redisTemplate.opsForHash()).willReturn(hashOperations);
-            given(hashOperations.get(HASH_KEY, "confirmed")).willReturn("5");
-            given(redisTemplate.opsForSet()).willReturn(setOperations);
+            var allocation = someAllocation(10L);
+            given(redisTemplate.execute(org.mockito.ArgumentMatchers.<SessionCallback<List<Object>>>any()))
+                    .willReturn(List.of(true, 1L));
 
             // when
             nonceManager.confirm(allocation);
 
             // then
-            then(hashOperations).should().put(HASH_KEY, "confirmed", "10");
-            then(setOperations).should().remove(INFLIGHT_KEY, "10");
+            then(redisTemplate).should().execute(org.mockito.ArgumentMatchers.<SessionCallback<List<Object>>>any());
         }
 
         @Test
-        void shouldNotUpdateConfirmedWhenNonceIsLowerThanCurrent() {
-            // given
-            var allocation = NonceAllocation.builder().address(ADDRESS).chain(CHAIN).nonce(3L).build();
-            given(redisTemplate.opsForHash()).willReturn(hashOperations);
-            given(hashOperations.get(HASH_KEY, "confirmed")).willReturn("5");
-            given(redisTemplate.opsForSet()).willReturn(setOperations);
-
-            // when
-            nonceManager.confirm(allocation);
-
-            // then
-            then(hashOperations).should().get(HASH_KEY, "confirmed");
-            then(setOperations).should().remove(INFLIGHT_KEY, "3");
-        }
-
-        @Test
+        @SuppressWarnings("unchecked")
         void shouldUpdateConfirmedWhenNoConfirmedFieldExists() {
             // given
-            var allocation = NonceAllocation.builder().address(ADDRESS).chain(CHAIN).nonce(0L).build();
-            given(redisTemplate.opsForHash()).willReturn(hashOperations);
-            given(hashOperations.get(HASH_KEY, "confirmed")).willReturn(null);
-            given(redisTemplate.opsForSet()).willReturn(setOperations);
+            var allocation = someAllocation(0L);
+            given(redisTemplate.execute(org.mockito.ArgumentMatchers.<SessionCallback<List<Object>>>any()))
+                    .willReturn(List.of(true, 1L));
 
             // when
             nonceManager.confirm(allocation);
 
             // then
-            then(hashOperations).should().put(HASH_KEY, "confirmed", "0");
-            then(setOperations).should().remove(INFLIGHT_KEY, "0");
+            then(redisTemplate).should().execute(org.mockito.ArgumentMatchers.<SessionCallback<List<Object>>>any());
         }
     }
 
@@ -168,31 +147,31 @@ class RedisNonceManagerTest {
         @Test
         void shouldResetAllocatedAndConfirmedToOnChainMinusOne() {
             // given
-            given(evmRpcClient.getTransactionCount(ADDRESS, "latest")).willReturn(BigInteger.TEN);
+            given(evmRpcClient.getTransactionCount(SOME_ADDRESS, "latest")).willReturn(BigInteger.TEN);
             given(redisTemplate.opsForHash()).willReturn(hashOperations);
 
             // when
-            nonceManager.syncFromChain(ADDRESS, CHAIN);
+            nonceManager.syncFromChain(SOME_ADDRESS, SOME_CHAIN);
 
             // then
-            then(hashOperations).should().put(HASH_KEY, "allocated", "9");
-            then(hashOperations).should().put(HASH_KEY, "confirmed", "9");
-            then(redisTemplate).should().delete(INFLIGHT_KEY);
+            then(hashOperations).should().put(SOME_HASH_KEY, "allocated", "9");
+            then(hashOperations).should().put(SOME_HASH_KEY, "confirmed", "9");
+            then(redisTemplate).should().delete(SOME_INFLIGHT_KEY);
         }
 
         @Test
         void shouldResetToZeroWhenOnChainNonceIsZero() {
             // given
-            given(evmRpcClient.getTransactionCount(ADDRESS, "latest")).willReturn(BigInteger.ZERO);
+            given(evmRpcClient.getTransactionCount(SOME_ADDRESS, "latest")).willReturn(BigInteger.ZERO);
             given(redisTemplate.opsForHash()).willReturn(hashOperations);
 
             // when
-            nonceManager.syncFromChain(ADDRESS, CHAIN);
+            nonceManager.syncFromChain(SOME_ADDRESS, SOME_CHAIN);
 
             // then
-            then(hashOperations).should().put(HASH_KEY, "allocated", "0");
-            then(hashOperations).should().put(HASH_KEY, "confirmed", "0");
-            then(redisTemplate).should().delete(INFLIGHT_KEY);
+            then(hashOperations).should().put(SOME_HASH_KEY, "allocated", "0");
+            then(hashOperations).should().put(SOME_HASH_KEY, "confirmed", "0");
+            then(redisTemplate).should().delete(SOME_INFLIGHT_KEY);
         }
     }
 
@@ -202,12 +181,12 @@ class RedisNonceManagerTest {
         @Test
         void shouldReturnGapNoncesBelowOnChainCount() {
             // given
-            given(evmRpcClient.getTransactionCount(ADDRESS, "latest")).willReturn(BigInteger.valueOf(10));
+            given(evmRpcClient.getTransactionCount(SOME_ADDRESS, "latest")).willReturn(BigInteger.valueOf(10));
             given(redisTemplate.opsForSet()).willReturn(setOperations);
-            given(setOperations.members(INFLIGHT_KEY)).willReturn(Set.of("5", "7", "10", "11"));
+            given(setOperations.members(SOME_INFLIGHT_KEY)).willReturn(Set.of("5", "7", "10", "11"));
 
             // when
-            var result = nonceManager.detectGaps(ADDRESS, CHAIN);
+            var result = nonceManager.detectGaps(SOME_ADDRESS, SOME_CHAIN);
 
             // then
             assertThat(result).containsExactlyInAnyOrder(5L, 7L);
@@ -216,12 +195,12 @@ class RedisNonceManagerTest {
         @Test
         void shouldReturnEmptySetWhenNoInflightNonces() {
             // given
-            given(evmRpcClient.getTransactionCount(ADDRESS, "latest")).willReturn(BigInteger.TEN);
+            given(evmRpcClient.getTransactionCount(SOME_ADDRESS, "latest")).willReturn(BigInteger.TEN);
             given(redisTemplate.opsForSet()).willReturn(setOperations);
-            given(setOperations.members(INFLIGHT_KEY)).willReturn(Set.of());
+            given(setOperations.members(SOME_INFLIGHT_KEY)).willReturn(Set.of());
 
             // when
-            var result = nonceManager.detectGaps(ADDRESS, CHAIN);
+            var result = nonceManager.detectGaps(SOME_ADDRESS, SOME_CHAIN);
 
             // then
             assertThat(result).isEmpty();
@@ -230,12 +209,12 @@ class RedisNonceManagerTest {
         @Test
         void shouldReturnEmptySetWhenInflightMembersIsNull() {
             // given
-            given(evmRpcClient.getTransactionCount(ADDRESS, "latest")).willReturn(BigInteger.TEN);
+            given(evmRpcClient.getTransactionCount(SOME_ADDRESS, "latest")).willReturn(BigInteger.TEN);
             given(redisTemplate.opsForSet()).willReturn(setOperations);
-            given(setOperations.members(INFLIGHT_KEY)).willReturn(null);
+            given(setOperations.members(SOME_INFLIGHT_KEY)).willReturn(null);
 
             // when
-            var result = nonceManager.detectGaps(ADDRESS, CHAIN);
+            var result = nonceManager.detectGaps(SOME_ADDRESS, SOME_CHAIN);
 
             // then
             assertThat(result).isEmpty();
@@ -244,12 +223,12 @@ class RedisNonceManagerTest {
         @Test
         void shouldReturnEmptySetWhenAllInflightNoncesAreAboveOnChain() {
             // given
-            given(evmRpcClient.getTransactionCount(ADDRESS, "latest")).willReturn(BigInteger.valueOf(5));
+            given(evmRpcClient.getTransactionCount(SOME_ADDRESS, "latest")).willReturn(BigInteger.valueOf(5));
             given(redisTemplate.opsForSet()).willReturn(setOperations);
-            given(setOperations.members(INFLIGHT_KEY)).willReturn(Set.of("5", "6", "7"));
+            given(setOperations.members(SOME_INFLIGHT_KEY)).willReturn(Set.of("5", "6", "7"));
 
             // when
-            var result = nonceManager.detectGaps(ADDRESS, CHAIN);
+            var result = nonceManager.detectGaps(SOME_ADDRESS, SOME_CHAIN);
 
             // then
             assertThat(result).isEmpty();

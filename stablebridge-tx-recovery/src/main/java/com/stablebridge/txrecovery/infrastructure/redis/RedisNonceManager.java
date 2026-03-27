@@ -1,7 +1,6 @@
 package com.stablebridge.txrecovery.infrastructure.redis;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -32,6 +31,7 @@ public class RedisNonceManager implements NonceManager {
     public NonceAllocation allocate(String address, String chain) {
         var hashKey = RedisKeyNamespace.nonceHash(chain, address);
         var inflightKey = RedisKeyNamespace.nonceInflightSet(chain, address);
+        var nonceHolder = new long[1];
 
         var results = redisTemplate.execute(new SessionCallback<List<Object>>() {
             @Override
@@ -43,13 +43,10 @@ public class RedisNonceManager implements NonceManager {
                 var onChainNonce =
                         evmRpcClient.getTransactionCount(address, "latest").longValue();
 
-                long nextNonce;
-                if (allocatedStr == null) {
-                    nextNonce = onChainNonce;
-                } else {
-                    var allocated = Long.parseLong(allocatedStr);
-                    nextNonce = Math.max(allocated + 1, onChainNonce);
-                }
+                var nextNonce = allocatedStr == null
+                        ? onChainNonce
+                        : Math.max(Long.parseLong(allocatedStr) + 1, onChainNonce);
+                nonceHolder[0] = nextNonce;
 
                 operations.multi();
                 operations.opsForHash().put(hashKey, FIELD_ALLOCATED, String.valueOf(nextNonce));
@@ -63,10 +60,7 @@ public class RedisNonceManager implements NonceManager {
             throw new NonceConcurrencyException(address, chain);
         }
 
-        var nonce = Long.parseLong(Optional.ofNullable(redisTemplate.opsForHash().get(hashKey, FIELD_ALLOCATED))
-                .map(Object::toString)
-                .orElseThrow(() -> new NonceConcurrencyException(address, chain)));
-
+        var nonce = nonceHolder[0];
         log.info("Allocated nonce {} for address {} on chain {}", nonce, address, chain);
         return NonceAllocation.builder()
                 .address(address)
@@ -91,14 +85,25 @@ public class RedisNonceManager implements NonceManager {
         var hashKey = RedisKeyNamespace.nonceHash(allocation.chain(), allocation.address());
         var inflightKey = RedisKeyNamespace.nonceInflightSet(allocation.chain(), allocation.address());
 
-        var confirmedStr = redisTemplate.opsForHash().get(hashKey, FIELD_CONFIRMED);
-        var currentConfirmed = confirmedStr != null ? Long.parseLong(confirmedStr.toString()) : -1L;
+        redisTemplate.execute(new SessionCallback<List<Object>>() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public List<Object> execute(RedisOperations operations) throws DataAccessException {
+                operations.watch(hashKey);
 
-        if (allocation.nonce() > currentConfirmed) {
-            redisTemplate.opsForHash().put(hashKey, FIELD_CONFIRMED, String.valueOf(allocation.nonce()));
-        }
+                var confirmedStr = (String) operations.opsForHash().get(hashKey, FIELD_CONFIRMED);
+                var currentConfirmed = confirmedStr != null ? Long.parseLong(confirmedStr) : -1L;
 
-        redisTemplate.opsForSet().remove(inflightKey, String.valueOf(allocation.nonce()));
+                operations.multi();
+                if (allocation.nonce() > currentConfirmed) {
+                    operations.opsForHash().put(hashKey, FIELD_CONFIRMED, String.valueOf(allocation.nonce()));
+                }
+                operations.opsForSet().remove(inflightKey, String.valueOf(allocation.nonce()));
+
+                return operations.exec();
+            }
+        });
+
         log.info(
                 "Confirmed nonce {} for address {} on chain {}",
                 allocation.nonce(),
@@ -119,7 +124,7 @@ public class RedisNonceManager implements NonceManager {
         redisTemplate.opsForHash().put(hashKey, FIELD_CONFIRMED, String.valueOf(resetValue));
         redisTemplate.delete(inflightKey);
 
-        log.info(
+        log.warn(
                 "Synced nonce state from chain for address {} on chain {}: onChainNonce={}, reset to {}",
                 address,
                 chain,
@@ -127,6 +132,7 @@ public class RedisNonceManager implements NonceManager {
                 resetValue);
     }
 
+    @Override
     public Set<Long> detectGaps(String address, String chain) {
         var inflightKey = RedisKeyNamespace.nonceInflightSet(chain, address);
         var onChainNonce =
