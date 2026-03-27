@@ -7,11 +7,13 @@ import static com.stablebridge.txrecovery.testutil.fixtures.NonceAllocationFixtu
 import static com.stablebridge.txrecovery.testutil.fixtures.NonceAllocationFixtures.someAllocation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +29,7 @@ import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 
+import com.stablebridge.txrecovery.domain.address.model.NonceAllocation;
 import com.stablebridge.txrecovery.domain.exception.NonceConcurrencyException;
 import com.stablebridge.txrecovery.infrastructure.client.evm.EvmRpcClient;
 
@@ -56,23 +59,31 @@ class RedisNonceManagerTest {
         @SuppressWarnings("unchecked")
         void shouldAllocateNonceFromOnChainWhenFirstAllocation() {
             // given
-            given(redisTemplate.execute(org.mockito.ArgumentMatchers.<SessionCallback<List<Object>>>any()))
+            given(redisTemplate.execute(
+                    argThat((SessionCallback<List<Object>> callback) -> Objects.nonNull(callback))))
                     .willReturn(List.of(true, 1L));
 
             // when
             var result = nonceManager.allocate(SOME_ADDRESS, SOME_CHAIN);
 
             // then
-            assertThat(result).isNotNull();
-            assertThat(result.address()).isEqualTo(SOME_ADDRESS);
-            assertThat(result.chain()).isEqualTo(SOME_CHAIN);
+            var expected = NonceAllocation.builder()
+                    .address(SOME_ADDRESS)
+                    .chain(SOME_CHAIN)
+                    .build();
+
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .ignoringFields("nonce")
+                    .isEqualTo(expected);
         }
 
         @Test
         @SuppressWarnings("unchecked")
         void shouldThrowNonceConcurrencyExceptionWhenWatchFails() {
             // given
-            given(redisTemplate.execute(org.mockito.ArgumentMatchers.<SessionCallback<List<Object>>>any()))
+            given(redisTemplate.execute(
+                    argThat((SessionCallback<List<Object>> callback) -> Objects.nonNull(callback))))
                     .willReturn(null);
 
             // when/then
@@ -86,7 +97,8 @@ class RedisNonceManagerTest {
         @SuppressWarnings("unchecked")
         void shouldThrowNonceConcurrencyExceptionWhenExecReturnsEmpty() {
             // given
-            given(redisTemplate.execute(org.mockito.ArgumentMatchers.<SessionCallback<List<Object>>>any()))
+            given(redisTemplate.execute(
+                    argThat((SessionCallback<List<Object>> callback) -> Objects.nonNull(callback))))
                     .willReturn(List.of());
 
             // when/then

@@ -1,4 +1,4 @@
-package com.stablebridge.txrecovery.application.config;
+package com.stablebridge.txrecovery.infrastructure.stream;
 
 import static com.stablebridge.txrecovery.infrastructure.stream.KafkaTransactionEventPublisher.DLQ_PREFIX;
 import static com.stablebridge.txrecovery.infrastructure.stream.KafkaTransactionEventPublisher.TOPIC_PREFIX;
@@ -23,7 +23,6 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionEventPublisher;
-import com.stablebridge.txrecovery.infrastructure.stream.KafkaTransactionEventPublisher;
 
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;

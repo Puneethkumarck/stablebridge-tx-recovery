@@ -5,7 +5,10 @@ import java.util.Objects;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import lombok.Builder;
+
 @ConfigurationProperties(prefix = "str.temporal")
+@Builder(toBuilder = true)
 public record TemporalProperties(
         String target,
         String namespace,
@@ -24,6 +27,7 @@ public record TemporalProperties(
         signingActivity = Objects.requireNonNullElse(signingActivity, new SigningActivityProperties(null, null, null, null));
     }
 
+    @Builder(toBuilder = true)
     public record RpcActivityProperties(
             Duration startToCloseTimeout,
             Integer maxAttempts,
@@ -38,6 +42,7 @@ public record TemporalProperties(
         }
     }
 
+    @Builder(toBuilder = true)
     public record SigningActivityProperties(
             Duration startToCloseTimeout,
             Integer maxAttempts,

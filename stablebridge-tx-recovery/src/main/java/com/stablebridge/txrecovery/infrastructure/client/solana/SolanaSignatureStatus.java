@@ -1,5 +1,8 @@
 package com.stablebridge.txrecovery.infrastructure.client.solana;
 
+import lombok.Builder;
+
+@Builder(toBuilder = true)
 record SolanaSignatureStatus(
         Long slot,
         Long confirmations,

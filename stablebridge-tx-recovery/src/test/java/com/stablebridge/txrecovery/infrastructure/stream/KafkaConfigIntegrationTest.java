@@ -1,4 +1,4 @@
-package com.stablebridge.txrecovery.application.config;
+package com.stablebridge.txrecovery.infrastructure.stream;
 
 import static com.stablebridge.txrecovery.infrastructure.stream.KafkaTransactionEventPublisher.TOPIC_PREFIX;
 import static com.stablebridge.txrecovery.testutil.fixtures.TransactionLifecycleEventFixtures.SOME_CHAIN;
