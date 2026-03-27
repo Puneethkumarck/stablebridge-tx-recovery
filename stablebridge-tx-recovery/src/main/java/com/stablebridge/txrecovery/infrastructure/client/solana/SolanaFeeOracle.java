@@ -49,6 +49,9 @@ class SolanaFeeOracle implements FeeOracle {
             throw new IllegalArgumentException("attemptNumber must be >= 1, got: " + attemptNumber);
         }
 
+        log.debug("Solana uses durable nonce resubmission — originalTxHash={} not used for fee calculation",
+                originalTxHash);
+
         var fastEstimate = estimate(chain, FeeUrgency.FAST);
         var basePrice = fastEstimate.computeUnitPrice();
 
@@ -118,6 +121,8 @@ class SolanaFeeOracle implements FeeOracle {
         return estimate;
     }
 
+    private static final BigDecimal URGENT_MULTIPLIER = new BigDecimal("1.5");
+
     private long feeForUrgency(List<Long> sortedFees, FeeUrgency urgency) {
         if (sortedFees.isEmpty()) {
             return 0L;
@@ -126,7 +131,10 @@ class SolanaFeeOracle implements FeeOracle {
             case SLOW -> computePercentile(sortedFees, 50);
             case MEDIUM -> computePercentile(sortedFees, 75);
             case FAST -> computePercentile(sortedFees, 90);
-            case URGENT -> (long) (sortedFees.getLast() * 1.5);
+            case URGENT -> BigDecimal.valueOf(sortedFees.getLast())
+                    .multiply(URGENT_MULTIPLIER, MATH_CONTEXT)
+                    .setScale(0, RoundingMode.CEILING)
+                    .longValueExact();
         };
     }
 
