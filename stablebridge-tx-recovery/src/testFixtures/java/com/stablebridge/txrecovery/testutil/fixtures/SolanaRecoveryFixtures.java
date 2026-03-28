@@ -40,14 +40,6 @@ public final class SolanaRecoveryFixtures {
             .details(Map.of("source", "urgent-estimate"))
             .build();
 
-    public static final FeeEstimate SOME_REPLACEMENT_FEE = FeeEstimate.builder()
-            .computeUnitPrice(new BigDecimal("75000"))
-            .estimatedCost(new BigDecimal("0.0015"))
-            .denomination("SOL")
-            .urgency(FeeUrgency.URGENT)
-            .details(Map.of("source", "replacement-estimate"))
-            .build();
-
     public static SubmittedTransaction someStuckSolanaTransaction() {
         return SubmittedTransaction.builder()
                 .transactionId("sol-tx-001")
@@ -78,7 +70,7 @@ public final class SolanaRecoveryFixtures {
                 .chain(SOME_CHAIN)
                 .toAddress(SOME_FROM_ADDRESS)
                 .amount(BigDecimal.ZERO)
-                .token("USDC")
+                .token("SOL")
                 .tokenDecimals(6)
                 .rawAmount(BigInteger.ZERO)
                 .tokenContractAddress("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
