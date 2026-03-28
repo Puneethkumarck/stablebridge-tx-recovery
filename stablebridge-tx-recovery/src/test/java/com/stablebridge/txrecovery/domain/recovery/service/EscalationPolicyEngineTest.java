@@ -32,7 +32,7 @@ class EscalationPolicyEngineTest {
             .gasMultiplier(new BigDecimal("2.0")).requiresHumanApproval(false)
             .description("Second speed-up").build();
     private static final EscalationTier DEFAULT_TIER_3 = EscalationTier.builder()
-            .level(3).stuckThreshold(Duration.ofMinutes(30))
+            .level(3).stuckThreshold(Duration.ofMinutes(10))
             .gasMultiplier(new BigDecimal("3.0")).requiresHumanApproval(false)
             .description("Aggressive speed-up").build();
     private static final EscalationTier DEFAULT_TIER_4 = EscalationTier.builder()
@@ -224,7 +224,31 @@ class EscalationPolicyEngineTest {
         }
 
         @Test
-        void shouldReturnTier2_whenStuckBetween10And30Minutes() {
+        void shouldReturnTier2_whenStuckAtExactly10Minutes() {
+            // given
+            var txValue = new BigDecimal("10000");
+            var stuckDuration = Duration.ofMinutes(10);
+            var gasSpend = BigDecimal.ZERO;
+
+            // when
+            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
+
+            // then
+            var expected = EscalationResult.builder()
+                    .selectedTier(DEFAULT_TIER_3)
+                    .policyName("default")
+                    .budgetExhausted(false)
+                    .remainingBudget(new BigDecimal("100"))
+                    .gasBudget(new BigDecimal("100"))
+                    .build();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .withComparatorForType(BigDecimal::compareTo, BigDecimal.class)
+                    .isEqualTo(expected);
+        }
+
+        @Test
+        void shouldReturnTier3_whenStuckBetween10And30Minutes() {
             // given
             var txValue = new BigDecimal("10000");
             var stuckDuration = Duration.ofMinutes(15);
@@ -235,7 +259,7 @@ class EscalationPolicyEngineTest {
 
             // then
             var expected = EscalationResult.builder()
-                    .selectedTier(DEFAULT_TIER_2)
+                    .selectedTier(DEFAULT_TIER_3)
                     .policyName("default")
                     .budgetExhausted(false)
                     .remainingBudget(new BigDecimal("100"))

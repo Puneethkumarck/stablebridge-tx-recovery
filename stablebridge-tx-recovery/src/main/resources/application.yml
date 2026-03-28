@@ -83,7 +83,7 @@ str:
         requires-human-approval: false
         description: Second speed-up
       - level: 3
-        stuck-threshold: PT30M
+        stuck-threshold: PT10M
         gas-multiplier: 3.0
         requires-human-approval: false
         description: Aggressive speed-up

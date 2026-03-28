@@ -2,6 +2,7 @@ package com.stablebridge.txrecovery.infrastructure.escalation;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -27,10 +28,10 @@ class EscalationAutoConfiguration {
         var defaultPolicy = toPolicy(properties.defaultTiers());
         var highValuePolicy = toPolicy(properties.highValueTiers());
         var gasBudgetPolicy = toGasBudgetPolicy(properties.gasBudget());
-        var chainOverrides = properties.chainOverrides() == null
-                ? Map.<String, EscalationPolicy>of()
-                : properties.chainOverrides().entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, entry -> toPolicy(entry.getValue())));
+        var chainOverrides = Optional.ofNullable(properties.chainOverrides())
+                .map(overrides -> overrides.entrySet().stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, entry -> toPolicy(entry.getValue()))))
+                .orElse(Map.of());
 
         log.info("Escalation policy engine configured with {} default tiers, {} high-value tiers, {} chain overrides",
                 properties.defaultTiers().size(),
