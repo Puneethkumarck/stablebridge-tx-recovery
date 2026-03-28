@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 
 import com.stablebridge.txrecovery.domain.recovery.model.EscalationTier;
+import com.stablebridge.txrecovery.domain.recovery.model.HumanApproval;
 import com.stablebridge.txrecovery.domain.recovery.model.RecoveryPlan;
 import com.stablebridge.txrecovery.domain.recovery.model.RecoveryResult;
 import com.stablebridge.txrecovery.domain.recovery.model.StuckAssessment;
@@ -51,4 +52,6 @@ public interface TransactionLifecycleActivities {
     RecoveryResult cancelOnChain(String txHash, String chain);
 
     void publishEvent(TransactionLifecycleEvent event);
+
+    void recordApproval(String transactionId, HumanApproval approval);
 }

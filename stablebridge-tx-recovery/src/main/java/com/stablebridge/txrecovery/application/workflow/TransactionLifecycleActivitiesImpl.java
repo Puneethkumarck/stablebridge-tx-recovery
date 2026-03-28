@@ -12,6 +12,7 @@ import com.stablebridge.txrecovery.domain.exception.NonRetryableException;
 import com.stablebridge.txrecovery.domain.recovery.model.EscalationPolicy;
 import com.stablebridge.txrecovery.domain.recovery.model.EscalationTier;
 import com.stablebridge.txrecovery.domain.recovery.model.GasBudgetPolicy;
+import com.stablebridge.txrecovery.domain.recovery.model.HumanApproval;
 import com.stablebridge.txrecovery.domain.recovery.model.RecoveryPlan;
 import com.stablebridge.txrecovery.domain.recovery.model.RecoveryResult;
 import com.stablebridge.txrecovery.domain.recovery.model.StuckAssessment;
@@ -143,6 +144,12 @@ public class TransactionLifecycleActivitiesImpl implements TransactionLifecycleA
     @Override
     public void publishEvent(TransactionLifecycleEvent event) {
         eventPublisher.publish(event);
+    }
+
+    @Override
+    public void recordApproval(String transactionId, HumanApproval approval) {
+        log.info("Recording approval for transaction={} action={} approvedBy={}",
+                transactionId, approval.action(), approval.approvedBy());
     }
 
     private ChainFamily resolveChainFamily(String chain) {
