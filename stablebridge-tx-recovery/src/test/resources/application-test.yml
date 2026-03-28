@@ -20,6 +20,30 @@ str:
     target: 127.0.0.1:7233
     namespace: stablebridge-tx-recovery-test
     task-queue: str-transaction-lifecycle-test
+    non-retryable-exceptions:
+      - com.stablebridge.txrecovery.domain.exception.NonRetryableException
+      - com.stablebridge.txrecovery.domain.exception.NonceTooLowException
+    activity-options:
+      default-options:
+        start-to-close-timeout: PT30S
+        max-attempts: 3
+        initial-interval: PT1S
+        backoff-coefficient: 2.0
+      signing:
+        start-to-close-timeout: PT10S
+        max-attempts: 2
+        initial-interval: PT1S
+        backoff-coefficient: 2.0
+      confirmation:
+        start-to-close-timeout: PT300S
+        max-attempts: 1
+        initial-interval: PT1S
+        backoff-coefficient: 2.0
+      recovery-execution:
+        start-to-close-timeout: PT60S
+        max-attempts: 3
+        initial-interval: PT1S
+        backoff-coefficient: 2.0
   escalation:
     high-value-threshold-usd: 50000
     gas-budget:
