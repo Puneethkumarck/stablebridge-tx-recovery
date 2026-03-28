@@ -235,7 +235,7 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
                 log.info("Human requested cancel for {}", transactionId);
                 var cancelPlan = RecoveryPlan.Cancel.builder()
                         .originalTxHash(txHash).build();
-                rpcActivities.executeRecovery(cancelPlan);
+                rpcActivities.executeRecovery(cancelPlan, chain);
                 releaseCurrentResource();
                 transition(CANCELLED);
                 publishStatusEvent(CANCELLED, null);
@@ -251,7 +251,7 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
 
     private void executeRecoveryPlan(RecoveryPlan plan) {
         transition(RECOVERING);
-        var result = rpcActivities.executeRecovery(plan);
+        var result = rpcActivities.executeRecovery(plan, chain);
         retryCount++;
 
         if (result == null) {
@@ -297,7 +297,7 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
         if (txHash != null) {
             var cancelPlan = RecoveryPlan.Cancel.builder()
                     .originalTxHash(txHash).build();
-            rpcActivities.executeRecovery(cancelPlan);
+            rpcActivities.executeRecovery(cancelPlan, chain);
         }
         releaseCurrentResource();
         transition(CANCELLED);

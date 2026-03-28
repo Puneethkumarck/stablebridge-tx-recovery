@@ -5,7 +5,7 @@ import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Optional;
 
 import com.stablebridge.txrecovery.domain.address.model.ChainFamily;
 import com.stablebridge.txrecovery.domain.exception.NonRetryableException;
@@ -49,8 +49,6 @@ public class TransactionLifecycleActivitiesImpl implements TransactionLifecycleA
     private final EscalationPolicy escalationPolicy;
     private final Map<String, ChainFamily> chainFamilyMapping;
     private final Duration defaultPollInterval;
-
-    private final ConcurrentHashMap<String, ChainFamily> txHashChainFamilyCache = new ConcurrentHashMap<>();
 
     @Override
     public SubmissionResource acquireResource(TransactionIntent intent) {
@@ -118,7 +116,6 @@ public class TransactionLifecycleActivitiesImpl implements TransactionLifecycleA
     @Override
     public StuckAssessment assessStuck(SubmittedTransaction transaction) {
         var family = resolveChainFamily(transaction.chain());
-        txHashChainFamilyCache.put(transaction.txHash(), family);
         return findRecoveryStrategy(family).assess(transaction);
     }
 
@@ -131,8 +128,8 @@ public class TransactionLifecycleActivitiesImpl implements TransactionLifecycleA
     }
 
     @Override
-    public RecoveryResult executeRecovery(RecoveryPlan plan) {
-        var family = resolveChainFamilyFromPlan(plan);
+    public RecoveryResult executeRecovery(RecoveryPlan plan, String chain) {
+        var family = resolveChainFamily(chain);
         return findRecoveryStrategy(family).execute(plan, transactionSigner);
     }
 
@@ -149,12 +146,9 @@ public class TransactionLifecycleActivitiesImpl implements TransactionLifecycleA
     }
 
     private ChainFamily resolveChainFamily(String chain) {
-        var family = chainFamilyMapping.get(chain);
-        if (family == null) {
-            throw new NonRetryableException(
-                    "No chain family mapping found for chain: " + chain);
-        }
-        return family;
+        return Optional.ofNullable(chainFamilyMapping.get(chain))
+                .orElseThrow(() -> new NonRetryableException(
+                        "No chain family mapping found for chain: " + chain));
     }
 
     private ChainFamily resolveChainFamilyFromResource(SubmissionResource resource) {
@@ -164,39 +158,16 @@ public class TransactionLifecycleActivitiesImpl implements TransactionLifecycleA
         };
     }
 
-    private ChainFamily resolveChainFamilyFromPlan(RecoveryPlan plan) {
-        var txHash = switch (plan) {
-            case RecoveryPlan.SpeedUp s -> s.originalTxHash();
-            case RecoveryPlan.Cancel c -> c.originalTxHash();
-            case RecoveryPlan.Resubmit r -> r.originalTxHash();
-            case RecoveryPlan.Wait _ -> null;
-        };
-        if (txHash != null) {
-            var cached = txHashChainFamilyCache.get(txHash);
-            if (cached != null) {
-                return cached;
-            }
-        }
-        throw new NonRetryableException(
-                "Cannot determine chain family for recovery plan — call assessStuck first");
-    }
-
     private ChainTransactionManager findChainTransactionManager(ChainFamily family) {
-        var manager = chainTransactionManagers.get(family);
-        if (manager == null) {
-            throw new NonRetryableException(
-                    "No ChainTransactionManager registered for family: " + family);
-        }
-        return manager;
+        return Optional.ofNullable(chainTransactionManagers.get(family))
+                .orElseThrow(() -> new NonRetryableException(
+                        "No ChainTransactionManager registered for family: " + family));
     }
 
     private SubmissionResourceManager findSubmissionResourceManager(ChainFamily family) {
-        var manager = submissionResourceManagers.get(family);
-        if (manager == null) {
-            throw new NonRetryableException(
-                    "No SubmissionResourceManager registered for family: " + family);
-        }
-        return manager;
+        return Optional.ofNullable(submissionResourceManagers.get(family))
+                .orElseThrow(() -> new NonRetryableException(
+                        "No SubmissionResourceManager registered for family: " + family));
     }
 
     private RecoveryStrategy findRecoveryStrategy(ChainFamily family) {

@@ -15,6 +15,8 @@ import com.stablebridge.txrecovery.domain.transaction.model.BroadcastResult;
 import com.stablebridge.txrecovery.domain.transaction.model.ConfirmationStatus;
 import com.stablebridge.txrecovery.domain.transaction.model.EvmSubmissionResource;
 import com.stablebridge.txrecovery.domain.transaction.model.SignedTransaction;
+import com.stablebridge.txrecovery.domain.transaction.model.SubmittedTransaction;
+import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
 import com.stablebridge.txrecovery.domain.transaction.model.UnsignedTransaction;
 
 public final class WorkflowTestFixtures {
@@ -23,6 +25,22 @@ public final class WorkflowTestFixtures {
 
     public static final String SOME_TX_HASH = "0xabc123def456";
     public static final String SOME_FROM_ADDRESS = "0xsender0000000000000000000000000000000001";
+
+    public static SubmittedTransaction someSubmittedTransaction() {
+        return SubmittedTransaction.builder()
+                .transactionId("tx-001")
+                .intentId(SOME_INTENT_ID)
+                .chain(SOME_CHAIN)
+                .txHash(SOME_TX_HASH)
+                .fromAddress(SOME_FROM_ADDRESS)
+                .resource(someEvmResource())
+                .status(TransactionStatus.STUCK)
+                .retryCount(0)
+                .gasSpent(BigDecimal.ZERO)
+                .gasBudget(new BigDecimal("500"))
+                .submittedAt(Instant.parse("2026-01-01T00:00:00Z"))
+                .build();
+    }
 
     public static EvmSubmissionResource someEvmResource() {
         return EvmSubmissionResource.builder()

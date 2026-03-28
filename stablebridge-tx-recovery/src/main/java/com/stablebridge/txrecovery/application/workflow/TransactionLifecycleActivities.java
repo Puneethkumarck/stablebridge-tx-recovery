@@ -46,7 +46,7 @@ public interface TransactionLifecycleActivities {
 
     EscalationTier determineEscalationTier(Duration stuckDuration);
 
-    RecoveryResult executeRecovery(RecoveryPlan plan);
+    RecoveryResult executeRecovery(RecoveryPlan plan, String chain);
 
     RecoveryResult cancelOnChain(String txHash, String chain);
 

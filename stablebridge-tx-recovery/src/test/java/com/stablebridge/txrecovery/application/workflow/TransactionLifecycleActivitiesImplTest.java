@@ -32,7 +32,6 @@ import com.stablebridge.txrecovery.domain.recovery.model.StuckReason;
 import com.stablebridge.txrecovery.domain.recovery.model.StuckSeverity;
 import com.stablebridge.txrecovery.domain.recovery.port.RecoveryStrategy;
 import com.stablebridge.txrecovery.domain.transaction.event.TransactionLifecycleEvent;
-import com.stablebridge.txrecovery.domain.transaction.model.SubmittedTransaction;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
 import com.stablebridge.txrecovery.domain.transaction.port.ChainTransactionManager;
 import com.stablebridge.txrecovery.domain.transaction.port.SubmissionResourceManager;
@@ -49,17 +48,17 @@ class TransactionLifecycleActivitiesImplTest {
             .absoluteMinUsd(new BigDecimal("5"))
             .absoluteMaxUsd(new BigDecimal("500"))
             .build();
+    private static final EscalationTier TIER_0 = EscalationTier.builder()
+            .level(0).stuckThreshold(Duration.ofMinutes(5))
+            .gasMultiplier(new BigDecimal("1.5")).requiresHumanApproval(false).build();
+    private static final EscalationTier TIER_1 = EscalationTier.builder()
+            .level(1).stuckThreshold(Duration.ofMinutes(15))
+            .gasMultiplier(new BigDecimal("2.0")).requiresHumanApproval(false).build();
+    private static final EscalationTier TIER_2 = EscalationTier.builder()
+            .level(2).stuckThreshold(Duration.ofMinutes(30))
+            .gasMultiplier(new BigDecimal("3.0")).requiresHumanApproval(true).build();
     private static final EscalationPolicy ESCALATION_POLICY = EscalationPolicy.builder()
-            .tiers(List.of(
-                    EscalationTier.builder()
-                            .level(0).stuckThreshold(Duration.ofMinutes(5))
-                            .gasMultiplier(new BigDecimal("1.5")).requiresHumanApproval(false).build(),
-                    EscalationTier.builder()
-                            .level(1).stuckThreshold(Duration.ofMinutes(15))
-                            .gasMultiplier(new BigDecimal("2.0")).requiresHumanApproval(false).build(),
-                    EscalationTier.builder()
-                            .level(2).stuckThreshold(Duration.ofMinutes(30))
-                            .gasMultiplier(new BigDecimal("3.0")).requiresHumanApproval(true).build()))
+            .tiers(List.of(TIER_0, TIER_1, TIER_2))
             .build();
     private static final Map<String, ChainFamily> CHAIN_FAMILY_MAPPING = Map.of(
             SOME_CHAIN, ChainFamily.EVM,
@@ -283,9 +282,9 @@ class TransactionLifecycleActivitiesImplTest {
             var result = activities.waitForFinality(SOME_TX_HASH, SOME_CHAIN);
 
             // then
-            assertThat(result.finalized()).isFalse();
-            assertThat(result.confirmations()).isEqualTo(4);
-            assertThat(result.requiredConfirmations()).isEqualTo(12);
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .isEqualTo(notFinalized);
         }
     }
 
@@ -378,8 +377,9 @@ class TransactionLifecycleActivitiesImplTest {
             var result = activities.determineEscalationTier(Duration.ofMinutes(6));
 
             // then
-            assertThat(result.level()).isEqualTo(0);
-            assertThat(result.requiresHumanApproval()).isFalse();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .isEqualTo(TIER_0);
         }
 
         @Test
@@ -388,7 +388,9 @@ class TransactionLifecycleActivitiesImplTest {
             var result = activities.determineEscalationTier(Duration.ofMinutes(20));
 
             // then
-            assertThat(result.level()).isEqualTo(1);
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .isEqualTo(TIER_1);
         }
 
         @Test
@@ -397,8 +399,9 @@ class TransactionLifecycleActivitiesImplTest {
             var result = activities.determineEscalationTier(Duration.ofMinutes(45));
 
             // then
-            assertThat(result.level()).isEqualTo(2);
-            assertThat(result.requiresHumanApproval()).isTrue();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .isEqualTo(TIER_2);
         }
 
         @Test
@@ -407,7 +410,9 @@ class TransactionLifecycleActivitiesImplTest {
             var result = activities.determineEscalationTier(Duration.ofMinutes(1));
 
             // then
-            assertThat(result.level()).isEqualTo(0);
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .isEqualTo(TIER_0);
         }
 
         @Test
@@ -416,7 +421,9 @@ class TransactionLifecycleActivitiesImplTest {
             var result = activities.determineEscalationTier(Duration.ofMinutes(15));
 
             // then
-            assertThat(result.level()).isEqualTo(1);
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .isEqualTo(TIER_1);
         }
     }
 
@@ -426,17 +433,6 @@ class TransactionLifecycleActivitiesImplTest {
         @Test
         void shouldDelegateToCorrectRecoveryStrategy() {
             // given
-            var submitted = someSubmittedTransaction();
-            var assessment = StuckAssessment.builder()
-                    .reason(StuckReason.UNDERPRICED)
-                    .severity(StuckSeverity.MEDIUM)
-                    .recommendedPlan(someSpeedUpPlan(SOME_TX_HASH))
-                    .explanation("Gas price too low")
-                    .build();
-            given(evmRecoveryStrategy.assess(eqIgnoring(submitted, "gasSpent", "gasBudget")))
-                    .willReturn(assessment);
-            activities.assessStuck(submitted);
-
             var plan = someSpeedUpPlan(SOME_TX_HASH);
             var recoveryResult = RecoveryResult.builder()
                     .outcome(RecoveryOutcome.REPLACEMENT_SUBMITTED)
@@ -447,7 +443,7 @@ class TransactionLifecycleActivitiesImplTest {
                     .willReturn(recoveryResult);
 
             // when
-            var result = activities.executeRecovery(plan);
+            var result = activities.executeRecovery(plan, SOME_CHAIN);
 
             // then
             assertThat(result)
@@ -456,7 +452,7 @@ class TransactionLifecycleActivitiesImplTest {
         }
 
         @Test
-        void shouldThrowWhenChainFamilyCannotBeDetermined() {
+        void shouldThrowWhenChainIsUnmapped() {
             // given
             var plan = RecoveryPlan.SpeedUp.builder()
                     .originalTxHash("0xunknown")
@@ -464,8 +460,8 @@ class TransactionLifecycleActivitiesImplTest {
                     .build();
 
             // when / then
-            assertThatThrownBy(() -> activities.executeRecovery(plan))
-                    .hasMessageContaining("Cannot determine chain family for recovery plan");
+            assertThatThrownBy(() -> activities.executeRecovery(plan, "unknown-chain"))
+                    .hasMessageContaining("No chain family mapping found for chain: unknown-chain");
         }
     }
 
@@ -537,21 +533,5 @@ class TransactionLifecycleActivitiesImplTest {
             then(evmChainTransactionManager).should().build(
                     eqIgnoring(SOME_SEQUENTIAL_INTENT, "amount", "rawAmount"), eqIgnoring(resource));
         }
-    }
-
-    private static SubmittedTransaction someSubmittedTransaction() {
-        return SubmittedTransaction.builder()
-                .transactionId("tx-001")
-                .intentId(SOME_INTENT_ID)
-                .chain(SOME_CHAIN)
-                .txHash(SOME_TX_HASH)
-                .fromAddress(SOME_FROM_ADDRESS)
-                .resource(someEvmResource())
-                .status(TransactionStatus.STUCK)
-                .retryCount(0)
-                .gasSpent(BigDecimal.ZERO)
-                .gasBudget(new BigDecimal("500"))
-                .submittedAt(Instant.parse("2026-01-01T00:00:00Z"))
-                .build();
     }
 }
