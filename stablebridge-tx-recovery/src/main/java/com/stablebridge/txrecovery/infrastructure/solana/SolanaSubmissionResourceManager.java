@@ -62,7 +62,10 @@ public class SolanaSubmissionResourceManager implements SubmissionResourceManage
 
     @Override
     public void release(SubmissionResource resource) {
-        var solanaResource = (SolanaSubmissionResource) resource;
+        if (!(resource instanceof SolanaSubmissionResource solanaResource)) {
+            throw new IllegalArgumentException(
+                    "Expected SolanaSubmissionResource but got " + resource.getClass().getSimpleName());
+        }
 
         nonceAccountPoolRepository.markAvailable(
                 solanaResource.nonceAccountAddress(), solanaResource.chain());
@@ -73,7 +76,10 @@ public class SolanaSubmissionResourceManager implements SubmissionResourceManage
 
     @Override
     public void consume(SubmissionResource resource) {
-        var solanaResource = (SolanaSubmissionResource) resource;
+        if (!(resource instanceof SolanaSubmissionResource solanaResource)) {
+            throw new IllegalArgumentException(
+                    "Expected SolanaSubmissionResource but got " + resource.getClass().getSimpleName());
+        }
 
         var newNonceValue = rpcClient.getNonce(
                 solanaResource.nonceAccountAddress(), SolanaCommitment.CONFIRMED);

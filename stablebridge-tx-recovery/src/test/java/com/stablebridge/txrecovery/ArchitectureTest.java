@@ -17,8 +17,7 @@ class ArchitectureTest {
             .resideInAPackage("..domain..")
             .should()
             .dependOnClassesThat()
-            .resideInAPackage("..infrastructure..")
-            .allowEmptyShould(true);
+            .resideInAPackage("..infrastructure..");
 
     @ArchTest
     static final ArchRule domainMustNotDependOnApplication = noClasses()
@@ -26,8 +25,7 @@ class ArchitectureTest {
             .resideInAPackage("..domain..")
             .should()
             .dependOnClassesThat()
-            .resideInAPackage("..application..")
-            .allowEmptyShould(true);
+            .resideInAPackage("..application..");
 
     @ArchTest
     static final ArchRule domainMustNotImportSpring = noClasses()
@@ -38,8 +36,7 @@ class ArchitectureTest {
                     resideInAnyPackage("org.springframework..")
                             .and(not(resideInAnyPackage(
                                     "org.springframework.stereotype..",
-                                    "org.springframework.transaction.annotation.."))))
-            .allowEmptyShould(true);
+                                    "org.springframework.transaction.annotation.."))));
 
     @ArchTest
     static final ArchRule domainMustNotImportJakartaPersistence = noClasses()
@@ -47,8 +44,7 @@ class ArchitectureTest {
             .resideInAPackage("..domain..")
             .should()
             .dependOnClassesThat()
-            .resideInAPackage("jakarta.persistence..")
-            .allowEmptyShould(true);
+            .resideInAPackage("jakarta.persistence..");
 
     @ArchTest
     static final ArchRule applicationMustNotDependOnInfrastructure = noClasses()
@@ -56,8 +52,7 @@ class ArchitectureTest {
             .resideInAPackage("..application..")
             .should()
             .dependOnClassesThat()
-            .resideInAPackage("..infrastructure..")
-            .allowEmptyShould(true);
+            .resideInAPackage("..infrastructure..");
 
     @ArchTest
     static final ArchRule infrastructureMustNotDependOnApplication = noClasses()
@@ -65,6 +60,5 @@ class ArchitectureTest {
             .resideInAPackage("..infrastructure..")
             .should()
             .dependOnClassesThat()
-            .resideInAPackage("..application..")
-            .allowEmptyShould(true);
+            .resideInAPackage("..application..");
 }

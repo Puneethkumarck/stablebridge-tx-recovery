@@ -27,7 +27,6 @@ import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -35,14 +34,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.core.HashOperations;
-import org.springframework.data.redis.core.StringRedisTemplate;
 
 import com.stablebridge.txrecovery.domain.recovery.model.FeeEstimate;
 import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
-
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
+import com.stablebridge.txrecovery.infrastructure.redis.RedisFeeCache;
 
 @ExtendWith(MockitoExtension.class)
 class EvmFeeOracleTest {
@@ -54,23 +49,17 @@ class EvmFeeOracleTest {
     private EvmRpcClient rpcClient;
 
     @Mock
-    private StringRedisTemplate redisTemplate;
+    private RedisFeeCache feeCache;
 
-    @Mock
-    private HashOperations<String, Object, Object> hashOperations;
-
-    private ObjectMapper objectMapper;
     private EvmFeeOracle oracle;
 
     @BeforeEach
     void setUp() {
-        objectMapper = JsonMapper.builder().build();
-        oracle = new EvmFeeOracle(rpcClient, SOME_ETHEREUM_PROPERTIES, redisTemplate, objectMapper);
+        oracle = new EvmFeeOracle(rpcClient, SOME_ETHEREUM_PROPERTIES, feeCache);
     }
 
     private void stubCacheMiss(FeeUrgency urgency) {
-        given(redisTemplate.opsForHash()).willReturn(hashOperations);
-        given(hashOperations.get("str:gas:cache:ethereum", urgency.name())).willReturn(null);
+        given(feeCache.read("ethereum", urgency)).willReturn(Optional.empty());
     }
 
     private FeeEstimate buildExpectedEstimate(FeeUrgency urgency, int exponent, BigDecimal priorityFeeWei) {
@@ -199,10 +188,9 @@ class EvmFeeOracleTest {
         @Test
         void shouldClampMaxFeeToSafetyCapForBase() {
             // given
-            var baseOracle = new EvmFeeOracle(rpcClient, SOME_BASE_PROPERTIES, redisTemplate, objectMapper);
+            var baseOracle = new EvmFeeOracle(rpcClient, SOME_BASE_PROPERTIES, feeCache);
             var baseCapWei = new BigDecimal("5000000000");
-            given(redisTemplate.opsForHash()).willReturn(hashOperations);
-            given(hashOperations.get("str:gas:cache:base", "FAST")).willReturn(null);
+            given(feeCache.read("base", FeeUrgency.FAST)).willReturn(Optional.empty());
             given(rpcClient.feeHistory(10, "latest", SOME_REWARD_PERCENTILES))
                     .willReturn(SOME_HIGH_BASE_FEE_HISTORY);
 
@@ -243,11 +231,9 @@ class EvmFeeOracleTest {
         @Test
         void shouldClampPolygonFeeToSafetyCap() {
             // given
-            var polygonOracle = new EvmFeeOracle(
-                    rpcClient, SOME_POLYGON_PROPERTIES, redisTemplate, objectMapper);
+            var polygonOracle = new EvmFeeOracle(rpcClient, SOME_POLYGON_PROPERTIES, feeCache);
             var polygonCapWei = new BigDecimal("500000000000");
-            given(redisTemplate.opsForHash()).willReturn(hashOperations);
-            given(hashOperations.get("str:gas:cache:polygon", "URGENT")).willReturn(null);
+            given(feeCache.read("polygon", FeeUrgency.URGENT)).willReturn(Optional.empty());
             given(rpcClient.feeHistory(10, "latest", SOME_REWARD_PERCENTILES))
                     .willReturn(SOME_POLYGON_FEE_HISTORY);
 
@@ -366,7 +352,7 @@ class EvmFeeOracleTest {
 
             // when
             var result1 = oracle.estimateReplacement(SOME_CHAIN, "0xoriginal", 1);
-            given(hashOperations.get("str:gas:cache:ethereum", "FAST")).willReturn(null);
+            given(feeCache.read("ethereum", FeeUrgency.FAST)).willReturn(Optional.empty());
             var result3 = oracle.estimateReplacement(SOME_CHAIN, "0xoriginal", 3);
 
             // then
@@ -606,9 +592,7 @@ class EvmFeeOracleTest {
                     .urgency(FeeUrgency.SLOW)
                     .details(Map.of("baseFee", "1000000000"))
                     .build();
-            given(redisTemplate.opsForHash()).willReturn(hashOperations);
-            given(hashOperations.get("str:gas:cache:ethereum", "SLOW"))
-                    .willReturn(objectMapper.writeValueAsString(cachedEstimate));
+            given(feeCache.read("ethereum", FeeUrgency.SLOW)).willReturn(Optional.of(cachedEstimate));
 
             // when
             var result = oracle.estimate(SOME_CHAIN, FeeUrgency.SLOW);
@@ -634,20 +618,17 @@ class EvmFeeOracleTest {
         }
 
         @Test
-        void shouldSetCacheTtlAfterFetch() {
+        void shouldWriteToCacheAfterFetch() {
             // given
             stubCacheMiss(FeeUrgency.SLOW);
             given(rpcClient.feeHistory(10, "latest", SOME_REWARD_PERCENTILES))
                     .willReturn(SOME_FEE_HISTORY);
-            given(redisTemplate.expire("str:gas:cache:ethereum", SOME_BLOCK_TIME.toMillis(), TimeUnit.MILLISECONDS))
-                    .willReturn(true);
 
             // when
-            oracle.estimate(SOME_CHAIN, FeeUrgency.SLOW);
+            var result = oracle.estimate(SOME_CHAIN, FeeUrgency.SLOW);
 
             // then
-            then(redisTemplate).should()
-                    .expire("str:gas:cache:ethereum", SOME_BLOCK_TIME.toMillis(), TimeUnit.MILLISECONDS);
+            then(feeCache).should().write("ethereum", FeeUrgency.SLOW, result, SOME_BLOCK_TIME.toMillis());
         }
     }
 

@@ -16,7 +16,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.core.StringRedisTemplate;
+
+import com.stablebridge.txrecovery.infrastructure.redis.RedisFeeCache;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
@@ -27,7 +28,7 @@ import tools.jackson.databind.json.JsonMapper;
 class EvmFeeOracleFactoryTest {
 
     @Mock
-    private StringRedisTemplate redisTemplate;
+    private RedisFeeCache feeCache;
 
     private ObjectMapper objectMapper;
     private CircuitBreakerRegistry circuitBreakerRegistry;
@@ -48,7 +49,7 @@ class EvmFeeOracleFactoryTest {
             // given
             var factory = new EvmFeeOracleFactory(
                     List.of(SOME_ETHEREUM_CHAIN_INPUT, SOME_BASE_CHAIN_INPUT, SOME_POLYGON_CHAIN_INPUT),
-                    redisTemplate,
+                    feeCache,
                     objectMapper,
                     circuitBreakerRegistry,
                     rateLimiterRegistry);
@@ -65,7 +66,7 @@ class EvmFeeOracleFactoryTest {
             // given
             var factory = new EvmFeeOracleFactory(
                     List.of(SOME_ETHEREUM_CHAIN_INPUT),
-                    redisTemplate,
+                    feeCache,
                     objectMapper,
                     circuitBreakerRegistry,
                     rateLimiterRegistry);
@@ -82,7 +83,7 @@ class EvmFeeOracleFactoryTest {
             // given
             var factory = new EvmFeeOracleFactory(
                     List.of(),
-                    redisTemplate,
+                    feeCache,
                     objectMapper,
                     circuitBreakerRegistry,
                     rateLimiterRegistry);
@@ -103,7 +104,7 @@ class EvmFeeOracleFactoryTest {
             // given
             var factory = new EvmFeeOracleFactory(
                     List.of(SOME_ETHEREUM_CHAIN_INPUT, SOME_BASE_CHAIN_INPUT, SOME_POLYGON_CHAIN_INPUT),
-                    redisTemplate,
+                    feeCache,
                     objectMapper,
                     circuitBreakerRegistry,
                     rateLimiterRegistry);
@@ -121,7 +122,7 @@ class EvmFeeOracleFactoryTest {
             // given
             var factory = new EvmFeeOracleFactory(
                     List.of(SOME_ETHEREUM_CHAIN_INPUT),
-                    redisTemplate,
+                    feeCache,
                     objectMapper,
                     circuitBreakerRegistry,
                     rateLimiterRegistry);
@@ -139,7 +140,7 @@ class EvmFeeOracleFactoryTest {
             // given
             var factory = new EvmFeeOracleFactory(
                     List.of(SOME_ETHEREUM_CHAIN_INPUT, SOME_POLYGON_CHAIN_INPUT),
-                    redisTemplate,
+                    feeCache,
                     objectMapper,
                     circuitBreakerRegistry,
                     rateLimiterRegistry);
@@ -229,7 +230,7 @@ class EvmFeeOracleFactoryTest {
             // when/then
             assertThatThrownBy(() -> new EvmFeeOracleFactory(
                     null,
-                    redisTemplate,
+                    feeCache,
                     objectMapper,
                     circuitBreakerRegistry,
                     rateLimiterRegistry))

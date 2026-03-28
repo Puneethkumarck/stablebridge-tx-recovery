@@ -11,84 +11,93 @@ import org.junit.jupiter.api.Test;
 class RecoveryPlanTest {
 
     @Test
-    void shouldCreateSpeedUpPlan() {
+    void shouldModifyNewFeeViaToBuilder() {
         // given
-        var fee = FeeEstimate.builder()
+        var originalFee = FeeEstimate.builder()
                 .estimatedCost(new BigDecimal("0.005"))
                 .denomination("ETH")
                 .urgency(FeeUrgency.FAST)
                 .build();
 
-        // when
         var plan = RecoveryPlan.SpeedUp.builder()
                 .originalTxHash("0xabc123")
-                .newFee(fee)
+                .newFee(originalFee)
                 .build();
+
+        var updatedFee = FeeEstimate.builder()
+                .estimatedCost(new BigDecimal("0.010"))
+                .denomination("ETH")
+                .urgency(FeeUrgency.URGENT)
+                .build();
+
+        // when
+        var modified = plan.toBuilder().newFee(updatedFee).build();
 
         // then
         var expected = RecoveryPlan.SpeedUp.builder()
                 .originalTxHash("0xabc123")
-                .newFee(fee)
+                .newFee(updatedFee)
                 .build();
-        assertThat(plan).usingRecursiveComparison().isEqualTo(expected);
+        assertThat(modified).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
-    void shouldCreateCancelPlan() {
-        // when
+    void shouldModifyCancelOriginalTxHashViaToBuilder() {
+        // given
         var plan = RecoveryPlan.Cancel.builder()
                 .originalTxHash("0xdef456")
                 .build();
 
+        // when
+        var modified = plan.toBuilder().originalTxHash("0xnew789").build();
+
         // then
-        var expected = RecoveryPlan.Cancel.builder()
-                .originalTxHash("0xdef456")
-                .build();
-        assertThat(plan).usingRecursiveComparison().isEqualTo(expected);
+        assertThat(modified.originalTxHash()).isEqualTo("0xnew789");
     }
 
     @Test
-    void shouldCreateResubmitPlan() {
-        // when
+    void shouldModifyResubmitOriginalTxHashViaToBuilder() {
+        // given
         var plan = RecoveryPlan.Resubmit.builder()
                 .originalTxHash("0xghi789")
                 .build();
 
-        // then
-        var expected = RecoveryPlan.Resubmit.builder()
-                .originalTxHash("0xghi789")
-                .build();
-        assertThat(plan).usingRecursiveComparison().isEqualTo(expected);
-    }
-
-    @Test
-    void shouldCreateWaitPlan() {
         // when
-        var plan = RecoveryPlan.Wait.builder()
-                .estimatedClearance(Duration.ofMinutes(5))
-                .reason("Mempool congestion expected to clear")
-                .build();
+        var modified = plan.toBuilder().originalTxHash("0xnew123").build();
 
         // then
-        var expected = RecoveryPlan.Wait.builder()
-                .estimatedClearance(Duration.ofMinutes(5))
-                .reason("Mempool congestion expected to clear")
-                .build();
-        assertThat(plan).usingRecursiveComparison().isEqualTo(expected);
+        assertThat(modified.originalTxHash()).isEqualTo("0xnew123");
     }
 
     @Test
-    void shouldCreateWaitPlan_whenEstimatedClearanceIsNull() {
+    void shouldAllowNullEstimatedClearanceInWait() {
         // when
         var plan = RecoveryPlan.Wait.builder()
                 .reason("Unknown clearance time")
                 .build();
 
         // then
-        var expected = RecoveryPlan.Wait.builder()
-                .reason("Unknown clearance time")
+        assertThat(plan.estimatedClearance()).isNull();
+        assertThat(plan.reason()).isEqualTo("Unknown clearance time");
+    }
+
+    @Test
+    void shouldModifyWaitEstimatedClearanceViaToBuilder() {
+        // given
+        var plan = RecoveryPlan.Wait.builder()
+                .estimatedClearance(Duration.ofMinutes(5))
+                .reason("Mempool congestion expected to clear")
                 .build();
-        assertThat(plan).usingRecursiveComparison().isEqualTo(expected);
+
+        // when
+        var modified = plan.toBuilder().estimatedClearance(Duration.ofMinutes(15)).build();
+
+        // then
+        var expected = RecoveryPlan.Wait.builder()
+                .estimatedClearance(Duration.ofMinutes(15))
+                .reason("Mempool congestion expected to clear")
+                .build();
+        assertThat(modified).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test

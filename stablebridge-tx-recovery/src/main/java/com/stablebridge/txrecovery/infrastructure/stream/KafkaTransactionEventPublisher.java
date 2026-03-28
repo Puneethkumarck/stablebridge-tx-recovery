@@ -17,7 +17,7 @@ import tools.jackson.databind.ObjectMapper;
 @Slf4j
 public class KafkaTransactionEventPublisher implements TransactionEventPublisher {
 
-    public static final String TOPIC_PREFIX = TransactionLifecycleEvent.TOPIC + ".";
+    public static final String TOPIC_PREFIX = TransactionLifecycleEvent.TOPIC_PREFIX + ".";
     public static final String DLQ_PREFIX = "str.tx.dlq.";
 
     private final KafkaTemplate<String, String> kafkaTemplate;

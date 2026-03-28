@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
 
@@ -32,6 +33,7 @@ class SolanaRpcClientTest {
     private static final String SOME_NONCE_ACCOUNT = "NonceAcct111111111111111111111111111111";
     private static final String SOME_BLOCKHASH = "EETubP5AKHgjPAhzPkA6E6Q25cUFzPSQ4Sfp1kH3Lz9N";
     private static final String SOME_ADDRESS = "Vote111111111111111111111111111111111111111";
+    private static final Duration SOME_TIMEOUT = Duration.ofSeconds(10);
 
     private SolanaRpcClient client;
 
@@ -46,7 +48,7 @@ class SolanaRpcClientTest {
         var rateLimiter = RateLimiter.ofDefaults("solana-test");
 
         client = new SolanaRpcClient(
-                httpClient, objectMapper, List.of(endpoint), circuitBreaker, rateLimiter);
+                httpClient, objectMapper, List.of(endpoint), SOME_TIMEOUT, circuitBreaker, rateLimiter);
     }
 
     @Nested
@@ -563,6 +565,7 @@ class SolanaRpcClientTest {
                     httpClient,
                     objectMapper,
                     List.of(badEndpoint),
+                    SOME_TIMEOUT,
                     CircuitBreaker.ofDefaults("broken-test"),
                     RateLimiter.ofDefaults("broken-test"));
 
@@ -585,6 +588,7 @@ class SolanaRpcClientTest {
                     httpClient,
                     objectMapper,
                     List.of(),
+                    SOME_TIMEOUT,
                     CircuitBreaker.ofDefaults("empty-test"),
                     RateLimiter.ofDefaults("empty-test"));
 
@@ -606,6 +610,7 @@ class SolanaRpcClientTest {
                     httpClient,
                     objectMapper,
                     List.of(badEndpoint),
+                    SOME_TIMEOUT,
                     CircuitBreaker.ofDefaults("interrupt-test"),
                     RateLimiter.ofDefaults("interrupt-test"));
 
@@ -634,6 +639,7 @@ class SolanaRpcClientTest {
                     httpClient,
                     objectMapper,
                     List.of(badEndpoint, goodEndpoint),
+                    SOME_TIMEOUT,
                     CircuitBreaker.ofDefaults("fallback-test"),
                     RateLimiter.ofDefaults("fallback-test"));
 
