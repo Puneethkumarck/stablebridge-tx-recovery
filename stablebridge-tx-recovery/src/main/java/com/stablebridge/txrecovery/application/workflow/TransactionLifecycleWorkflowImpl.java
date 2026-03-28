@@ -86,9 +86,20 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
         var continueAsNewVersion = Workflow.getVersion("STR-33-continue-as-new", Workflow.DEFAULT_VERSION, 1);
 
         if (previousState != null && continueAsNewVersion >= 1) {
+            validateStateMatchesIntent(previousState, intent);
             restoreState(previousState);
             log.info("Resumed transaction lifecycle for intent {} via continue-as-new", intentId);
-            monitorAndRecover(intent);
+
+            try {
+                monitorAndRecover(intent);
+            } catch (Exception e) {
+                log.error("Transaction {} failed mid-flight: {}", transactionId, e.getMessage());
+                releaseCurrentResource();
+                if (!currentState.isTerminal()) {
+                    transition(FAILED);
+                    publishStatusEvent(FAILED, Map.of("reason", "activity_failure"));
+                }
+            }
         } else {
             transactionId = Workflow.randomUUID().toString();
             intentId = intent.intentId();
@@ -209,6 +220,16 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
                 .build();
     }
 
+    private void validateStateMatchesIntent(ContinueAsNewState state, TransactionIntent intent) {
+        if (!intent.intentId().equals(state.intentId())
+                || !intent.chain().equals(state.chain())) {
+            throw new IllegalArgumentException(
+                    "previousState does not match workflow input: expected intent="
+                            + intent.intentId() + "/chain=" + intent.chain()
+                            + " but got intent=" + state.intentId() + "/chain=" + state.chain());
+        }
+    }
+
     private void restoreState(ContinueAsNewState state) {
         transactionId = state.transactionId();
         intentId = state.intentId();
@@ -275,6 +296,9 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
 
         if (version == Workflow.DEFAULT_VERSION) {
             publishStatusEvent(AWAITING_HUMAN, null);
+            if (shouldContinueAsNew()) {
+                Workflow.continueAsNew(intent, captureState());
+            }
             Workflow.await(() -> pendingApproval != null || cancelRequested);
         } else {
             publishStatusEvent(AWAITING_HUMAN, Map.of(
@@ -286,6 +310,9 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
 
             var timeoutCount = 0;
             while (pendingApproval == null && !cancelRequested && timeoutCount < MAX_APPROVAL_TIMEOUTS) {
+                if (shouldContinueAsNew()) {
+                    Workflow.continueAsNew(intent, captureState());
+                }
                 var signalled = Workflow.await(APPROVAL_TIMEOUT_INTERVAL,
                         () -> pendingApproval != null || cancelRequested);
                 if (!signalled) {

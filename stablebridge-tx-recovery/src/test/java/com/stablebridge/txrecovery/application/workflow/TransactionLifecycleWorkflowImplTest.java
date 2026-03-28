@@ -905,6 +905,49 @@ class TransactionLifecycleWorkflowImplTest {
         }
 
         @Test
+        void shouldResumeWithPendingApprovalAndProcessImmediately() {
+            // given
+            var approval = HumanApproval.builder()
+                    .action(ApprovalAction.RETRY)
+                    .approvedBy("admin-1")
+                    .reason("retry approved")
+                    .approvedAt(Instant.parse("2026-01-01T01:00:00Z"))
+                    .build();
+            var previousState = someContinueAsNewState().toBuilder()
+                    .retryCount(3)
+                    .pendingApproval(approval)
+                    .currentState(PENDING)
+                    .build();
+            var assessment = StuckAssessment.builder()
+                    .reason(StuckReason.UNDERPRICED)
+                    .severity(StuckSeverity.HIGH)
+                    .recommendedPlan(someSpeedUpPlan(SOME_TX_HASH))
+                    .explanation("Gas price too low")
+                    .build();
+            var confirmation = someFinalizedConfirmation();
+
+            given(activities.checkStatus(SOME_TX_HASH, SOME_CHAIN))
+                    .willReturn(STUCK)
+                    .willReturn(CONFIRMED);
+            given(activities.assessStuck(eqIgnoring(buildExpectedSubmitted(),
+                    "submittedAt", "gasSpent", "gasBudget", "transactionId", "currentTier", "retryCount")))
+                    .willReturn(assessment);
+            given(activities.waitForFinality(SOME_TX_HASH, SOME_CHAIN)).willReturn(confirmation);
+
+            // when
+            testEnv.start();
+            var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
+            var result = workflow.process(SOME_SEQUENTIAL_INTENT, previousState);
+
+            // then
+            assertThat(result.finalStatus()).isEqualTo(FINALIZED);
+            then(activities).should(never()).acquireResource(eqIgnoring(SOME_SEQUENTIAL_INTENT, "amount", "rawAmount"));
+            then(activities).should().recordApproval(
+                    eqIgnoring(previousState.transactionId()),
+                    eqIgnoring(approval, "approvedAt"));
+        }
+
+        @Test
         void shouldPreserveCancelSignalStateAcrossContinueAsNew() {
             // given
             var cancelRequest = CancelRequest.builder()
