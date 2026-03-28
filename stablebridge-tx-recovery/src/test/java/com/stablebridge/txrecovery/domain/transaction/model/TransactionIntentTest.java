@@ -53,7 +53,7 @@ class TransactionIntentTest {
     }
 
     @Test
-    void shouldDefaultOptionalFieldsToNullOrEmptyMap() {
+    void shouldDefaultOptionalFieldsWhenNotSet() {
         // when
         var intent = TransactionIntent.builder()
                 .intentId("intent-002")
@@ -64,13 +64,14 @@ class TransactionIntentTest {
                 .build();
 
         // then
-        assertThat(intent.tokenDecimals()).isZero();
-        assertThat(intent.rawAmount()).isNull();
-        assertThat(intent.tokenContractAddress()).isNull();
-        assertThat(intent.strategy()).isNull();
-        assertThat(intent.metadata()).isEmpty();
-        assertThat(intent.batchId()).isNull();
-        assertThat(intent.createdAt()).isNull();
+        var expected = TransactionIntent.builder()
+                .intentId("intent-002")
+                .chain("base")
+                .toAddress("0xabc")
+                .amount(new BigDecimal("50"))
+                .token("ETH")
+                .build();
+        assertThat(intent).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
