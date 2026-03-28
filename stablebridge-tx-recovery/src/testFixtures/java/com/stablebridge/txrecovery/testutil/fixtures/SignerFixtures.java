@@ -1,5 +1,7 @@
 package com.stablebridge.txrecovery.testutil.fixtures;
 
+import static com.stablebridge.txrecovery.infrastructure.signer.CallbackSignerAdapter.SIGNER_ENDPOINT_KEY;
+
 import java.math.BigDecimal;
 import java.util.Map;
 
@@ -48,7 +50,7 @@ public final class SignerFixtures {
                         .denomination("ETH")
                         .urgency(FeeUrgency.MEDIUM)
                         .build())
-                .metadata(Map.of("signerEndpoint", signerEndpoint))
+                .metadata(Map.of(SIGNER_ENDPOINT_KEY, signerEndpoint))
                 .build();
     }
 }

@@ -23,6 +23,7 @@ import tools.jackson.databind.ObjectMapper;
 @Slf4j
 public class CallbackSignerAdapter implements TransactionSigner, AutoCloseable {
 
+    public static final String SIGNER_ENDPOINT_KEY = "signerEndpoint";
     private static final String CONTENT_TYPE = "application/json";
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     private static final int HTTP_OK = 200;
@@ -33,6 +34,7 @@ public class CallbackSignerAdapter implements TransactionSigner, AutoCloseable {
     private final ObjectMapper objectMapper;
     private final byte[] hmacSecret;
     private final Duration timeout;
+    private final boolean requireHttps;
 
     public CallbackSignerAdapter(
             CallbackSignerProperties properties,
@@ -40,13 +42,14 @@ public class CallbackSignerAdapter implements TransactionSigner, AutoCloseable {
         this.objectMapper = objectMapper;
         this.hmacSecret = properties.hmacSecret().getBytes(java.nio.charset.StandardCharsets.UTF_8);
         this.timeout = properties.timeout() != null ? properties.timeout() : DEFAULT_TIMEOUT;
+        this.requireHttps = properties.tls() != null && properties.tls().verify();
 
         var builder = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(this.timeout)
                 .executor(Executors.newVirtualThreadPerTaskExecutor());
 
-        if (properties.tls() != null && properties.tls().verify()) {
+        if (requireHttps) {
             var sslParams = new SSLParameters();
             sslParams.setProtocols(new String[]{"TLSv1.3"});
             builder.sslParameters(sslParams);
@@ -66,16 +69,46 @@ public class CallbackSignerAdapter implements TransactionSigner, AutoCloseable {
         log.debug("Callback signer completed intentId={} chain={} address={}",
                 transaction.intentId(), transaction.chain(), fromAddress);
 
+        var signedHex = response.signedTransactionBytes();
+        if (signedHex == null || signedHex.isBlank()) {
+            throw new CallbackSignerException(
+                    "Missing signedTransactionBytes in response for intentId=%s"
+                            .formatted(transaction.intentId()));
+        }
+
+        final byte[] signedPayload;
+        try {
+            signedPayload = HEX.parseHex(signedHex);
+        } catch (IllegalArgumentException e) {
+            throw new CallbackSignerException(
+                    "Invalid signedTransactionBytes from callback signer for intentId=%s"
+                            .formatted(transaction.intentId()), e);
+        }
+
         return SignedTransaction.builder()
                 .intentId(transaction.intentId())
                 .chain(transaction.chain())
-                .signedPayload(HEX.parseHex(response.signedTransactionBytes()))
+                .signedPayload(signedPayload)
                 .signerAddress(fromAddress)
                 .build();
     }
 
     private String resolveSignerEndpoint(UnsignedTransaction transaction) {
-        return transaction.metadata().get("signerEndpoint");
+        var endpoint = transaction.metadata().get(SIGNER_ENDPOINT_KEY);
+        if (endpoint == null || endpoint.isBlank()) {
+            throw new CallbackSignerException(
+                    "Missing signerEndpoint in transaction metadata for intentId=%s"
+                            .formatted(transaction.intentId()));
+        }
+        if (requireHttps) {
+            var uri = URI.create(endpoint);
+            if (!"https".equalsIgnoreCase(uri.getScheme())) {
+                throw new CallbackSignerException(
+                        "Non-HTTPS signerEndpoint is not allowed for intentId=%s"
+                                .formatted(transaction.intentId()));
+            }
+        }
+        return endpoint;
     }
 
     private String buildRequestBody(UnsignedTransaction transaction, String fromAddress) {
