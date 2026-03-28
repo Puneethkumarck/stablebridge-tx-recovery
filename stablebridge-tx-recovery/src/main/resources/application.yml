@@ -16,6 +16,15 @@ spring:
     open-in-view: false
 
 str:
+  signer:
+    backend: ${STR_SIGNER_BACKEND:}
+    keystore-path: ${STR_SIGNER_KEYSTORE_PATH:}
+    password: ${STR_SIGNER_PASSWORD:}
+    callback:
+      hmac-secret: ${STR_SIGNER_CALLBACK_HMAC_SECRET:}
+      timeout: PT5S
+      tls:
+        verify: true
   kafka:
     enabled-chains: ethereum_mainnet,solana_mainnet
     topic-replicas: 1
