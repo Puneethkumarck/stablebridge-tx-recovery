@@ -12,6 +12,7 @@ archunit = "1.4.1"
 testcontainers = "1.21.4"
 wiremock = "3.13.2"
 instancio = "5.5.1"
+awaitility = "4.3.0"
 
 [libraries]
 # Lombok
@@ -46,6 +47,7 @@ testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.
 testcontainers-kafka = { module = "org.testcontainers:kafka", version.ref = "testcontainers" }
 wiremock = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
 instancio = { module = "org.instancio:instancio-junit", version.ref = "instancio" }
+awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

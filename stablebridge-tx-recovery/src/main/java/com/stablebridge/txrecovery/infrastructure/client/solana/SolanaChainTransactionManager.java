@@ -1,5 +1,6 @@
 package com.stablebridge.txrecovery.infrastructure.client.solana;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -14,11 +15,9 @@ import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
 import com.stablebridge.txrecovery.domain.transaction.model.UnsignedTransaction;
 import com.stablebridge.txrecovery.domain.transaction.port.ChainTransactionManager;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@RequiredArgsConstructor
 class SolanaChainTransactionManager implements ChainTransactionManager {
 
     private static final long PENDING_MAP_MAX_SIZE = 10_000;
@@ -28,7 +27,29 @@ class SolanaChainTransactionManager implements ChainTransactionManager {
     private final SolanaTransactionBuilder transactionBuilder;
     private final String chain;
     private final long stuckThresholdSeconds;
+    private final Clock clock;
     private final ConcurrentHashMap<String, Instant> pendingFirstSeen = new ConcurrentHashMap<>();
+
+    SolanaChainTransactionManager(
+            SolanaRpcClient rpcClient,
+            SolanaTransactionBuilder transactionBuilder,
+            String chain,
+            long stuckThresholdSeconds) {
+        this(rpcClient, transactionBuilder, chain, stuckThresholdSeconds, Clock.systemUTC());
+    }
+
+    SolanaChainTransactionManager(
+            SolanaRpcClient rpcClient,
+            SolanaTransactionBuilder transactionBuilder,
+            String chain,
+            long stuckThresholdSeconds,
+            Clock clock) {
+        this.rpcClient = rpcClient;
+        this.transactionBuilder = transactionBuilder;
+        this.chain = chain;
+        this.stuckThresholdSeconds = stuckThresholdSeconds;
+        this.clock = clock;
+    }
 
     @Override
     public UnsignedTransaction build(TransactionIntent intent, SubmissionResource resource) {
@@ -46,7 +67,7 @@ class SolanaChainTransactionManager implements ChainTransactionManager {
         return BroadcastResult.builder()
                 .txHash(signature)
                 .chain(chain)
-                .broadcastedAt(Instant.now())
+                .broadcastedAt(clock.instant())
                 .build();
     }
 
@@ -79,8 +100,8 @@ class SolanaChainTransactionManager implements ChainTransactionManager {
 
     private TransactionStatus classifyPendingTransaction(String txHash) {
         evictStaleEntries();
-        var firstSeen = pendingFirstSeen.computeIfAbsent(txHash, _ -> Instant.now());
-        var elapsed = Duration.between(firstSeen, Instant.now());
+        var firstSeen = pendingFirstSeen.computeIfAbsent(txHash, _ -> clock.instant());
+        var elapsed = Duration.between(firstSeen, clock.instant());
 
         if (elapsed.toSeconds() > stuckThresholdSeconds) {
             return TransactionStatus.STUCK;
@@ -93,7 +114,7 @@ class SolanaChainTransactionManager implements ChainTransactionManager {
         if (pendingFirstSeen.size() <= PENDING_MAP_MAX_SIZE) {
             return;
         }
-        var cutoff = Instant.now().minusSeconds(PENDING_MAP_EVICTION_SLOTS);
+        var cutoff = clock.instant().minusSeconds(PENDING_MAP_EVICTION_SLOTS);
         pendingFirstSeen.entrySet().removeIf(entry -> entry.getValue().isBefore(cutoff));
     }
 

@@ -69,6 +69,7 @@ dependencies {
     testImplementation(libs.wiremock)
     testImplementation(libs.instancio)
     testImplementation(libs.temporal.testing)
+    testImplementation(libs.awaitility)
 
     // Lombok for tests
     testCompileOnly(libs.lombok)

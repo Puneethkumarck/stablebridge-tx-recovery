@@ -11,8 +11,10 @@ import static com.stablebridge.txrecovery.testutil.fixtures.SolanaTransactionFix
 import static com.stablebridge.txrecovery.testutil.fixtures.SolanaTransactionFixtures.someSolanaTransactionIntent;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.BDDMockito.given;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -250,21 +252,20 @@ class SolanaChainTransactionManagerTest {
             }
 
             @Test
-            @SuppressWarnings("java:S2925")
-            void shouldReturnStuckWhenThresholdExceeded() throws InterruptedException {
+            void shouldReturnStuckWhenThresholdExceeded() {
                 // given
-                var stuckManager = new SolanaChainTransactionManager(
-                        rpcClient, transactionBuilder, SOME_CHAIN, 0L);
+                var shortThresholdManager = new SolanaChainTransactionManager(
+                        rpcClient, transactionBuilder, SOME_CHAIN, 1L);
                 given(rpcClient.getSignatureStatuses(List.of(SOME_TX_HASH)))
                         .willReturn(List.of(PROCESSED_STATUS));
-                stuckManager.checkStatus(SOME_TX_HASH, SOME_CHAIN);
-                Thread.sleep(1_100);
+                shortThresholdManager.checkStatus(SOME_TX_HASH, SOME_CHAIN);
 
-                // when
-                var result = stuckManager.checkStatus(SOME_TX_HASH, SOME_CHAIN);
-
-                // then
-                assertThat(result).isEqualTo(TransactionStatus.STUCK);
+                // when/then
+                await().atMost(Duration.ofSeconds(3))
+                        .pollInterval(Duration.ofMillis(200))
+                        .untilAsserted(() -> assertThat(
+                                        shortThresholdManager.checkStatus(SOME_TX_HASH, SOME_CHAIN))
+                                .isEqualTo(TransactionStatus.STUCK));
             }
         }
 
