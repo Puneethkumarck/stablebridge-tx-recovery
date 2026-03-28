@@ -1,5 +1,9 @@
 package com.stablebridge.txrecovery.application.workflow;
 
+import java.math.BigDecimal;
+import java.time.Duration;
+
+import com.stablebridge.txrecovery.domain.recovery.model.EscalationTier;
 import com.stablebridge.txrecovery.domain.recovery.model.RecoveryPlan;
 import com.stablebridge.txrecovery.domain.recovery.model.RecoveryResult;
 import com.stablebridge.txrecovery.domain.recovery.model.StuckAssessment;
@@ -34,9 +38,17 @@ public interface TransactionLifecycleActivities {
 
     ConfirmationStatus waitForFinality(String txHash, String chain);
 
+    Duration getPollInterval(String chain);
+
+    BigDecimal calculateGasBudget(BigDecimal txValueUsd);
+
     StuckAssessment assessStuck(SubmittedTransaction transaction);
 
+    EscalationTier determineEscalationTier(Duration stuckDuration);
+
     RecoveryResult executeRecovery(RecoveryPlan plan);
+
+    RecoveryResult cancelOnChain(String txHash, String chain);
 
     void publishEvent(TransactionLifecycleEvent event);
 }
