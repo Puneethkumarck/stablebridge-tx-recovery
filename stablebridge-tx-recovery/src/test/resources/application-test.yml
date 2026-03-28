@@ -20,3 +20,51 @@ str:
     target: 127.0.0.1:7233
     namespace: stablebridge-tx-recovery-test
     task-queue: str-transaction-lifecycle-test
+  escalation:
+    high-value-threshold-usd: 50000
+    gas-budget:
+      percentage: 0.01
+      absolute-min-usd: 5
+      absolute-max-usd: 500
+    default-tiers:
+      - level: 0
+        stuck-threshold: PT0S
+        gas-multiplier: 1.0
+        requires-human-approval: false
+        description: Initial detection - wait
+      - level: 1
+        stuck-threshold: PT1M
+        gas-multiplier: 1.25
+        requires-human-approval: false
+        description: First speed-up
+      - level: 2
+        stuck-threshold: PT3M
+        gas-multiplier: 2.0
+        requires-human-approval: false
+        description: Second speed-up
+      - level: 3
+        stuck-threshold: PT10M
+        gas-multiplier: 3.0
+        requires-human-approval: false
+        description: Aggressive speed-up
+      - level: 4
+        stuck-threshold: PT30M
+        gas-multiplier: 3.0
+        requires-human-approval: true
+        description: Human escalation
+    high-value-tiers:
+      - level: 0
+        stuck-threshold: PT0S
+        gas-multiplier: 1.0
+        requires-human-approval: false
+        description: Initial detection - wait
+      - level: 1
+        stuck-threshold: PT1M
+        gas-multiplier: 1.25
+        requires-human-approval: false
+        description: First speed-up
+      - level: 2
+        stuck-threshold: PT5M
+        gas-multiplier: 1.25
+        requires-human-approval: true
+        description: Human escalation for high-value

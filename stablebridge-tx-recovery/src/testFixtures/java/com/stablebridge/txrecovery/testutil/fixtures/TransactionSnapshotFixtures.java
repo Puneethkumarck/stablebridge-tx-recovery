@@ -22,6 +22,7 @@ public final class TransactionSnapshotFixtures {
             .level(2)
             .stuckThreshold(Duration.ofMinutes(10))
             .gasMultiplier(new BigDecimal("1.5"))
+            .description("Speed-up")
             .build();
 
     public static final TransactionSnapshot SOME_SNAPSHOT = TransactionSnapshot.builder()

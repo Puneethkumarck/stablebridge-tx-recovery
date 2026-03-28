@@ -17,5 +17,6 @@ public record EscalationTier(
     public EscalationTier {
         Objects.requireNonNull(stuckThreshold);
         Objects.requireNonNull(gasMultiplier);
+        Objects.requireNonNull(description);
     }
 }

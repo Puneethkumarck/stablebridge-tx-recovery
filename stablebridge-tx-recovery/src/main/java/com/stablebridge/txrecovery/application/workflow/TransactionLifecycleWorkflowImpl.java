@@ -41,13 +41,16 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
     private static final List<EscalationTier> ESCALATION_TIERS = List.of(
             EscalationTier.builder()
                     .level(0).stuckThreshold(Duration.ofMinutes(5))
-                    .gasMultiplier(new BigDecimal("1.5")).requiresHumanApproval(false).build(),
+                    .gasMultiplier(new BigDecimal("1.5")).requiresHumanApproval(false)
+                    .description("Wait").build(),
             EscalationTier.builder()
                     .level(1).stuckThreshold(Duration.ofMinutes(15))
-                    .gasMultiplier(new BigDecimal("2.0")).requiresHumanApproval(false).build(),
+                    .gasMultiplier(new BigDecimal("2.0")).requiresHumanApproval(false)
+                    .description("Speed-up").build(),
             EscalationTier.builder()
                     .level(2).stuckThreshold(Duration.ofMinutes(30))
-                    .gasMultiplier(new BigDecimal("3.0")).requiresHumanApproval(true).build());
+                    .gasMultiplier(new BigDecimal("3.0")).requiresHumanApproval(true)
+                    .description("Human escalation").build());
 
     private final TransactionLifecycleActivities rpcActivities;
     private final TransactionLifecycleActivities signingActivities;

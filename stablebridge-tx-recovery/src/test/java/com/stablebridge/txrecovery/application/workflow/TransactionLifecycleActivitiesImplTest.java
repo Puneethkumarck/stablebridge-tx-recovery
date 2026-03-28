@@ -50,13 +50,16 @@ class TransactionLifecycleActivitiesImplTest {
             .build();
     private static final EscalationTier TIER_0 = EscalationTier.builder()
             .level(0).stuckThreshold(Duration.ofMinutes(5))
-            .gasMultiplier(new BigDecimal("1.5")).requiresHumanApproval(false).build();
+            .gasMultiplier(new BigDecimal("1.5")).requiresHumanApproval(false)
+            .description("Wait").build();
     private static final EscalationTier TIER_1 = EscalationTier.builder()
             .level(1).stuckThreshold(Duration.ofMinutes(15))
-            .gasMultiplier(new BigDecimal("2.0")).requiresHumanApproval(false).build();
+            .gasMultiplier(new BigDecimal("2.0")).requiresHumanApproval(false)
+            .description("Speed-up").build();
     private static final EscalationTier TIER_2 = EscalationTier.builder()
             .level(2).stuckThreshold(Duration.ofMinutes(30))
-            .gasMultiplier(new BigDecimal("3.0")).requiresHumanApproval(true).build();
+            .gasMultiplier(new BigDecimal("3.0")).requiresHumanApproval(true)
+            .description("Human escalation").build();
     private static final EscalationPolicy ESCALATION_POLICY = EscalationPolicy.builder()
             .tiers(List.of(TIER_0, TIER_1, TIER_2))
             .build();
