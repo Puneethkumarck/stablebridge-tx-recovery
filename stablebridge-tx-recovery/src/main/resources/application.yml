@@ -68,17 +68,17 @@ str:
       absolute-max-usd: 500
     default-tiers:
       - level: 0
-        stuck-threshold: PT1M
+        stuck-threshold: PT0S
         gas-multiplier: 1.0
         requires-human-approval: false
         description: Initial detection - wait
       - level: 1
-        stuck-threshold: PT3M
+        stuck-threshold: PT1M
         gas-multiplier: 1.25
         requires-human-approval: false
         description: First speed-up
       - level: 2
-        stuck-threshold: PT10M
+        stuck-threshold: PT3M
         gas-multiplier: 2.0
         requires-human-approval: false
         description: Second speed-up
@@ -94,12 +94,12 @@ str:
         description: Human escalation
     high-value-tiers:
       - level: 0
-        stuck-threshold: PT1M
+        stuck-threshold: PT0S
         gas-multiplier: 1.0
         requires-human-approval: false
         description: Initial detection - wait
       - level: 1
-        stuck-threshold: PT3M
+        stuck-threshold: PT1M
         gas-multiplier: 1.25
         requires-human-approval: false
         description: First speed-up

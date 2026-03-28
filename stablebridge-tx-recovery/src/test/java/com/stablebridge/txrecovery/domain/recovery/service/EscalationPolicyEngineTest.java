@@ -20,15 +20,15 @@ class EscalationPolicyEngineTest {
     private static final BigDecimal HIGH_VALUE_THRESHOLD = new BigDecimal("50000");
 
     private static final EscalationTier DEFAULT_TIER_0 = EscalationTier.builder()
-            .level(0).stuckThreshold(Duration.ofMinutes(1))
+            .level(0).stuckThreshold(Duration.ZERO)
             .gasMultiplier(new BigDecimal("1.0")).requiresHumanApproval(false)
             .description("Initial detection - wait").build();
     private static final EscalationTier DEFAULT_TIER_1 = EscalationTier.builder()
-            .level(1).stuckThreshold(Duration.ofMinutes(3))
+            .level(1).stuckThreshold(Duration.ofMinutes(1))
             .gasMultiplier(new BigDecimal("1.25")).requiresHumanApproval(false)
             .description("First speed-up").build();
     private static final EscalationTier DEFAULT_TIER_2 = EscalationTier.builder()
-            .level(2).stuckThreshold(Duration.ofMinutes(10))
+            .level(2).stuckThreshold(Duration.ofMinutes(3))
             .gasMultiplier(new BigDecimal("2.0")).requiresHumanApproval(false)
             .description("Second speed-up").build();
     private static final EscalationTier DEFAULT_TIER_3 = EscalationTier.builder()
@@ -41,11 +41,11 @@ class EscalationPolicyEngineTest {
             .description("Human escalation").build();
 
     private static final EscalationTier HV_TIER_0 = EscalationTier.builder()
-            .level(0).stuckThreshold(Duration.ofMinutes(1))
+            .level(0).stuckThreshold(Duration.ZERO)
             .gasMultiplier(new BigDecimal("1.0")).requiresHumanApproval(false)
             .description("Initial detection - wait").build();
     private static final EscalationTier HV_TIER_1 = EscalationTier.builder()
-            .level(1).stuckThreshold(Duration.ofMinutes(3))
+            .level(1).stuckThreshold(Duration.ofMinutes(1))
             .gasMultiplier(new BigDecimal("1.25")).requiresHumanApproval(false)
             .description("First speed-up").build();
     private static final EscalationTier HV_TIER_2 = EscalationTier.builder()
@@ -72,15 +72,9 @@ class EscalationPolicyEngineTest {
 
         @Test
         void shouldSelectDefaultPolicy_whenTxValueBelowThreshold() {
-            // given
-            var txValue = new BigDecimal("10000");
-            var stuckDuration = Duration.ofMinutes(5);
-            var gasSpend = BigDecimal.ZERO;
+            var result = engine.evaluate("ethereum", new BigDecimal("10000"),
+                    Duration.ofMinutes(2), BigDecimal.ZERO);
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
                     .selectedTier(DEFAULT_TIER_1)
                     .policyName("default")
@@ -96,15 +90,9 @@ class EscalationPolicyEngineTest {
 
         @Test
         void shouldSelectHighValuePolicy_whenTxValueAboveThreshold() {
-            // given
-            var txValue = new BigDecimal("100000");
-            var stuckDuration = Duration.ofMinutes(4);
-            var gasSpend = BigDecimal.ZERO;
+            var result = engine.evaluate("ethereum", new BigDecimal("100000"),
+                    Duration.ofMinutes(2), BigDecimal.ZERO);
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
                     .selectedTier(HV_TIER_1)
                     .policyName("high-value")
@@ -120,15 +108,9 @@ class EscalationPolicyEngineTest {
 
         @Test
         void shouldSelectDefaultPolicy_whenTxValueEqualsThreshold() {
-            // given
-            var txValue = new BigDecimal("50000");
-            var stuckDuration = Duration.ofMinutes(5);
-            var gasSpend = BigDecimal.ZERO;
+            var result = engine.evaluate("ethereum", new BigDecimal("50000"),
+                    Duration.ofMinutes(2), BigDecimal.ZERO);
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
                     .selectedTier(DEFAULT_TIER_1)
                     .policyName("default")
@@ -143,21 +125,16 @@ class EscalationPolicyEngineTest {
         }
 
         @Test
-        void shouldSelectChainOverride_whenChainHasOverride() {
-            // given
+        void shouldSelectChainOverride_whenChainHasOverrideAndValueBelowThreshold() {
             var customPolicy = EscalationPolicy.builder()
                     .tiers(List.of(DEFAULT_TIER_0, DEFAULT_TIER_1)).build();
             var engineWithOverride = new EscalationPolicyEngine(
                     DEFAULT_POLICY, HIGH_VALUE_POLICY, HIGH_VALUE_THRESHOLD,
                     GAS_BUDGET_POLICY, Map.of("polygon", customPolicy));
-            var txValue = new BigDecimal("10000");
-            var stuckDuration = Duration.ofMinutes(5);
-            var gasSpend = BigDecimal.ZERO;
 
-            // when
-            var result = engineWithOverride.evaluate("polygon", txValue, stuckDuration, gasSpend);
+            var result = engineWithOverride.evaluate("polygon", new BigDecimal("10000"),
+                    Duration.ofMinutes(2), BigDecimal.ZERO);
 
-            // then
             var expected = EscalationResult.builder()
                     .selectedTier(DEFAULT_TIER_1)
                     .policyName("chain-override:polygon")
@@ -170,22 +147,40 @@ class EscalationPolicyEngineTest {
                     .withComparatorForType(BigDecimal::compareTo, BigDecimal.class)
                     .isEqualTo(expected);
         }
+
+        @Test
+        void shouldSelectHighValuePolicy_whenChainHasOverrideButValueAboveThreshold() {
+            var customPolicy = EscalationPolicy.builder()
+                    .tiers(List.of(DEFAULT_TIER_0, DEFAULT_TIER_1)).build();
+            var engineWithOverride = new EscalationPolicyEngine(
+                    DEFAULT_POLICY, HIGH_VALUE_POLICY, HIGH_VALUE_THRESHOLD,
+                    GAS_BUDGET_POLICY, Map.of("polygon", customPolicy));
+
+            var result = engineWithOverride.evaluate("polygon", new BigDecimal("100000"),
+                    Duration.ofMinutes(2), BigDecimal.ZERO);
+
+            var expected = EscalationResult.builder()
+                    .selectedTier(HV_TIER_1)
+                    .policyName("high-value")
+                    .budgetExhausted(false)
+                    .remainingBudget(new BigDecimal("500"))
+                    .gasBudget(new BigDecimal("500"))
+                    .build();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .withComparatorForType(BigDecimal::compareTo, BigDecimal.class)
+                    .isEqualTo(expected);
+        }
     }
 
     @Nested
     class TierDetermination {
 
         @Test
-        void shouldReturnFirstTier_whenStuckDurationBelowAllThresholds() {
-            // given
-            var txValue = new BigDecimal("10000");
-            var stuckDuration = Duration.ofSeconds(30);
-            var gasSpend = BigDecimal.ZERO;
+        void shouldReturnTier0_whenStuckUnder1Minute() {
+            var result = engine.evaluate("ethereum", new BigDecimal("10000"),
+                    Duration.ofSeconds(30), BigDecimal.ZERO);
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
                     .selectedTier(DEFAULT_TIER_0)
                     .policyName("default")
@@ -200,16 +195,10 @@ class EscalationPolicyEngineTest {
         }
 
         @Test
-        void shouldReturnTier1_whenStuckBetween3And10Minutes() {
-            // given
-            var txValue = new BigDecimal("10000");
-            var stuckDuration = Duration.ofMinutes(5);
-            var gasSpend = BigDecimal.ZERO;
+        void shouldReturnTier1_whenStuckBetween1And3Minutes() {
+            var result = engine.evaluate("ethereum", new BigDecimal("10000"),
+                    Duration.ofMinutes(2), BigDecimal.ZERO);
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
                     .selectedTier(DEFAULT_TIER_1)
                     .policyName("default")
@@ -224,18 +213,12 @@ class EscalationPolicyEngineTest {
         }
 
         @Test
-        void shouldReturnTier2_whenStuckAtExactly10Minutes() {
-            // given
-            var txValue = new BigDecimal("10000");
-            var stuckDuration = Duration.ofMinutes(10);
-            var gasSpend = BigDecimal.ZERO;
+        void shouldReturnTier2_whenStuckBetween3And10Minutes() {
+            var result = engine.evaluate("ethereum", new BigDecimal("10000"),
+                    Duration.ofMinutes(5), BigDecimal.ZERO);
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
-                    .selectedTier(DEFAULT_TIER_3)
+                    .selectedTier(DEFAULT_TIER_2)
                     .policyName("default")
                     .budgetExhausted(false)
                     .remainingBudget(new BigDecimal("100"))
@@ -249,15 +232,9 @@ class EscalationPolicyEngineTest {
 
         @Test
         void shouldReturnTier3_whenStuckBetween10And30Minutes() {
-            // given
-            var txValue = new BigDecimal("10000");
-            var stuckDuration = Duration.ofMinutes(15);
-            var gasSpend = BigDecimal.ZERO;
+            var result = engine.evaluate("ethereum", new BigDecimal("10000"),
+                    Duration.ofMinutes(15), BigDecimal.ZERO);
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
                     .selectedTier(DEFAULT_TIER_3)
                     .policyName("default")
@@ -272,16 +249,10 @@ class EscalationPolicyEngineTest {
         }
 
         @Test
-        void shouldReturnHighestTier_whenStuckDurationExceedsAll() {
-            // given
-            var txValue = new BigDecimal("10000");
-            var stuckDuration = Duration.ofMinutes(60);
-            var gasSpend = BigDecimal.ZERO;
+        void shouldReturnTier4_whenStuckOver30Minutes() {
+            var result = engine.evaluate("ethereum", new BigDecimal("10000"),
+                    Duration.ofMinutes(60), BigDecimal.ZERO);
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
                     .selectedTier(DEFAULT_TIER_4)
                     .policyName("default")
@@ -296,18 +267,30 @@ class EscalationPolicyEngineTest {
         }
 
         @Test
-        void shouldReturnExactThresholdMatch() {
-            // given
-            var txValue = new BigDecimal("10000");
-            var stuckDuration = Duration.ofMinutes(3);
-            var gasSpend = BigDecimal.ZERO;
+        void shouldReturnExactThresholdMatch_atBandBoundary() {
+            var result = engine.evaluate("ethereum", new BigDecimal("10000"),
+                    Duration.ofMinutes(3), BigDecimal.ZERO);
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
-                    .selectedTier(DEFAULT_TIER_1)
+                    .selectedTier(DEFAULT_TIER_2)
+                    .policyName("default")
+                    .budgetExhausted(false)
+                    .remainingBudget(new BigDecimal("100"))
+                    .gasBudget(new BigDecimal("100"))
+                    .build();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .withComparatorForType(BigDecimal::compareTo, BigDecimal.class)
+                    .isEqualTo(expected);
+        }
+
+        @Test
+        void shouldReturnTier3_whenStuckAtExactly10Minutes() {
+            var result = engine.evaluate("ethereum", new BigDecimal("10000"),
+                    Duration.ofMinutes(10), BigDecimal.ZERO);
+
+            var expected = EscalationResult.builder()
+                    .selectedTier(DEFAULT_TIER_3)
                     .policyName("default")
                     .budgetExhausted(false)
                     .remainingBudget(new BigDecimal("100"))
@@ -325,15 +308,9 @@ class EscalationPolicyEngineTest {
 
         @Test
         void shouldCalculateMinBudget_forLowValueTransaction() {
-            // given
-            var txValue = new BigDecimal("100");
-            var stuckDuration = Duration.ofMinutes(5);
-            var gasSpend = BigDecimal.ZERO;
+            var result = engine.evaluate("ethereum", new BigDecimal("100"),
+                    Duration.ofMinutes(2), BigDecimal.ZERO);
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
                     .selectedTier(DEFAULT_TIER_1)
                     .policyName("default")
@@ -349,15 +326,9 @@ class EscalationPolicyEngineTest {
 
         @Test
         void shouldCalculatePercentageBudget_forMidValueTransaction() {
-            // given
-            var txValue = new BigDecimal("10000");
-            var stuckDuration = Duration.ofMinutes(5);
-            var gasSpend = BigDecimal.ZERO;
+            var result = engine.evaluate("ethereum", new BigDecimal("10000"),
+                    Duration.ofMinutes(2), BigDecimal.ZERO);
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
                     .selectedTier(DEFAULT_TIER_1)
                     .policyName("default")
@@ -373,15 +344,9 @@ class EscalationPolicyEngineTest {
 
         @Test
         void shouldCalculateMaxBudget_forHighValueTransaction() {
-            // given
-            var txValue = new BigDecimal("100000");
-            var stuckDuration = Duration.ofMinutes(4);
-            var gasSpend = BigDecimal.ZERO;
+            var result = engine.evaluate("ethereum", new BigDecimal("100000"),
+                    Duration.ofMinutes(2), BigDecimal.ZERO);
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
                     .selectedTier(HV_TIER_1)
                     .policyName("high-value")
@@ -397,15 +362,9 @@ class EscalationPolicyEngineTest {
 
         @Test
         void shouldCalculateRemainingBudget() {
-            // given
-            var txValue = new BigDecimal("10000");
-            var stuckDuration = Duration.ofMinutes(5);
-            var gasSpend = new BigDecimal("30");
+            var result = engine.evaluate("ethereum", new BigDecimal("10000"),
+                    Duration.ofMinutes(2), new BigDecimal("30"));
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
                     .selectedTier(DEFAULT_TIER_1)
                     .policyName("default")
@@ -425,15 +384,9 @@ class EscalationPolicyEngineTest {
 
         @Test
         void shouldForceHumanEscalation_whenBudgetExhausted() {
-            // given
-            var txValue = new BigDecimal("10000");
-            var stuckDuration = Duration.ofMinutes(5);
-            var gasSpend = new BigDecimal("100");
+            var result = engine.evaluate("ethereum", new BigDecimal("10000"),
+                    Duration.ofMinutes(2), new BigDecimal("100"));
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var forcedHumanTier = DEFAULT_TIER_1.toBuilder().requiresHumanApproval(true).build();
             var expected = EscalationResult.builder()
                     .selectedTier(forcedHumanTier)
@@ -450,15 +403,9 @@ class EscalationPolicyEngineTest {
 
         @Test
         void shouldNotForceHumanEscalation_whenBudgetRemaining() {
-            // given
-            var txValue = new BigDecimal("10000");
-            var stuckDuration = Duration.ofMinutes(5);
-            var gasSpend = new BigDecimal("50");
+            var result = engine.evaluate("ethereum", new BigDecimal("10000"),
+                    Duration.ofMinutes(2), new BigDecimal("50"));
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
                     .selectedTier(DEFAULT_TIER_1)
                     .policyName("default")
@@ -474,15 +421,9 @@ class EscalationPolicyEngineTest {
 
         @Test
         void shouldForceHumanEscalation_whenGasSpendExceedsBudget() {
-            // given
-            var txValue = new BigDecimal("10000");
-            var stuckDuration = Duration.ofMinutes(5);
-            var gasSpend = new BigDecimal("150");
+            var result = engine.evaluate("ethereum", new BigDecimal("10000"),
+                    Duration.ofMinutes(2), new BigDecimal("150"));
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var forcedHumanTier = DEFAULT_TIER_1.toBuilder().requiresHumanApproval(true).build();
             var expected = EscalationResult.builder()
                     .selectedTier(forcedHumanTier)
@@ -499,15 +440,9 @@ class EscalationPolicyEngineTest {
 
         @Test
         void shouldPreserveHumanApproval_whenTierAlreadyRequiresIt() {
-            // given
-            var txValue = new BigDecimal("10000");
-            var stuckDuration = Duration.ofMinutes(60);
-            var gasSpend = new BigDecimal("100");
+            var result = engine.evaluate("ethereum", new BigDecimal("10000"),
+                    Duration.ofMinutes(60), new BigDecimal("100"));
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
                     .selectedTier(DEFAULT_TIER_4)
                     .policyName("default")
@@ -527,15 +462,9 @@ class EscalationPolicyEngineTest {
 
         @Test
         void shouldReturnHighValueTier2_whenStuckOver5Minutes() {
-            // given
-            var txValue = new BigDecimal("100000");
-            var stuckDuration = Duration.ofMinutes(10);
-            var gasSpend = BigDecimal.ZERO;
+            var result = engine.evaluate("ethereum", new BigDecimal("100000"),
+                    Duration.ofMinutes(10), BigDecimal.ZERO);
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
                     .selectedTier(HV_TIER_2)
                     .policyName("high-value")
@@ -551,15 +480,9 @@ class EscalationPolicyEngineTest {
 
         @Test
         void shouldReturnHighValueTier0_whenStuckUnder1Minute() {
-            // given
-            var txValue = new BigDecimal("100000");
-            var stuckDuration = Duration.ofSeconds(30);
-            var gasSpend = BigDecimal.ZERO;
+            var result = engine.evaluate("ethereum", new BigDecimal("100000"),
+                    Duration.ofSeconds(30), BigDecimal.ZERO);
 
-            // when
-            var result = engine.evaluate("ethereum", txValue, stuckDuration, gasSpend);
-
-            // then
             var expected = EscalationResult.builder()
                     .selectedTier(HV_TIER_0)
                     .policyName("high-value")

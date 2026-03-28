@@ -56,11 +56,12 @@ public class EscalationPolicyEngine {
     }
 
     private NamedPolicy selectPolicy(String chain, BigDecimal txValueUsd) {
+        if (txValueUsd.compareTo(highValueThresholdUsd) > 0) {
+            return new NamedPolicy("high-value", highValuePolicy);
+        }
         return Optional.ofNullable(chainOverrides.get(chain))
                 .map(policy -> new NamedPolicy("chain-override:" + chain, policy))
-                .orElseGet(() -> txValueUsd.compareTo(highValueThresholdUsd) > 0
-                        ? new NamedPolicy("high-value", highValuePolicy)
-                        : new NamedPolicy("default", defaultPolicy));
+                .orElseGet(() -> new NamedPolicy("default", defaultPolicy));
     }
 
     private EscalationTier determineTier(EscalationPolicy policy, Duration stuckDuration) {
