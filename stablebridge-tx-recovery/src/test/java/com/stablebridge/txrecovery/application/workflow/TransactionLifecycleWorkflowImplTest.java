@@ -21,6 +21,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import com.stablebridge.txrecovery.domain.address.model.AddressTier;
 import com.stablebridge.txrecovery.domain.exception.NonRetryableException;
@@ -723,14 +724,22 @@ class TransactionLifecycleWorkflowImplTest {
             then(activities).should().recordApproval(
                     eqIgnoring(result.transactionId()),
                     eqIgnoring(expectedApproval, "approvedAt"));
-            then(activities).should(atLeastOnce()).publishEvent(
-                    eqIgnoring(TransactionLifecycleEvent.builder()
-                            .eventId("ignored")
-                            .intentId(SOME_INTENT_ID)
-                            .status(AWAITING_HUMAN)
-                            .chain(SOME_CHAIN)
-                            .timestamp(Instant.EPOCH)
-                            .build(), "eventId", "transactionHash", "timestamp", "metadata"));
+
+            var eventCaptor = ArgumentCaptor.forClass(TransactionLifecycleEvent.class);
+            then(activities).should(atLeastOnce()).publishEvent(eventCaptor.capture());
+            var timeoutEvents = eventCaptor.getAllValues().stream()
+                    .filter(e -> e.status() == AWAITING_HUMAN)
+                    .filter(e -> e.metadata() != null && e.metadata().containsKey("timeout_count"))
+                    .toList();
+            assertThat(timeoutEvents).hasSize(3);
+            assertThat(timeoutEvents.stream().map(e -> e.metadata().get("timeout_count")).toList())
+                    .containsExactly("1", "2", "3");
+            assertThat(timeoutEvents).allSatisfy(e -> {
+                assertThat(e.intentId()).isEqualTo(SOME_INTENT_ID);
+                assertThat(e.chain()).isEqualTo(SOME_CHAIN);
+                assertThat(e.metadata().get("max_timeouts")).isEqualTo("3");
+            });
+
             then(activities).should(atLeastOnce()).releaseResource(eqIgnoring(resource));
             then(activities).should(never()).consumeResource(eqIgnoring(resource));
         }

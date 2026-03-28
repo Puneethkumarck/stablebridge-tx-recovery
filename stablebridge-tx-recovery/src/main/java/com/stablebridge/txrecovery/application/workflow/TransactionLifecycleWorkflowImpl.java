@@ -219,17 +219,19 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
         var version = Workflow.getVersion("STR-31-approval-timeout", Workflow.DEFAULT_VERSION, 1);
 
         transition(AWAITING_HUMAN);
-        publishStatusEvent(AWAITING_HUMAN, Map.of(
-                "event_type", "transaction.awaiting_human",
-                "current_tier", currentTier != null ? String.valueOf(currentTier.level()) : "unknown",
-                "retry_count", String.valueOf(retryCount),
-                "gas_spent", totalGasSpent.toPlainString(),
-                "gas_budget", gasBudget.toPlainString()));
         log.info("Transaction {} requires human approval", transactionId);
 
         if (version == Workflow.DEFAULT_VERSION) {
+            publishStatusEvent(AWAITING_HUMAN, null);
             Workflow.await(() -> pendingApproval != null || cancelRequested);
         } else {
+            publishStatusEvent(AWAITING_HUMAN, Map.of(
+                    "event_type", "transaction.awaiting_human",
+                    "current_tier", currentTier != null ? String.valueOf(currentTier.level()) : "unknown",
+                    "retry_count", String.valueOf(retryCount),
+                    "gas_spent", totalGasSpent.toPlainString(),
+                    "gas_budget", gasBudget.toPlainString()));
+
             var timeoutCount = 0;
             while (pendingApproval == null && !cancelRequested && timeoutCount < MAX_APPROVAL_TIMEOUTS) {
                 var signalled = Workflow.await(APPROVAL_TIMEOUT_INTERVAL,
@@ -251,7 +253,7 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
                         .reason("HUMAN_RESPONSE_TIMEOUT")
                         .approvedAt(workflowNow())
                         .build();
-                rpcActivities.recordApproval(transactionId, systemApproval);
+                safeRecordApproval(systemApproval);
                 releaseCurrentResource();
                 transition(FAILED);
                 publishStatusEvent(FAILED, Map.of("reason", "HUMAN_RESPONSE_TIMEOUT"));
@@ -266,7 +268,7 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
 
         var approval = pendingApproval;
         pendingApproval = null;
-        rpcActivities.recordApproval(transactionId, approval);
+        safeRecordApproval(approval);
 
         switch (approval.action()) {
             case RETRY -> {
@@ -347,6 +349,14 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
         transition(CANCELLED);
         publishStatusEvent(CANCELLED, cancelRequest != null
                 ? Map.of("requestedBy", cancelRequest.requestedBy()) : Map.of());
+    }
+
+    private void safeRecordApproval(HumanApproval approval) {
+        try {
+            rpcActivities.recordApproval(transactionId, approval);
+        } catch (Exception e) {
+            log.warn("Failed to record approval for transaction {}: {}", transactionId, e.getMessage());
+        }
     }
 
     private void releaseCurrentResource() {
