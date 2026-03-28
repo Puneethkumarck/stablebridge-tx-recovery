@@ -42,6 +42,9 @@ dependencies {
     // Bouncy Castle
     implementation(libs.bouncycastle)
 
+    // Caffeine cache
+    implementation(libs.caffeine)
+
     // Database
     runtimeOnly("org.postgresql:postgresql")
 
