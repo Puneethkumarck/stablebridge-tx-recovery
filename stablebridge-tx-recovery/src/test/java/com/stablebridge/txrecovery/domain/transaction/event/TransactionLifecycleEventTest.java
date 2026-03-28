@@ -49,21 +49,28 @@ class TransactionLifecycleEventTest {
     }
 
     @Test
-    void shouldDefaultOptionalFieldsToNull() {
+    void shouldDefaultOptionalFieldsWhenNotSet() {
+        // given
+        var now = Instant.now();
+
         // when
         var event = TransactionLifecycleEvent.builder()
                 .eventId("evt-002")
                 .intentId("intent-002")
                 .chain("base")
                 .status(RECEIVED)
-                .timestamp(Instant.now())
+                .timestamp(now)
                 .build();
 
         // then
-        assertThat(event.transactionHash()).isNull();
-        assertThat(event.toAddress()).isNull();
-        assertThat(event.previousStatus()).isNull();
-        assertThat(event.metadata()).isEmpty();
+        var expected = TransactionLifecycleEvent.builder()
+                .eventId("evt-002")
+                .intentId("intent-002")
+                .chain("base")
+                .status(RECEIVED)
+                .timestamp(now)
+                .build();
+        assertThat(event).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
