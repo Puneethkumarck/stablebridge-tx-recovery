@@ -20,7 +20,6 @@ str:
     target: 127.0.0.1:7233
     namespace: stablebridge-tx-recovery-test
     task-queue: str-transaction-lifecycle-test
-    worker-packages: com.stablebridge.txrecovery
     non-retryable-exceptions:
       - com.stablebridge.txrecovery.domain.exception.NonRetryableException
       - com.stablebridge.txrecovery.domain.exception.NonceTooLowException

@@ -27,9 +27,9 @@ import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
 import com.stablebridge.txrecovery.domain.recovery.model.RecoveryPlan;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
 
-import io.temporal.api.enums.v1.WorkflowIdReusePolicy;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
+import io.temporal.common.converter.DataConverter;
 import io.temporal.common.converter.DefaultDataConverter;
 import io.temporal.common.converter.JacksonJsonPayloadConverter;
 import io.temporal.testing.TestWorkflowEnvironment;
@@ -105,15 +105,11 @@ class TemporalWorkerIntegrationTest {
     @Nested
     class DataConverterSerialization {
 
+        private final DataConverter converter = createTestDataConverter();
+
         @Test
         void shouldSerializeAndDeserializeSpeedUpPlan() {
             // given
-            var objectMapper = new ObjectMapper()
-                    .findAndRegisterModules()
-                    .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-            var converter = DefaultDataConverter.newDefaultInstance()
-                    .withPayloadConverterOverrides(
-                            new JacksonJsonPayloadConverter(objectMapper));
             var plan = RecoveryPlan.SpeedUp.builder()
                     .originalTxHash("0xabc123")
                     .newFee(FeeEstimate.builder()
@@ -139,12 +135,6 @@ class TemporalWorkerIntegrationTest {
         @Test
         void shouldSerializeAndDeserializeCancelPlan() {
             // given
-            var objectMapper = new ObjectMapper()
-                    .findAndRegisterModules()
-                    .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-            var converter = DefaultDataConverter.newDefaultInstance()
-                    .withPayloadConverterOverrides(
-                            new JacksonJsonPayloadConverter(objectMapper));
             var plan = RecoveryPlan.Cancel.builder()
                     .originalTxHash("0xdef456")
                     .build();
@@ -163,12 +153,6 @@ class TemporalWorkerIntegrationTest {
         @Test
         void shouldSerializeAndDeserializeResubmitPlan() {
             // given
-            var objectMapper = new ObjectMapper()
-                    .findAndRegisterModules()
-                    .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-            var converter = DefaultDataConverter.newDefaultInstance()
-                    .withPayloadConverterOverrides(
-                            new JacksonJsonPayloadConverter(objectMapper));
             var plan = RecoveryPlan.Resubmit.builder()
                     .originalTxHash("0x789ghi")
                     .build();
@@ -187,12 +171,6 @@ class TemporalWorkerIntegrationTest {
         @Test
         void shouldSerializeAndDeserializeWaitPlan() {
             // given
-            var objectMapper = new ObjectMapper()
-                    .findAndRegisterModules()
-                    .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-            var converter = DefaultDataConverter.newDefaultInstance()
-                    .withPayloadConverterOverrides(
-                            new JacksonJsonPayloadConverter(objectMapper));
             var plan = RecoveryPlan.Wait.builder()
                     .estimatedClearance(Duration.ofMinutes(5))
                     .reason("mempool congestion")
@@ -210,23 +188,13 @@ class TemporalWorkerIntegrationTest {
         }
     }
 
-    @Nested
-    class WorkflowIdReuse {
-
-        @Test
-        void shouldConfigureWorkflowIdReusePolicyOnOptions() {
-            // given
-            var config = new TemporalConfig();
-            var properties = new TemporalProperties(
-                    null, null, null, null, null, null, null, null);
-
-            // when
-            var options = config.workflowOptions(properties);
-
-            // then
-            assertThat(options.getWorkflowIdReusePolicy())
-                    .isEqualTo(WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY);
-        }
+    private static DataConverter createTestDataConverter() {
+        var objectMapper = new ObjectMapper()
+                .findAndRegisterModules()
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return DefaultDataConverter.newDefaultInstance()
+                .withPayloadConverterOverrides(
+                        new JacksonJsonPayloadConverter(objectMapper));
     }
 
     private TransactionLifecycleWorkflow startWorkflow(String intentId) {

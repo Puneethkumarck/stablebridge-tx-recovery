@@ -60,7 +60,6 @@ str:
     task-queue: str-transaction-lifecycle
     workflow-execution-timeout: PT24H
     workflow-run-timeout: PT2H
-    worker-packages: com.stablebridge.txrecovery
     non-retryable-exceptions:
       - com.stablebridge.txrecovery.domain.exception.NonRetryableException
       - com.stablebridge.txrecovery.domain.exception.NonceTooLowException

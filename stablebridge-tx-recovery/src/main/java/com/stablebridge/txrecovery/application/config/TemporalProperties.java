@@ -17,8 +17,7 @@ public record TemporalProperties(
         Duration workflowExecutionTimeout,
         Duration workflowRunTimeout,
         ActivityOptionsConfig activityOptions,
-        List<String> nonRetryableExceptions,
-        String workerPackages) {
+        List<String> nonRetryableExceptions) {
 
     public TemporalProperties {
         target = Objects.requireNonNullElse(target, "localhost:7233");
@@ -30,7 +29,6 @@ public record TemporalProperties(
         nonRetryableExceptions = Objects.requireNonNullElse(nonRetryableExceptions, List.of(
                 "com.stablebridge.txrecovery.domain.exception.NonRetryableException",
                 "com.stablebridge.txrecovery.domain.exception.NonceTooLowException"));
-        workerPackages = Objects.requireNonNullElse(workerPackages, "com.stablebridge.txrecovery");
     }
 
     @Builder(toBuilder = true)

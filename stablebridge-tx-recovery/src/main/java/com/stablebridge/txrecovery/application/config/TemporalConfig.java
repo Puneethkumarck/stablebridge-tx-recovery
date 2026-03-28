@@ -73,25 +73,17 @@ public class TemporalConfig {
 
     @Bean
     WorkflowImplementationOptions workflowImplementationOptions(TemporalProperties properties) {
-        var defaults = properties.activityOptions().defaultOptions();
         var nonRetryable = properties.nonRetryableExceptions().toArray(String[]::new);
-
-        var signingConfig = properties.activityOptions().signing();
-        var signingOptions = buildActivityOptions(signingConfig, defaults, nonRetryable);
-
-        var confirmationConfig = properties.activityOptions().confirmation();
-        var confirmationOptions = buildActivityOptions(confirmationConfig, defaults, nonRetryable);
-
-        var recoveryConfig = properties.activityOptions().recoveryExecution();
-        var recoveryOptions = buildActivityOptions(recoveryConfig, defaults, nonRetryable);
+        var activityOptions = properties.activityOptions();
 
         var activityMethodOptions = Map.of(
-                "sign", signingOptions,
-                "waitForFinality", confirmationOptions,
-                "executeRecovery", recoveryOptions);
+                "sign", buildActivityOptions(activityOptions.signing(), nonRetryable),
+                "waitForFinality", buildActivityOptions(activityOptions.confirmation(), nonRetryable),
+                "executeRecovery", buildActivityOptions(activityOptions.recoveryExecution(), nonRetryable));
 
         return WorkflowImplementationOptions.newBuilder()
-                .setDefaultActivityOptions(buildActivityOptions(defaults, defaults, nonRetryable))
+                .setDefaultActivityOptions(
+                        buildActivityOptions(activityOptions.defaultOptions(), nonRetryable))
                 .setActivityOptions(activityMethodOptions)
                 .build();
     }
@@ -121,19 +113,16 @@ public class TemporalConfig {
     }
 
     private ActivityOptions buildActivityOptions(
-            TemporalProperties.ActivityConfig config,
-            TemporalProperties.ActivityConfig defaults,
-            String[] nonRetryable) {
+            TemporalProperties.ActivityConfig config, String[] nonRetryable) {
         var retryOptions = RetryOptions.newBuilder()
-                .setMaximumAttempts(config.maxAttempts() != null ? config.maxAttempts() : defaults.maxAttempts())
-                .setInitialInterval(config.initialInterval() != null ? config.initialInterval() : defaults.initialInterval())
-                .setBackoffCoefficient(config.backoffCoefficient() != null ? config.backoffCoefficient() : defaults.backoffCoefficient())
+                .setMaximumAttempts(config.maxAttempts())
+                .setInitialInterval(config.initialInterval())
+                .setBackoffCoefficient(config.backoffCoefficient())
                 .setDoNotRetry(nonRetryable)
                 .build();
 
         return ActivityOptions.newBuilder()
-                .setStartToCloseTimeout(config.startToCloseTimeout() != null
-                        ? config.startToCloseTimeout() : defaults.startToCloseTimeout())
+                .setStartToCloseTimeout(config.startToCloseTimeout())
                 .setRetryOptions(retryOptions)
                 .build();
     }

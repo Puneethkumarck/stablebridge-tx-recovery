@@ -22,7 +22,7 @@ class TemporalConfigTest {
         void shouldCreateWorkflowOptionsWithTimeouts() {
             // given
             var properties = new TemporalProperties(
-                    "localhost:7233", null, null, null, null, null, null, null);
+                    "localhost:7233", null, null, null, null, null, null);
 
             // when
             var result = config.workflowOptions(properties);
@@ -47,7 +47,7 @@ class TemporalConfigTest {
             var properties = new TemporalProperties(
                     "localhost:7233", null, "custom-queue",
                     Duration.ofHours(48), Duration.ofHours(4),
-                    null, null, null);
+                    null, null);
 
             // when
             var result = config.workflowOptions(properties);
@@ -70,7 +70,7 @@ class TemporalConfigTest {
         void shouldSetWorkflowIdReusePolicyToAllowDuplicateFailedOnly() {
             // given
             var properties = new TemporalProperties(
-                    null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null);
 
             // when
             var result = config.workflowOptions(properties);
@@ -113,14 +113,69 @@ class TemporalConfigTest {
         void shouldCreateWorkflowImplementationOptionsWithDefaultActivityOptions() {
             // given
             var properties = new TemporalProperties(
-                    null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null);
 
             // when
             var result = config.workflowImplementationOptions(properties);
 
             // then
             assertThat(result).isNotNull();
-            assertThat(result.getActivityOptions()).isNotEmpty();
+            assertThat(result.getDefaultActivityOptions()).isNotNull();
+            assertThat(result.getDefaultActivityOptions().getStartToCloseTimeout())
+                    .isEqualTo(Duration.ofSeconds(30));
+            assertThat(result.getActivityOptions()).containsOnlyKeys(
+                    "sign", "waitForFinality", "executeRecovery");
+        }
+
+        @Test
+        void shouldMapSigningConfigToSignMethod() {
+            // given
+            var properties = new TemporalProperties(
+                    null, null, null, null, null, null, null);
+
+            // when
+            var result = config.workflowImplementationOptions(properties);
+
+            // then
+            var signOptions = result.getActivityOptions().get("sign");
+            assertThat(signOptions.getStartToCloseTimeout())
+                    .isEqualTo(Duration.ofSeconds(10));
+            assertThat(signOptions.getRetryOptions().getMaximumAttempts())
+                    .isEqualTo(2);
+        }
+
+        @Test
+        void shouldMapConfirmationConfigToWaitForFinalityMethod() {
+            // given
+            var properties = new TemporalProperties(
+                    null, null, null, null, null, null, null);
+
+            // when
+            var result = config.workflowImplementationOptions(properties);
+
+            // then
+            var confirmationOptions = result.getActivityOptions().get("waitForFinality");
+            assertThat(confirmationOptions.getStartToCloseTimeout())
+                    .isEqualTo(Duration.ofMinutes(5));
+            assertThat(confirmationOptions.getRetryOptions().getMaximumAttempts())
+                    .isEqualTo(1);
+        }
+
+        @Test
+        void shouldMapRecoveryConfigToExecuteRecoveryMethod() {
+            // given
+            var properties = new TemporalProperties(
+                    null, null, null, null, null, null, null);
+
+            // when
+            var result = config.workflowImplementationOptions(properties);
+
+            // then
+            var recoveryOptions = result.getActivityOptions().get("executeRecovery");
+            assertThat(recoveryOptions.getStartToCloseTimeout())
+                    .isEqualTo(Duration.ofSeconds(60));
+            assertThat(recoveryOptions.getRetryOptions().getMaximumAttempts())
+                    .isEqualTo(3);
         }
 
         @Test
@@ -139,14 +194,19 @@ class TemporalConfigTest {
             var nonRetryable = List.of(
                     "com.stablebridge.txrecovery.domain.exception.NonRetryableException");
             var properties = new TemporalProperties(
-                    null, null, null, null, null, activityOptions, nonRetryable, null);
+                    null, null, null, null, null, activityOptions, nonRetryable);
 
             // when
             var result = config.workflowImplementationOptions(properties);
 
             // then
             assertThat(result).isNotNull();
-            assertThat(result.getActivityOptions()).isNotEmpty();
+            assertThat(result.getActivityOptions().get("sign").getStartToCloseTimeout())
+                    .isEqualTo(Duration.ofSeconds(15));
+            assertThat(result.getActivityOptions().get("waitForFinality").getStartToCloseTimeout())
+                    .isEqualTo(Duration.ofSeconds(600));
+            assertThat(result.getActivityOptions().get("executeRecovery").getStartToCloseTimeout())
+                    .isEqualTo(Duration.ofSeconds(120));
         }
     }
 }

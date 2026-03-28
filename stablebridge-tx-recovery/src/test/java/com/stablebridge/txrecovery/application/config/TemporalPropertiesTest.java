@@ -17,22 +17,18 @@ class TemporalPropertiesTest {
         void shouldApplyDefaultValues() {
             // given / when
             var properties = new TemporalProperties(
-                    null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null);
 
             // then
-            var expected = new TemporalProperties(
-                    "localhost:7233",
-                    "stablebridge-tx-recovery",
-                    "str-transaction-lifecycle",
-                    Duration.ofHours(24),
-                    Duration.ofHours(2),
-                    null,
-                    null,
-                    null);
-
-            assertThat(properties)
-                    .usingRecursiveComparison()
-                    .isEqualTo(expected);
+            assertThat(properties.target()).isEqualTo("localhost:7233");
+            assertThat(properties.namespace()).isEqualTo("stablebridge-tx-recovery");
+            assertThat(properties.taskQueue()).isEqualTo("str-transaction-lifecycle");
+            assertThat(properties.workflowExecutionTimeout()).isEqualTo(Duration.ofHours(24));
+            assertThat(properties.workflowRunTimeout()).isEqualTo(Duration.ofHours(2));
+            assertThat(properties.activityOptions()).isNotNull();
+            assertThat(properties.nonRetryableExceptions()).containsExactly(
+                    "com.stablebridge.txrecovery.domain.exception.NonRetryableException",
+                    "com.stablebridge.txrecovery.domain.exception.NonceTooLowException");
         }
     }
 
@@ -63,8 +59,7 @@ class TemporalPropertiesTest {
                     Duration.ofHours(48),
                     Duration.ofHours(4),
                     activityOptions,
-                    nonRetryable,
-                    "com.stablebridge.custom");
+                    nonRetryable);
 
             // then
             var expected = new TemporalProperties(
@@ -74,8 +69,7 @@ class TemporalPropertiesTest {
                     Duration.ofHours(48),
                     Duration.ofHours(4),
                     activityOptions,
-                    nonRetryable,
-                    "com.stablebridge.custom");
+                    nonRetryable);
 
             assertThat(properties)
                     .usingRecursiveComparison()
@@ -90,7 +84,7 @@ class TemporalPropertiesTest {
         void shouldApplyDefaultActivityOptionsWhenNull() {
             // given / when
             var properties = new TemporalProperties(
-                    null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null);
 
             // then
             var expectedActivityOptions = new TemporalProperties.ActivityOptionsConfig(
@@ -112,7 +106,7 @@ class TemporalPropertiesTest {
         void shouldApplyDefaultNonRetryableExceptions() {
             // given / when
             var properties = new TemporalProperties(
-                    null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null);
 
             // then
             var expectedExceptions = List.of(
@@ -121,17 +115,6 @@ class TemporalPropertiesTest {
 
             assertThat(properties.nonRetryableExceptions())
                     .containsExactlyElementsOf(expectedExceptions);
-        }
-
-        @Test
-        void shouldApplyDefaultWorkerPackages() {
-            // given / when
-            var properties = new TemporalProperties(
-                    null, null, null, null, null, null, null, null);
-
-            // then
-            assertThat(properties.workerPackages())
-                    .isEqualTo("com.stablebridge.txrecovery");
         }
 
         @Test
@@ -150,7 +133,7 @@ class TemporalPropertiesTest {
 
             // when
             var properties = new TemporalProperties(
-                    null, null, null, null, null, customOptions, null, null);
+                    null, null, null, null, null, customOptions, null);
 
             // then
             assertThat(properties.activityOptions())
@@ -167,7 +150,7 @@ class TemporalPropertiesTest {
 
             // when
             var properties = new TemporalProperties(
-                    null, null, null, null, null, partialOptions, null, null);
+                    null, null, null, null, null, partialOptions, null);
 
             // then
             var expectedDefault = new TemporalProperties.ActivityConfig(
