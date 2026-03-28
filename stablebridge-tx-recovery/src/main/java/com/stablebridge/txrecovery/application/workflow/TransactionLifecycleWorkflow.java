@@ -21,7 +21,7 @@ public interface TransactionLifecycleWorkflow {
     }
 
     @WorkflowMethod
-    TransactionResult process(TransactionIntent intent);
+    TransactionResult process(TransactionIntent intent, ContinueAsNewState previousState);
 
     @SignalMethod
     void approveRecovery(HumanApproval approval);

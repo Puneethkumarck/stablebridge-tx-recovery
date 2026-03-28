@@ -94,7 +94,7 @@ class TemporalWorkerIntegrationTest {
 
             // when
             var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT.intentId());
-            var result = workflow.process(SOME_SEQUENTIAL_INTENT);
+            var result = workflow.process(SOME_SEQUENTIAL_INTENT, null);
 
             // then
             assertThat(result.finalStatus()).isEqualTo(TransactionStatus.FINALIZED);

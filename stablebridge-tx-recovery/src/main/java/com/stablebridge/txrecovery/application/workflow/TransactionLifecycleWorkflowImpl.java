@@ -81,39 +81,46 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
     }
 
     @Override
-    public TransactionResult process(TransactionIntent intent) {
+    public TransactionResult process(TransactionIntent intent, ContinueAsNewState previousState) {
         Workflow.getVersion("STR-28-initial", Workflow.DEFAULT_VERSION, 1);
+        var continueAsNewVersion = Workflow.getVersion("STR-33-continue-as-new", Workflow.DEFAULT_VERSION, 1);
 
-        transactionId = Workflow.randomUUID().toString();
-        intentId = intent.intentId();
-        chain = intent.chain();
-        gasBudget = DEFAULT_GAS_BUDGET;
-
-        log.info("Starting transaction lifecycle for intent {}", intentId);
-        transition(RECEIVED);
-        publishStatusEvent(RECEIVED, null);
-
-        try {
-            currentResource = rpcActivities.acquireResource(intent);
-            transition(BUILDING);
-
-            var unsigned = rpcActivities.build(intent, currentResource);
-            gasDenomination = unsigned.feeEstimate().denomination();
-            transition(SIGNING);
-
-            var signed = signingActivities.sign(unsigned, currentResource.fromAddress());
-            var broadcastResult = rpcActivities.broadcast(signed, chain);
-            txHash = broadcastResult.txHash();
-            transition(PENDING);
-            publishStatusEvent(SUBMITTED, null);
-
+        if (previousState != null && continueAsNewVersion >= 1) {
+            restoreState(previousState);
+            log.info("Resumed transaction lifecycle for intent {} via continue-as-new", intentId);
             monitorAndRecover(intent);
-        } catch (Exception e) {
-            log.error("Transaction {} failed mid-flight: {}", transactionId, e.getMessage());
-            releaseCurrentResource();
-            if (!currentState.isTerminal()) {
-                transition(FAILED);
-                publishStatusEvent(FAILED, Map.of("reason", "activity_failure"));
+        } else {
+            transactionId = Workflow.randomUUID().toString();
+            intentId = intent.intentId();
+            chain = intent.chain();
+            gasBudget = DEFAULT_GAS_BUDGET;
+
+            log.info("Starting transaction lifecycle for intent {}", intentId);
+            transition(RECEIVED);
+            publishStatusEvent(RECEIVED, null);
+
+            try {
+                currentResource = rpcActivities.acquireResource(intent);
+                transition(BUILDING);
+
+                var unsigned = rpcActivities.build(intent, currentResource);
+                gasDenomination = unsigned.feeEstimate().denomination();
+                transition(SIGNING);
+
+                var signed = signingActivities.sign(unsigned, currentResource.fromAddress());
+                var broadcastResult = rpcActivities.broadcast(signed, chain);
+                txHash = broadcastResult.txHash();
+                transition(PENDING);
+                publishStatusEvent(SUBMITTED, null);
+
+                monitorAndRecover(intent);
+            } catch (Exception e) {
+                log.error("Transaction {} failed mid-flight: {}", transactionId, e.getMessage());
+                releaseCurrentResource();
+                if (!currentState.isTerminal()) {
+                    transition(FAILED);
+                    publishStatusEvent(FAILED, Map.of("reason", "activity_failure"));
+                }
             }
         }
 
@@ -158,6 +165,11 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
 
     private void monitorAndRecover(TransactionIntent intent) {
         while (!currentState.isTerminal()) {
+            if (shouldContinueAsNew()) {
+                log.info("Continuing as new for transaction {}", transactionId);
+                Workflow.continueAsNew(intent, captureState());
+            }
+
             if (cancelRequested) {
                 handleCancellation();
                 return;
@@ -172,6 +184,46 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
                 default -> Workflow.sleep(POLL_INTERVAL);
             }
         }
+    }
+
+    private boolean shouldContinueAsNew() {
+        return Workflow.getInfo().isContinueAsNewSuggested();
+    }
+
+    private ContinueAsNewState captureState() {
+        return ContinueAsNewState.builder()
+                .transactionId(transactionId)
+                .intentId(intentId)
+                .chain(chain)
+                .currentState(currentState)
+                .txHash(txHash)
+                .retryCount(retryCount)
+                .totalGasSpent(totalGasSpent)
+                .gasBudget(gasBudget)
+                .gasDenomination(gasDenomination)
+                .currentTier(currentTier)
+                .currentResource(currentResource)
+                .pendingApproval(pendingApproval)
+                .cancelRequested(cancelRequested)
+                .cancelRequest(cancelRequest)
+                .build();
+    }
+
+    private void restoreState(ContinueAsNewState state) {
+        transactionId = state.transactionId();
+        intentId = state.intentId();
+        chain = state.chain();
+        currentState = state.currentState();
+        txHash = state.txHash();
+        retryCount = state.retryCount();
+        totalGasSpent = state.totalGasSpent();
+        gasBudget = state.gasBudget();
+        gasDenomination = state.gasDenomination();
+        currentTier = state.currentTier();
+        currentResource = state.currentResource();
+        pendingApproval = state.pendingApproval();
+        cancelRequested = state.cancelRequested();
+        cancelRequest = state.cancelRequest();
     }
 
     private void handleConfirmed() {

@@ -95,7 +95,7 @@ class TransactionLifecycleWorkflowImplTest {
             // when
             testEnv.start();
             var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
-            var result = workflow.process(SOME_SEQUENTIAL_INTENT);
+            var result = workflow.process(SOME_SEQUENTIAL_INTENT, null);
 
             // then
             var expected = TransactionResult.builder()
@@ -138,7 +138,7 @@ class TransactionLifecycleWorkflowImplTest {
             var stub = WorkflowStub.fromTyped(workflow);
 
             // when
-            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT);
+            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT, null);
 
             testEnv.registerDelayedCallback(
                     Duration.ofSeconds(2),
@@ -209,7 +209,7 @@ class TransactionLifecycleWorkflowImplTest {
             // when
             testEnv.start();
             var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
-            var result = workflow.process(SOME_SEQUENTIAL_INTENT);
+            var result = workflow.process(SOME_SEQUENTIAL_INTENT, null);
 
             // then
             var expected = TransactionResult.builder()
@@ -274,7 +274,7 @@ class TransactionLifecycleWorkflowImplTest {
             // when
             testEnv.start();
             var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
-            var result = workflow.process(SOME_SEQUENTIAL_INTENT);
+            var result = workflow.process(SOME_SEQUENTIAL_INTENT, null);
 
             // then
             var expected = TransactionResult.builder()
@@ -328,7 +328,7 @@ class TransactionLifecycleWorkflowImplTest {
             var stub = WorkflowStub.fromTyped(workflow);
 
             // when
-            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT);
+            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT, null);
 
             testEnv.registerDelayedCallback(
                     Duration.ofSeconds(5),
@@ -381,7 +381,7 @@ class TransactionLifecycleWorkflowImplTest {
             var stub = WorkflowStub.fromTyped(workflow);
 
             // when
-            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT);
+            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT, null);
 
             testEnv.registerDelayedCallback(Duration.ofSeconds(1), () -> {
                 var snapshot = workflow.getStatus();
@@ -438,7 +438,7 @@ class TransactionLifecycleWorkflowImplTest {
             var stub = WorkflowStub.fromTyped(workflow);
 
             // when
-            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT);
+            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT, null);
 
             testEnv.registerDelayedCallback(
                     Duration.ofSeconds(5),
@@ -497,7 +497,7 @@ class TransactionLifecycleWorkflowImplTest {
             // when
             testEnv.start();
             var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
-            var result = workflow.process(SOME_SEQUENTIAL_INTENT);
+            var result = workflow.process(SOME_SEQUENTIAL_INTENT, null);
 
             // then
             var expected = TransactionResult.builder()
@@ -548,7 +548,7 @@ class TransactionLifecycleWorkflowImplTest {
             var stub = WorkflowStub.fromTyped(workflow);
 
             // when
-            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT);
+            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT, null);
 
             testEnv.registerDelayedCallback(
                     Duration.ofSeconds(5),
@@ -596,7 +596,7 @@ class TransactionLifecycleWorkflowImplTest {
             // when
             testEnv.start();
             var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
-            var result = workflow.process(SOME_SEQUENTIAL_INTENT);
+            var result = workflow.process(SOME_SEQUENTIAL_INTENT, null);
 
             // then
             assertThat(result.finalStatus()).isEqualTo(FAILED);
@@ -651,7 +651,7 @@ class TransactionLifecycleWorkflowImplTest {
             var stub = WorkflowStub.fromTyped(workflow);
 
             // when
-            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT);
+            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT, null);
 
             testEnv.registerDelayedCallback(
                     Duration.ofSeconds(5),
@@ -698,7 +698,7 @@ class TransactionLifecycleWorkflowImplTest {
             // when
             testEnv.start();
             var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
-            var result = workflow.process(SOME_SEQUENTIAL_INTENT);
+            var result = workflow.process(SOME_SEQUENTIAL_INTENT, null);
 
             // then
             var expected = TransactionResult.builder()
@@ -778,7 +778,7 @@ class TransactionLifecycleWorkflowImplTest {
             var stub = WorkflowStub.fromTyped(workflow);
 
             // when
-            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT);
+            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT, null);
 
             testEnv.registerDelayedCallback(
                     Duration.ofSeconds(5),
@@ -828,7 +828,7 @@ class TransactionLifecycleWorkflowImplTest {
             var stub = WorkflowStub.fromTyped(workflow);
 
             // when
-            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT);
+            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT, null);
 
             testEnv.registerDelayedCallback(
                     Duration.ofSeconds(5),
@@ -865,6 +865,66 @@ class TransactionLifecycleWorkflowImplTest {
 
             // then
             assertThat(workflowId).isEqualTo("str-tx-intent-123");
+        }
+    }
+
+    @Nested
+    class ContinueAsNew {
+
+        @Test
+        void shouldResumeFromPreviousStateAfterContinueAsNew() {
+            // given
+            var previousState = someContinueAsNewState();
+            var confirmation = someFinalizedConfirmation();
+
+            given(activities.checkStatus(SOME_TX_HASH, SOME_CHAIN)).willReturn(CONFIRMED);
+            given(activities.waitForFinality(SOME_TX_HASH, SOME_CHAIN)).willReturn(confirmation);
+
+            // when
+            testEnv.start();
+            var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
+            var result = workflow.process(SOME_SEQUENTIAL_INTENT, previousState);
+
+            // then
+            var expected = TransactionResult.builder()
+                    .transactionId(previousState.transactionId())
+                    .intentId(SOME_INTENT_ID)
+                    .finalStatus(FINALIZED)
+                    .txHash(SOME_TX_HASH)
+                    .totalGasSpent(previousState.totalGasSpent())
+                    .gasDenomination("ETH")
+                    .totalAttempts(previousState.retryCount())
+                    .completedAt(result.completedAt())
+                    .build();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .isEqualTo(expected);
+
+            then(activities).should().consumeResource(eqIgnoring(someEvmResource()));
+            then(activities).should(never()).acquireResource(eqIgnoring(SOME_SEQUENTIAL_INTENT, "amount", "rawAmount"));
+        }
+
+        @Test
+        void shouldPreserveCancelSignalStateAcrossContinueAsNew() {
+            // given
+            var cancelRequest = CancelRequest.builder()
+                    .requestedBy("operator-1")
+                    .reason("test cancel")
+                    .requestedAt(Instant.parse("2026-01-01T00:00:00Z"))
+                    .build();
+            var previousState = someContinueAsNewState().toBuilder()
+                    .cancelRequested(true)
+                    .cancelRequest(cancelRequest)
+                    .build();
+
+            // when
+            testEnv.start();
+            var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
+            var result = workflow.process(SOME_SEQUENTIAL_INTENT, previousState);
+
+            // then
+            assertThat(result.finalStatus()).isEqualTo(CANCELLED);
+            then(activities).should(never()).acquireResource(eqIgnoring(SOME_SEQUENTIAL_INTENT, "amount", "rawAmount"));
         }
     }
 
