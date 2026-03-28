@@ -3,12 +3,14 @@ package com.stablebridge.txrecovery.infrastructure.client.solana;
 import static com.stablebridge.txrecovery.testutil.TestUtils.eqIgnoring;
 import static com.stablebridge.txrecovery.testutil.fixtures.SolanaRecoveryFixtures.SOME_CHAIN;
 import static com.stablebridge.txrecovery.testutil.fixtures.SolanaRecoveryFixtures.SOME_FROM_ADDRESS;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaRecoveryFixtures.SOME_INTENT_ID;
 import static com.stablebridge.txrecovery.testutil.fixtures.SolanaRecoveryFixtures.SOME_NEW_NONCE_VALUE;
 import static com.stablebridge.txrecovery.testutil.fixtures.SolanaRecoveryFixtures.SOME_NONCE_ACCOUNT;
 import static com.stablebridge.txrecovery.testutil.fixtures.SolanaRecoveryFixtures.SOME_NONCE_VALUE;
 import static com.stablebridge.txrecovery.testutil.fixtures.SolanaRecoveryFixtures.SOME_REPLACEMENT_TX_HASH;
 import static com.stablebridge.txrecovery.testutil.fixtures.SolanaRecoveryFixtures.SOME_TX_HASH;
 import static com.stablebridge.txrecovery.testutil.fixtures.SolanaRecoveryFixtures.SOME_URGENT_FEE;
+import static com.stablebridge.txrecovery.testutil.fixtures.SolanaRecoveryFixtures.someSolanaTransactionIntent;
 import static com.stablebridge.txrecovery.testutil.fixtures.SolanaRecoveryFixtures.someStuckSolanaTransaction;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -17,6 +19,7 @@ import static org.mockito.BDDMockito.then;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -26,6 +29,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.stablebridge.txrecovery.domain.address.model.ChainFamily;
+import com.stablebridge.txrecovery.domain.exception.UnsupportedRecoveryOperationException;
 import com.stablebridge.txrecovery.domain.recovery.model.RecoveryOutcome;
 import com.stablebridge.txrecovery.domain.recovery.model.RecoveryPlan;
 import com.stablebridge.txrecovery.domain.recovery.model.RecoveryResult;
@@ -36,6 +40,7 @@ import com.stablebridge.txrecovery.domain.transaction.model.SignedTransaction;
 import com.stablebridge.txrecovery.domain.transaction.model.SolanaSubmissionResource;
 import com.stablebridge.txrecovery.domain.transaction.model.UnsignedTransaction;
 import com.stablebridge.txrecovery.domain.transaction.port.SubmissionResourceManager;
+import com.stablebridge.txrecovery.domain.transaction.port.TransactionIntentStore;
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionSigner;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,6 +54,9 @@ class SolanaRecoveryStrategyTest {
 
     @Mock
     private SubmissionResourceManager submissionResourceManager;
+
+    @Mock
+    private TransactionIntentStore transactionIntentStore;
 
     @Mock
     private TransactionSigner signer;
@@ -70,7 +78,8 @@ class SolanaRecoveryStrategyTest {
 
     @BeforeEach
     void setUp() {
-        strategy = new SolanaRecoveryStrategy(rpcClient, transactionBuilder, submissionResourceManager);
+        strategy = new SolanaRecoveryStrategy(
+                rpcClient, transactionBuilder, submissionResourceManager, transactionIntentStore);
     }
 
     @Nested
@@ -182,61 +191,29 @@ class SolanaRecoveryStrategyTest {
         }
 
         @Nested
-        class WhenBlockhashExpired {
+        class WhenNonceStillValidButNotSeen {
 
             @Test
-            void shouldReturnExpiredWithResubmitPlan() {
+            void shouldReturnNotSeenWithWaitPlan() {
                 // given
                 var transaction = someStuckSolanaTransaction();
                 given(rpcClient.getSignatureStatuses(List.of(SOME_TX_HASH)))
                         .willReturn(List.of());
                 given(rpcClient.getNonce(SOME_NONCE_ACCOUNT, SolanaCommitment.CONFIRMED))
                         .willReturn(SOME_NONCE_VALUE);
-                given(rpcClient.isBlockhashValid(SOME_NONCE_VALUE, SolanaCommitment.CONFIRMED))
-                        .willReturn(false);
 
                 // when
                 var result = strategy.assess(transaction);
 
                 // then
                 var expected = StuckAssessment.builder()
-                        .reason(StuckReason.EXPIRED)
-                        .severity(StuckSeverity.HIGH)
-                        .recommendedPlan(RecoveryPlan.Resubmit.builder()
-                                .originalTxHash(SOME_TX_HASH)
-                                .build())
-                        .explanation("Blockhash expired for nonce value: " + SOME_NONCE_VALUE)
-                        .build();
-                assertThat(result).usingRecursiveComparison().isEqualTo(expected);
-            }
-        }
-
-        @Nested
-        class WhenTransactionNotPropagated {
-
-            @Test
-            void shouldReturnNotPropagatedWithWaitPlan() {
-                // given
-                var transaction = someStuckSolanaTransaction();
-                given(rpcClient.getSignatureStatuses(List.of(SOME_TX_HASH)))
-                        .willReturn(List.of());
-                given(rpcClient.getNonce(SOME_NONCE_ACCOUNT, SolanaCommitment.CONFIRMED))
-                        .willReturn(SOME_NONCE_VALUE);
-                given(rpcClient.isBlockhashValid(SOME_NONCE_VALUE, SolanaCommitment.CONFIRMED))
-                        .willReturn(true);
-
-                // when
-                var result = strategy.assess(transaction);
-
-                // then
-                var expected = StuckAssessment.builder()
-                        .reason(StuckReason.NOT_PROPAGATED)
+                        .reason(StuckReason.NOT_SEEN)
                         .severity(StuckSeverity.LOW)
                         .recommendedPlan(RecoveryPlan.Wait.builder()
                                 .estimatedClearance(Duration.ofMinutes(5))
-                                .reason("Transaction not yet propagated, blockhash still valid")
+                                .reason("Transaction not yet seen by cluster, durable nonce still valid")
                                 .build())
-                        .explanation("Transaction not found but blockhash still valid — waiting for propagation")
+                        .explanation("Transaction not found but durable nonce still valid — waiting for propagation")
                         .build();
                 assertThat(result).usingRecursiveComparison().isEqualTo(expected);
             }
@@ -250,9 +227,10 @@ class SolanaRecoveryStrategyTest {
         class Resubmit {
 
             @Test
-            void shouldAcquireFreshResourceAndBroadcast() {
+            void shouldAcquireFreshResourceAndBroadcastWithOriginalIntent() {
                 // given
                 var transaction = someStuckSolanaTransaction();
+                var originalIntent = someSolanaTransactionIntent();
                 given(rpcClient.getSignatureStatuses(List.of(SOME_TX_HASH)))
                         .willReturn(List.of(SOME_ERROR_STATUS));
                 strategy.assess(transaction);
@@ -268,14 +246,9 @@ class SolanaRecoveryStrategyTest {
                         .nonceValue("FreshNonceValue11111111111111111111111111111")
                         .build();
 
-                var expectedIntent =
-                        com.stablebridge.txrecovery.domain.transaction.model.TransactionIntent.builder()
-                                .intentId("recovery-resubmit-" + SOME_TX_HASH)
-                                .chain(SOME_CHAIN)
-                                .toAddress(SOME_FROM_ADDRESS)
-                                .amount(java.math.BigDecimal.ZERO)
-                                .token("SOL")
-                                .build();
+                var recoveryIntent = originalIntent.toBuilder()
+                        .intentId("recovery-resubmit-" + SOME_TX_HASH)
+                        .build();
 
                 var unsignedTx = UnsignedTransaction.builder()
                         .intentId("recovery-resubmit-" + SOME_TX_HASH)
@@ -293,10 +266,12 @@ class SolanaRecoveryStrategyTest {
                         .signerAddress(SOME_FROM_ADDRESS)
                         .build();
 
-                given(submissionResourceManager.acquire(eqIgnoring(expectedIntent, "metadata")))
+                given(transactionIntentStore.findByIntentId(SOME_INTENT_ID))
+                        .willReturn(Optional.of(originalIntent));
+                given(submissionResourceManager.acquire(eqIgnoring(recoveryIntent, "metadata")))
                         .willReturn(freshResource);
                 given(transactionBuilder.build(
-                                eqIgnoring(expectedIntent, "metadata"), eqIgnoring(freshResource)))
+                                eqIgnoring(recoveryIntent, "metadata"), eqIgnoring(freshResource)))
                         .willReturn(unsignedTx);
                 given(signer.sign(eqIgnoring(unsignedTx, "payload"), eqIgnoring(SOME_FROM_ADDRESS)))
                         .willReturn(signedTx);
@@ -320,6 +295,7 @@ class SolanaRecoveryStrategyTest {
             void shouldReleaseOldResourceOnSuccess() {
                 // given
                 var transaction = someStuckSolanaTransaction();
+                var originalIntent = someSolanaTransactionIntent();
                 given(rpcClient.getSignatureStatuses(List.of(SOME_TX_HASH)))
                         .willReturn(List.of(SOME_ERROR_STATUS));
                 strategy.assess(transaction);
@@ -337,14 +313,9 @@ class SolanaRecoveryStrategyTest {
                         .nonceValue("FreshNonceValue11111111111111111111111111111")
                         .build();
 
-                var expectedIntent =
-                        com.stablebridge.txrecovery.domain.transaction.model.TransactionIntent.builder()
-                                .intentId("recovery-resubmit-" + SOME_TX_HASH)
-                                .chain(SOME_CHAIN)
-                                .toAddress(SOME_FROM_ADDRESS)
-                                .amount(java.math.BigDecimal.ZERO)
-                                .token("SOL")
-                                .build();
+                var recoveryIntent = originalIntent.toBuilder()
+                        .intentId("recovery-resubmit-" + SOME_TX_HASH)
+                        .build();
 
                 var unsignedTx = UnsignedTransaction.builder()
                         .intentId("recovery-resubmit-" + SOME_TX_HASH)
@@ -362,10 +333,12 @@ class SolanaRecoveryStrategyTest {
                         .signerAddress(SOME_FROM_ADDRESS)
                         .build();
 
-                given(submissionResourceManager.acquire(eqIgnoring(expectedIntent, "metadata")))
+                given(transactionIntentStore.findByIntentId(SOME_INTENT_ID))
+                        .willReturn(Optional.of(originalIntent));
+                given(submissionResourceManager.acquire(eqIgnoring(recoveryIntent, "metadata")))
                         .willReturn(freshResource);
                 given(transactionBuilder.build(
-                                eqIgnoring(expectedIntent, "metadata"), eqIgnoring(freshResource)))
+                                eqIgnoring(recoveryIntent, "metadata"), eqIgnoring(freshResource)))
                         .willReturn(unsignedTx);
                 given(signer.sign(eqIgnoring(unsignedTx, "payload"), eqIgnoring(SOME_FROM_ADDRESS)))
                         .willReturn(signedTx);
@@ -383,6 +356,7 @@ class SolanaRecoveryStrategyTest {
             void shouldReleaseFreshResourceOnBuildFailure() {
                 // given
                 var transaction = someStuckSolanaTransaction();
+                var originalIntent = someSolanaTransactionIntent();
                 given(rpcClient.getSignatureStatuses(List.of(SOME_TX_HASH)))
                         .willReturn(List.of(SOME_ERROR_STATUS));
                 strategy.assess(transaction);
@@ -398,19 +372,16 @@ class SolanaRecoveryStrategyTest {
                         .nonceValue("FreshNonceValue11111111111111111111111111111")
                         .build();
 
-                var expectedIntent =
-                        com.stablebridge.txrecovery.domain.transaction.model.TransactionIntent.builder()
-                                .intentId("recovery-resubmit-" + SOME_TX_HASH)
-                                .chain(SOME_CHAIN)
-                                .toAddress(SOME_FROM_ADDRESS)
-                                .amount(java.math.BigDecimal.ZERO)
-                                .token("SOL")
-                                .build();
+                var recoveryIntent = originalIntent.toBuilder()
+                        .intentId("recovery-resubmit-" + SOME_TX_HASH)
+                        .build();
 
-                given(submissionResourceManager.acquire(eqIgnoring(expectedIntent, "metadata")))
+                given(transactionIntentStore.findByIntentId(SOME_INTENT_ID))
+                        .willReturn(Optional.of(originalIntent));
+                given(submissionResourceManager.acquire(eqIgnoring(recoveryIntent, "metadata")))
                         .willReturn(freshResource);
                 given(transactionBuilder.build(
-                                eqIgnoring(expectedIntent, "metadata"), eqIgnoring(freshResource)))
+                                eqIgnoring(recoveryIntent, "metadata"), eqIgnoring(freshResource)))
                         .willThrow(new RuntimeException("Build failed"));
 
                 // when/then
@@ -449,7 +420,67 @@ class SolanaRecoveryStrategyTest {
         class SpeedUp {
 
             @Test
-            void shouldThrowIllegalStateException() {
+            void shouldBuildWithSameNonceAndOriginalIntent() {
+                // given
+                var transaction = someStuckSolanaTransaction();
+                var originalIntent = someSolanaTransactionIntent();
+                given(rpcClient.getSignatureStatuses(List.of(SOME_TX_HASH)))
+                        .willReturn(List.of(SOME_ERROR_STATUS));
+                strategy.assess(transaction);
+
+                var plan = RecoveryPlan.SpeedUp.builder()
+                        .originalTxHash(SOME_TX_HASH)
+                        .newFee(SOME_URGENT_FEE)
+                        .build();
+
+                var originalResource = (SolanaSubmissionResource) transaction.resource();
+
+                var recoveryIntent = originalIntent.toBuilder()
+                        .intentId("recovery-speedup-" + SOME_TX_HASH)
+                        .build();
+
+                var unsignedTx = UnsignedTransaction.builder()
+                        .intentId("recovery-speedup-" + SOME_TX_HASH)
+                        .chain(SOME_CHAIN)
+                        .fromAddress(SOME_FROM_ADDRESS)
+                        .toAddress(SOME_FROM_ADDRESS)
+                        .payload(new byte[] {0x01, 0x02})
+                        .feeEstimate(SOME_URGENT_FEE)
+                        .build();
+
+                var signedTx = SignedTransaction.builder()
+                        .intentId("recovery-speedup-" + SOME_TX_HASH)
+                        .chain(SOME_CHAIN)
+                        .signedPayload(new byte[] {0x03, 0x04})
+                        .signerAddress(SOME_FROM_ADDRESS)
+                        .build();
+
+                given(transactionIntentStore.findByIntentId(SOME_INTENT_ID))
+                        .willReturn(Optional.of(originalIntent));
+                given(transactionBuilder.build(
+                                eqIgnoring(recoveryIntent, "metadata"), eqIgnoring(originalResource)))
+                        .willReturn(unsignedTx);
+                given(signer.sign(eqIgnoring(unsignedTx, "payload"), eqIgnoring(SOME_FROM_ADDRESS)))
+                        .willReturn(signedTx);
+                given(rpcClient.sendTransaction(signedTx.signedPayload()))
+                        .willReturn(SOME_REPLACEMENT_TX_HASH);
+
+                // when
+                var result = strategy.execute(plan, signer);
+
+                // then
+                var expected = RecoveryResult.builder()
+                        .outcome(RecoveryOutcome.REPLACEMENT_SUBMITTED)
+                        .replacementTxHash(SOME_REPLACEMENT_TX_HASH)
+                        .gasCost(SOME_URGENT_FEE.estimatedCost())
+                        .details("Speed-up with same nonce: nonceAccount=%s"
+                                .formatted(SOME_NONCE_ACCOUNT))
+                        .build();
+                assertThat(result).usingRecursiveComparison().isEqualTo(expected);
+            }
+
+            @Test
+            void shouldThrowWhenTransactionNotPreviouslyAssessed() {
                 // given
                 var plan = RecoveryPlan.SpeedUp.builder()
                         .originalTxHash(SOME_TX_HASH)
@@ -458,8 +489,8 @@ class SolanaRecoveryStrategyTest {
 
                 // when/then
                 assertThatThrownBy(() -> strategy.execute(plan, signer))
-                        .isInstanceOf(IllegalStateException.class)
-                        .hasMessageContaining("Solana does not support SpeedUp");
+                        .isInstanceOf(UnsupportedRecoveryOperationException.class)
+                        .hasMessageContaining("Transaction not previously assessed");
             }
         }
 
@@ -467,16 +498,22 @@ class SolanaRecoveryStrategyTest {
         class Cancel {
 
             @Test
-            void shouldThrowIllegalStateException() {
+            void shouldReturnWaitingWithExpiryExplanation() {
                 // given
                 var plan = RecoveryPlan.Cancel.builder()
                         .originalTxHash(SOME_TX_HASH)
                         .build();
 
-                // when/then
-                assertThatThrownBy(() -> strategy.execute(plan, signer))
-                        .isInstanceOf(IllegalStateException.class)
-                        .hasMessageContaining("Solana does not support Cancel");
+                // when
+                var result = strategy.execute(plan, signer);
+
+                // then
+                var expected = RecoveryResult.builder()
+                        .outcome(RecoveryOutcome.WAITING)
+                        .details("Solana transactions expire naturally when blockhash/nonce becomes invalid")
+                        .build();
+                assertThat(result).usingRecursiveComparison().isEqualTo(expected);
+                then(signer).shouldHaveNoInteractions();
             }
         }
     }

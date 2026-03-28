@@ -30,6 +30,9 @@ public final class SolanaRecoveryFixtures {
     public static final String SOME_NEW_NONCE_VALUE = "J7oBm3RDHd3XAcEAq2rjGKAHp9tNUk1K7SxtWMFvQvZT";
     public static final String SOME_REPLACEMENT_TX_HASH =
             "2jg1X5k3cZfqYvYChXQWWEfJuNsqGMTgh6CjM89sKABe1TCaEhSXnkPLu2tKCj2GpLdAoTbgHmAW1YpVdPthNJd";
+    public static final String SOME_INTENT_ID = "sol-intent-001";
+    public static final String SOME_TOKEN_CONTRACT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+    public static final BigDecimal SOME_AMOUNT = new BigDecimal("100.50");
     public static final BigDecimal SOME_GAS_BUDGET = new BigDecimal("0.005");
 
     public static final FeeEstimate SOME_URGENT_FEE = FeeEstimate.builder()
@@ -66,14 +69,14 @@ public final class SolanaRecoveryFixtures {
 
     public static TransactionIntent someSolanaTransactionIntent() {
         return TransactionIntent.builder()
-                .intentId("recovery-resubmit-" + SOME_TX_HASH)
+                .intentId(SOME_INTENT_ID)
                 .chain(SOME_CHAIN)
-                .toAddress(SOME_FROM_ADDRESS)
-                .amount(BigDecimal.ZERO)
-                .token("SOL")
+                .toAddress(SOME_TO_ADDRESS)
+                .amount(SOME_AMOUNT)
+                .token("USDC")
                 .tokenDecimals(6)
-                .rawAmount(BigInteger.ZERO)
-                .tokenContractAddress("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+                .rawAmount(BigInteger.valueOf(100_500_000L))
+                .tokenContractAddress(SOME_TOKEN_CONTRACT)
                 .build();
     }
 }

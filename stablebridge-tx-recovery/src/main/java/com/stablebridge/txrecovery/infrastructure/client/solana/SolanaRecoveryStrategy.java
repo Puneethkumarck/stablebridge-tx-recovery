@@ -1,12 +1,12 @@
 package com.stablebridge.txrecovery.infrastructure.client.solana;
 
-import java.math.BigDecimal;
 import java.time.Duration;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.stablebridge.txrecovery.domain.address.model.ChainFamily;
+import com.stablebridge.txrecovery.domain.exception.UnsupportedRecoveryOperationException;
 import com.stablebridge.txrecovery.domain.recovery.model.RecoveryOutcome;
 import com.stablebridge.txrecovery.domain.recovery.model.RecoveryPlan;
 import com.stablebridge.txrecovery.domain.recovery.model.RecoveryResult;
@@ -18,6 +18,7 @@ import com.stablebridge.txrecovery.domain.transaction.model.SolanaSubmissionReso
 import com.stablebridge.txrecovery.domain.transaction.model.SubmittedTransaction;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionIntent;
 import com.stablebridge.txrecovery.domain.transaction.port.SubmissionResourceManager;
+import com.stablebridge.txrecovery.domain.transaction.port.TransactionIntentStore;
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionSigner;
 
 import lombok.RequiredArgsConstructor;
@@ -33,14 +34,11 @@ class SolanaRecoveryStrategy implements RecoveryStrategy {
     private final SolanaRpcClient rpcClient;
     private final SolanaTransactionBuilder transactionBuilder;
     private final SubmissionResourceManager submissionResourceManager;
+    private final TransactionIntentStore transactionIntentStore;
 
-    private final Map<String, SubmittedTransaction> assessedTransactions =
-            new LinkedHashMap<>(16, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(Map.Entry<String, SubmittedTransaction> eldest) {
-                    return size() > MAX_ASSESSED_TRANSACTIONS;
-                }
-            };
+    private final Cache<String, SubmittedTransaction> assessedTransactions = Caffeine.newBuilder()
+            .maximumSize(MAX_ASSESSED_TRANSACTIONS)
+            .build();
 
     @Override
     public boolean appliesTo(ChainFamily chainFamily) {
@@ -69,14 +67,15 @@ class SolanaRecoveryStrategy implements RecoveryStrategy {
     public RecoveryResult execute(RecoveryPlan plan, TransactionSigner signer) {
         return switch (plan) {
             case RecoveryPlan.Resubmit resubmit -> executeResubmit(resubmit, signer);
+            case RecoveryPlan.SpeedUp speedUp -> executeSpeedUp(speedUp, signer);
             case RecoveryPlan.Wait wait -> RecoveryResult.builder()
                     .outcome(RecoveryOutcome.WAITING)
                     .details("Waiting estimated %s: %s".formatted(wait.estimatedClearance(), wait.reason()))
                     .build();
-            case RecoveryPlan.SpeedUp _ -> throw new IllegalStateException(
-                    "Solana does not support SpeedUp — use Resubmit instead");
-            case RecoveryPlan.Cancel _ -> throw new IllegalStateException(
-                    "Solana does not support Cancel — transactions expire naturally");
+            case RecoveryPlan.Cancel _ -> RecoveryResult.builder()
+                    .outcome(RecoveryOutcome.WAITING)
+                    .details("Solana transactions expire naturally when blockhash/nonce becomes invalid")
+                    .build();
         };
     }
 
@@ -135,53 +134,30 @@ class SolanaRecoveryStrategy implements RecoveryStrategy {
                     .build();
         }
 
-        var blockhashValid = rpcClient.isBlockhashValid(solanaResource.nonceValue(), SolanaCommitment.CONFIRMED);
-
-        if (!blockhashValid) {
-            return StuckAssessment.builder()
-                    .reason(StuckReason.EXPIRED)
-                    .severity(StuckSeverity.HIGH)
-                    .recommendedPlan(RecoveryPlan.Resubmit.builder()
-                            .originalTxHash(transaction.txHash())
-                            .build())
-                    .explanation("Blockhash expired for nonce value: " + solanaResource.nonceValue())
-                    .build();
-        }
-
         return StuckAssessment.builder()
-                .reason(StuckReason.NOT_PROPAGATED)
+                .reason(StuckReason.NOT_SEEN)
                 .severity(StuckSeverity.LOW)
                 .recommendedPlan(RecoveryPlan.Wait.builder()
                         .estimatedClearance(DEFAULT_WAIT_DURATION)
-                        .reason("Transaction not yet propagated, blockhash still valid")
+                        .reason("Transaction not yet seen by cluster, durable nonce still valid")
                         .build())
-                .explanation("Transaction not found but blockhash still valid — waiting for propagation")
+                .explanation("Transaction not found but durable nonce still valid — waiting for propagation")
                 .build();
     }
 
     private RecoveryResult executeResubmit(RecoveryPlan.Resubmit resubmit, TransactionSigner signer) {
-        var transaction = assessedTransactions.remove(resubmit.originalTxHash());
-        if (transaction == null) {
-            throw new IllegalStateException(
-                    "Transaction not previously assessed: " + resubmit.originalTxHash());
-        }
-        if (!(transaction.resource() instanceof SolanaSubmissionResource originalResource)) {
-            throw new IllegalStateException(
-                    "Expected SolanaSubmissionResource for transaction: " + resubmit.originalTxHash());
-        }
+        var transaction = lookupAssessedTransaction(resubmit.originalTxHash());
+        assessedTransactions.invalidate(resubmit.originalTxHash());
+        var originalResource = requireSolanaResource(transaction);
+        var originalIntent = lookupOriginalIntent(transaction.intentId());
 
-        var token = transaction.gasDenomination() != null ? transaction.gasDenomination() : "SOL";
-        var intent = TransactionIntent.builder()
+        var recoveryIntent = originalIntent.toBuilder()
                 .intentId("recovery-resubmit-" + resubmit.originalTxHash())
-                .chain(originalResource.chain())
-                .toAddress(originalResource.fromAddress())
-                .amount(BigDecimal.ZERO)
-                .token(token)
                 .build();
 
-        var freshResource = (SolanaSubmissionResource) submissionResourceManager.acquire(intent);
+        var freshResource = (SolanaSubmissionResource) submissionResourceManager.acquire(recoveryIntent);
         try {
-            var unsignedTx = transactionBuilder.build(intent, freshResource);
+            var unsignedTx = transactionBuilder.build(recoveryIntent, freshResource);
             var signedTx = signer.sign(unsignedTx, originalResource.fromAddress());
             var txHash = rpcClient.sendTransaction(signedTx.signedPayload());
 
@@ -197,5 +173,50 @@ class SolanaRecoveryStrategy implements RecoveryStrategy {
             submissionResourceManager.release(freshResource);
             throw ex;
         }
+    }
+
+    private RecoveryResult executeSpeedUp(RecoveryPlan.SpeedUp speedUp, TransactionSigner signer) {
+        var transaction = lookupAssessedTransaction(speedUp.originalTxHash());
+        var originalResource = requireSolanaResource(transaction);
+        var originalIntent = lookupOriginalIntent(transaction.intentId());
+
+        var recoveryIntent = originalIntent.toBuilder()
+                .intentId("recovery-speedup-" + speedUp.originalTxHash())
+                .build();
+
+        var unsignedTx = transactionBuilder.build(recoveryIntent, originalResource);
+        var signedTx = signer.sign(unsignedTx, originalResource.fromAddress());
+        var txHash = rpcClient.sendTransaction(signedTx.signedPayload());
+
+        return RecoveryResult.builder()
+                .outcome(RecoveryOutcome.REPLACEMENT_SUBMITTED)
+                .replacementTxHash(txHash)
+                .gasCost(speedUp.newFee().estimatedCost())
+                .details("Speed-up with same nonce: nonceAccount=%s"
+                        .formatted(originalResource.nonceAccountAddress()))
+                .build();
+    }
+
+    private SubmittedTransaction lookupAssessedTransaction(String txHash) {
+        var transaction = assessedTransactions.getIfPresent(txHash);
+        if (transaction == null) {
+            throw new UnsupportedRecoveryOperationException(
+                    "Transaction not previously assessed: " + txHash);
+        }
+        return transaction;
+    }
+
+    private SolanaSubmissionResource requireSolanaResource(SubmittedTransaction transaction) {
+        if (transaction.resource() instanceof SolanaSubmissionResource solanaResource) {
+            return solanaResource;
+        }
+        throw new UnsupportedRecoveryOperationException(
+                "Expected SolanaSubmissionResource for transaction: " + transaction.txHash());
+    }
+
+    private TransactionIntent lookupOriginalIntent(String intentId) {
+        return transactionIntentStore.findByIntentId(intentId)
+                .orElseThrow(() -> new UnsupportedRecoveryOperationException(
+                        "Original transaction intent not found: " + intentId));
     }
 }
