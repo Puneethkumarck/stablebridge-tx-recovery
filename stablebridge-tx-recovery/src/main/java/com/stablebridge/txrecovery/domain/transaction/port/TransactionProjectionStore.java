@@ -12,5 +12,7 @@ public interface TransactionProjectionStore {
 
     Optional<TransactionProjection> findById(String id);
 
+    Optional<TransactionProjection> findByIntentId(String intentId);
+
     List<TransactionProjection> findByFilters(TransactionFilters filters);
 }

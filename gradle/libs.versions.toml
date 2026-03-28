@@ -14,6 +14,7 @@ testcontainers = "1.21.4"
 wiremock = "3.13.2"
 instancio = "5.5.1"
 awaitility = "4.3.0"
+uuid-creator = "6.0.0"
 
 [libraries]
 # Lombok
@@ -52,6 +53,7 @@ testcontainers-kafka = { module = "org.testcontainers:kafka", version.ref = "tes
 wiremock = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
 instancio = { module = "org.instancio:instancio-junit", version.ref = "instancio" }
 awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
+uuid-creator = { module = "com.github.f4b6a3:uuid-creator", version.ref = "uuid-creator" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
