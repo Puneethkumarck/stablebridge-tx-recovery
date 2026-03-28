@@ -7,6 +7,7 @@ import static com.stablebridge.txrecovery.testutil.fixtures.TransactionIntentFix
 import java.math.BigDecimal;
 import java.time.Instant;
 
+import com.stablebridge.txrecovery.application.workflow.ContinueAsNewState;
 import com.stablebridge.txrecovery.domain.address.model.AddressTier;
 import com.stablebridge.txrecovery.domain.recovery.model.FeeEstimate;
 import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
@@ -106,6 +107,25 @@ public final class WorkflowTestFixtures {
                 .estimatedCost(new BigDecimal("0.001"))
                 .denomination("ETH")
                 .urgency(FeeUrgency.MEDIUM)
+                .build();
+    }
+
+    public static ContinueAsNewState someContinueAsNewState() {
+        return ContinueAsNewState.builder()
+                .transactionId("tx-001")
+                .intentId(SOME_INTENT_ID)
+                .chain(SOME_CHAIN)
+                .currentState(TransactionStatus.PENDING)
+                .txHash(SOME_TX_HASH)
+                .retryCount(2)
+                .totalGasSpent(new BigDecimal("0.004"))
+                .gasBudget(new BigDecimal("500"))
+                .gasDenomination("ETH")
+                .currentTier(null)
+                .currentResource(someEvmResource())
+                .pendingApproval(null)
+                .cancelRequested(false)
+                .cancelRequest(null)
                 .build();
     }
 
