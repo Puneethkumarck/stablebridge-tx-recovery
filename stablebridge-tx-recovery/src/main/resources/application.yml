@@ -60,13 +60,3 @@ str:
     task-queue: str-transaction-lifecycle
     workflow-execution-timeout: PT24H
     workflow-run-timeout: PT2H
-    rpc-activity:
-      start-to-close-timeout: PT30S
-      max-attempts: 3
-      initial-interval: PT1S
-      backoff-coefficient: 2.0
-    signing-activity:
-      start-to-close-timeout: PT10S
-      max-attempts: 2
-      initial-interval: PT1S
-      backoff-coefficient: 2.0

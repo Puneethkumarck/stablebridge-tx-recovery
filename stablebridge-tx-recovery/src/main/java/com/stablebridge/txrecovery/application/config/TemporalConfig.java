@@ -1,18 +1,17 @@
 package com.stablebridge.txrecovery.application.config;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.stablebridge.txrecovery.domain.exception.NonRetryableException;
-import com.stablebridge.txrecovery.domain.exception.NonceTooLowException;
+import com.stablebridge.txrecovery.application.workflow.TransactionLifecycleActivities;
+import com.stablebridge.txrecovery.application.workflow.TransactionLifecycleWorkflowImpl;
 
-import io.temporal.activity.ActivityOptions;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowClientOptions;
 import io.temporal.client.WorkflowOptions;
-import io.temporal.common.RetryOptions;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.serviceclient.WorkflowServiceStubsOptions;
 import io.temporal.worker.Worker;
@@ -50,9 +49,15 @@ public class TemporalConfig {
     }
 
     @Bean
-    Worker worker(WorkerFactory workerFactory, TemporalProperties properties) {
+    Worker worker(
+            WorkerFactory workerFactory,
+            TemporalProperties properties,
+            ObjectProvider<TransactionLifecycleActivities> activitiesProvider) {
         log.info("Creating Temporal worker for task queue {}", properties.taskQueue());
-        return workerFactory.newWorker(properties.taskQueue());
+        var worker = workerFactory.newWorker(properties.taskQueue());
+        worker.registerWorkflowImplementationTypes(TransactionLifecycleWorkflowImpl.class);
+        activitiesProvider.ifAvailable(worker::registerActivitiesImplementations);
+        return worker;
     }
 
     @Bean
@@ -61,38 +66,6 @@ public class TemporalConfig {
                 .setTaskQueue(properties.taskQueue())
                 .setWorkflowExecutionTimeout(properties.workflowExecutionTimeout())
                 .setWorkflowRunTimeout(properties.workflowRunTimeout())
-                .build();
-    }
-
-    @Bean
-    ActivityOptions rpcActivityOptions(TemporalProperties properties) {
-        var rpc = properties.rpcActivity();
-        return ActivityOptions.newBuilder()
-                .setStartToCloseTimeout(rpc.startToCloseTimeout())
-                .setRetryOptions(RetryOptions.newBuilder()
-                        .setMaximumAttempts(rpc.maxAttempts())
-                        .setInitialInterval(rpc.initialInterval())
-                        .setBackoffCoefficient(rpc.backoffCoefficient())
-                        .setDoNotRetry(
-                                NonRetryableException.class.getName(),
-                                NonceTooLowException.class.getName())
-                        .build())
-                .build();
-    }
-
-    @Bean
-    ActivityOptions signingActivityOptions(TemporalProperties properties) {
-        var signing = properties.signingActivity();
-        return ActivityOptions.newBuilder()
-                .setStartToCloseTimeout(signing.startToCloseTimeout())
-                .setRetryOptions(RetryOptions.newBuilder()
-                        .setMaximumAttempts(signing.maxAttempts())
-                        .setInitialInterval(signing.initialInterval())
-                        .setBackoffCoefficient(signing.backoffCoefficient())
-                        .setDoNotRetry(
-                                NonRetryableException.class.getName(),
-                                NonceTooLowException.class.getName())
-                        .build())
                 .build();
     }
 }
