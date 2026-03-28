@@ -2,6 +2,8 @@ package com.stablebridge.txrecovery.infrastructure.signer;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.matching;
+import static com.github.tomakehurst.wiremock.client.WireMock.matchingJsonPath;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
 import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
@@ -9,6 +11,7 @@ import static com.stablebridge.txrecovery.testutil.fixtures.SignerFixtures.SOME_
 import static com.stablebridge.txrecovery.testutil.fixtures.SignerFixtures.SOME_EVM_CHAIN;
 import static com.stablebridge.txrecovery.testutil.fixtures.SignerFixtures.SOME_HMAC_SECRET;
 import static com.stablebridge.txrecovery.testutil.fixtures.SignerFixtures.SOME_INTENT_ID;
+import static com.stablebridge.txrecovery.testutil.fixtures.SignerFixtures.someUnsignedTransaction;
 import static com.stablebridge.txrecovery.testutil.fixtures.SignerFixtures.someUnsignedTransactionWithEndpoint;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -119,7 +122,8 @@ class CallbackSignerAdapterTest {
 
             // then
             wireMockServer.verify(postRequestedFor(urlEqualTo("/sign"))
-                    .withHeader("Content-Type", equalTo("application/json")));
+                    .withHeader("Content-Type", equalTo("application/json"))
+                    .withRequestBody(matchingJsonPath("$.requestSignature", matching("^[0-9a-f]{64}$"))));
         }
 
         @Test
@@ -236,6 +240,91 @@ class CallbackSignerAdapterTest {
             assertThatThrownBy(() -> adapter.sign(transaction, SOME_EVM_ADDRESS))
                     .isInstanceOf(CallbackSignerException.class)
                     .hasMessageContaining("Failed to parse");
+        }
+
+        @Test
+        void shouldThrowOnMissingSignedTransactionBytes() {
+            // given
+            var responseJson = """
+                    {"signedTransactionBytes":null,"transactionHash":"%s","signature":"%s"}"""
+                    .formatted(SOME_TX_HASH, SOME_SIGNATURE);
+
+            wireMockServer.stubFor(post(urlEqualTo("/sign"))
+                    .willReturn(aResponse()
+                            .withStatus(200)
+                            .withHeader("Content-Type", "application/json")
+                            .withBody(responseJson)));
+
+            var signerEndpoint = wireMockServer.baseUrl() + "/sign";
+            var transaction = someUnsignedTransactionWithEndpoint(
+                    SOME_INTENT_ID, SOME_EVM_CHAIN, signerEndpoint);
+
+            // when/then
+            assertThatThrownBy(() -> adapter.sign(transaction, SOME_EVM_ADDRESS))
+                    .isInstanceOf(CallbackSignerException.class)
+                    .hasMessageContaining("Missing signedTransactionBytes");
+        }
+
+        @Test
+        void shouldThrowOnInvalidHexInSignedTransactionBytes() {
+            // given
+            var responseJson = """
+                    {"signedTransactionBytes":"not-valid-hex","transactionHash":"%s","signature":"%s"}"""
+                    .formatted(SOME_TX_HASH, SOME_SIGNATURE);
+
+            wireMockServer.stubFor(post(urlEqualTo("/sign"))
+                    .willReturn(aResponse()
+                            .withStatus(200)
+                            .withHeader("Content-Type", "application/json")
+                            .withBody(responseJson)));
+
+            var signerEndpoint = wireMockServer.baseUrl() + "/sign";
+            var transaction = someUnsignedTransactionWithEndpoint(
+                    SOME_INTENT_ID, SOME_EVM_CHAIN, signerEndpoint);
+
+            // when/then
+            assertThatThrownBy(() -> adapter.sign(transaction, SOME_EVM_ADDRESS))
+                    .isInstanceOf(CallbackSignerException.class)
+                    .hasMessageContaining("Invalid signedTransactionBytes");
+        }
+    }
+
+    @Nested
+    class EndpointValidation {
+
+        @Test
+        void shouldThrowOnMissingSignerEndpoint() {
+            // given
+            var transaction = someUnsignedTransaction(SOME_INTENT_ID, SOME_EVM_CHAIN);
+
+            // when/then
+            assertThatThrownBy(() -> adapter.sign(transaction, SOME_EVM_ADDRESS))
+                    .isInstanceOf(CallbackSignerException.class)
+                    .hasMessageContaining("Missing signerEndpoint");
+        }
+
+        @Test
+        void shouldThrowOnNonHttpsEndpointWhenTlsVerifyEnabled() {
+            // given
+            var tlsProperties = CallbackSignerProperties.builder()
+                    .hmacSecret(SOME_HMAC_SECRET)
+                    .timeout(Duration.ofSeconds(5))
+                    .tls(CallbackSignerProperties.TlsProperties.builder().verify(true).build())
+                    .build();
+            var objectMapper = JsonMapper.builder()
+                    .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                    .build();
+            var tlsAdapter = new CallbackSignerAdapter(tlsProperties, objectMapper);
+
+            var transaction = someUnsignedTransactionWithEndpoint(
+                    SOME_INTENT_ID, SOME_EVM_CHAIN, "http://insecure.example.com/sign");
+
+            // when/then
+            assertThatThrownBy(() -> tlsAdapter.sign(transaction, SOME_EVM_ADDRESS))
+                    .isInstanceOf(CallbackSignerException.class)
+                    .hasMessageContaining("Non-HTTPS signerEndpoint");
+
+            tlsAdapter.close();
         }
     }
 }
