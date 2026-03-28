@@ -9,6 +9,10 @@ spring:
     enabled: true
 
 str:
+  signer:
+    backend: local-keystore
+    keystore-path: test-keystore.p12
+    password: test-password
   kafka:
     enabled-chains: ethereum_mainnet,solana_mainnet
   temporal:
