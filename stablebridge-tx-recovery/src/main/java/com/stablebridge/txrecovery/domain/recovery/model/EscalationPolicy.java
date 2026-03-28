@@ -11,6 +11,9 @@ public record EscalationPolicy(
 
     public EscalationPolicy {
         Objects.requireNonNull(tiers);
+        if (tiers.isEmpty()) {
+            throw new IllegalArgumentException("Escalation policy must have at least one tier");
+        }
         tiers = List.copyOf(tiers);
     }
 }

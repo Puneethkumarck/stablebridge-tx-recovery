@@ -164,7 +164,7 @@ class TransactionLifecycleWorkflowImplTest {
                     .isEqualTo(expected);
             var expectedCancelPlan = RecoveryPlan.Cancel.builder()
                     .originalTxHash(SOME_TX_HASH).build();
-            then(activities).should().executeRecovery(eqIgnoring(expectedCancelPlan));
+            then(activities).should().executeRecovery(eqIgnoring(expectedCancelPlan), eqIgnoring(SOME_CHAIN));
             then(activities).should(atLeastOnce()).releaseResource(eqIgnoring(resource));
         }
     }
@@ -200,7 +200,7 @@ class TransactionLifecycleWorkflowImplTest {
             given(activities.broadcast(eqIgnoring(signed, "signedPayload"), eqIgnoring(SOME_CHAIN))).willReturn(broadcastResult);
             given(activities.checkStatus(SOME_TX_HASH, SOME_CHAIN)).willReturn(STUCK);
             given(activities.assessStuck(eqIgnoring(buildExpectedSubmitted(), "submittedAt", "gasSpent", "gasBudget", "transactionId", "currentTier", "retryCount"))).willReturn(assessment);
-            given(activities.executeRecovery(eqIgnoring(speedUpPlan))).willReturn(recoveryResult);
+            given(activities.executeRecovery(eqIgnoring(speedUpPlan), eqIgnoring(SOME_CHAIN))).willReturn(recoveryResult);
             given(activities.checkStatus(replacementHash, SOME_CHAIN)).willReturn(CONFIRMED);
             given(activities.waitForFinality(replacementHash, SOME_CHAIN)).willReturn(confirmation);
 
@@ -632,7 +632,7 @@ class TransactionLifecycleWorkflowImplTest {
             given(activities.sign(eqIgnoring(unsigned, "payload"), eqIgnoring(SOME_FROM_ADDRESS))).willReturn(signed);
             given(activities.broadcast(eqIgnoring(signed, "signedPayload"), eqIgnoring(SOME_CHAIN))).willReturn(broadcastResult);
             given(activities.assessStuck(eqIgnoring(buildExpectedSubmitted(), "submittedAt", "gasSpent", "gasBudget", "transactionId", "currentTier", "retryCount"))).willReturn(assessment);
-            given(activities.executeRecovery(eqIgnoring(speedUpPlan))).willReturn(recoveryResult);
+            given(activities.executeRecovery(eqIgnoring(speedUpPlan), eqIgnoring(SOME_CHAIN))).willReturn(recoveryResult);
             given(activities.waitForFinality(SOME_TX_HASH, SOME_CHAIN)).willReturn(confirmation);
 
             var checkCount = new AtomicInteger(0);
