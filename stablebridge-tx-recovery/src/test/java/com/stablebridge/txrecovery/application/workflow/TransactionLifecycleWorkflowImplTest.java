@@ -1,0 +1,510 @@
+package com.stablebridge.txrecovery.application.workflow;
+
+import static com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus.*;
+import static com.stablebridge.txrecovery.testutil.fixtures.TransactionIntentFixtures.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+
+import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+import com.stablebridge.txrecovery.domain.address.model.AddressTier;
+import com.stablebridge.txrecovery.domain.recovery.model.ApprovalAction;
+import com.stablebridge.txrecovery.domain.recovery.model.CancelRequest;
+import com.stablebridge.txrecovery.domain.recovery.model.FeeEstimate;
+import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
+import com.stablebridge.txrecovery.domain.recovery.model.HumanApproval;
+import com.stablebridge.txrecovery.domain.recovery.model.RecoveryOutcome;
+import com.stablebridge.txrecovery.domain.recovery.model.RecoveryPlan;
+import com.stablebridge.txrecovery.domain.recovery.model.RecoveryResult;
+import com.stablebridge.txrecovery.domain.recovery.model.StuckAssessment;
+import com.stablebridge.txrecovery.domain.recovery.model.StuckReason;
+import com.stablebridge.txrecovery.domain.recovery.model.StuckSeverity;
+import com.stablebridge.txrecovery.domain.transaction.model.BroadcastResult;
+import com.stablebridge.txrecovery.domain.transaction.model.ConfirmationStatus;
+import com.stablebridge.txrecovery.domain.transaction.model.EvmSubmissionResource;
+import com.stablebridge.txrecovery.domain.transaction.model.SignedTransaction;
+import com.stablebridge.txrecovery.domain.transaction.model.TransactionIntent;
+import com.stablebridge.txrecovery.domain.transaction.model.TransactionResult;
+import com.stablebridge.txrecovery.domain.transaction.model.UnsignedTransaction;
+
+import io.temporal.client.WorkflowClient;
+import io.temporal.client.WorkflowOptions;
+import io.temporal.client.WorkflowStub;
+import io.temporal.testing.TestWorkflowEnvironment;
+import io.temporal.worker.Worker;
+
+class TransactionLifecycleWorkflowImplTest {
+
+    private static final String TASK_QUEUE = "str-transaction-lifecycle";
+    private static final String SOME_TX_HASH = "0xabc123def456";
+    private static final String SOME_FROM_ADDRESS = "0xsender0000000000000000000000000000000001";
+
+    private TestWorkflowEnvironment testEnv;
+    private Worker worker;
+    private WorkflowClient client;
+    private TransactionLifecycleActivities activities;
+
+    @BeforeEach
+    void setUp() {
+        testEnv = TestWorkflowEnvironment.newInstance();
+        worker = testEnv.newWorker(TASK_QUEUE);
+        worker.registerWorkflowImplementationTypes(TransactionLifecycleWorkflowImpl.class);
+        activities = mock(TransactionLifecycleActivities.class);
+        worker.registerActivitiesImplementations(activities);
+        client = testEnv.getWorkflowClient();
+    }
+
+    @AfterEach
+    void tearDown() {
+        testEnv.close();
+    }
+
+    @Nested
+    class HappyPath {
+
+        @Test
+        void shouldProcessTransactionToFinalized() {
+            // given
+            var resource = someEvmResource();
+            var unsigned = someUnsignedTransaction();
+            var signed = someSignedTransaction();
+            var broadcastResult = someBroadcastResult();
+            var confirmation = someFinalizedConfirmation();
+
+            given(activities.acquireResource(any(TransactionIntent.class))).willReturn(resource);
+            given(activities.build(any(TransactionIntent.class), any())).willReturn(unsigned);
+            given(activities.sign(any(UnsignedTransaction.class), anyString())).willReturn(signed);
+            given(activities.broadcast(any(SignedTransaction.class), anyString())).willReturn(broadcastResult);
+            given(activities.checkStatus(SOME_TX_HASH, SOME_CHAIN)).willReturn(CONFIRMED);
+            given(activities.waitForFinality(SOME_TX_HASH, SOME_CHAIN)).willReturn(confirmation);
+
+            // when
+            testEnv.start();
+            var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
+            var result = workflow.process(SOME_SEQUENTIAL_INTENT);
+
+            // then
+            var expected = TransactionResult.builder()
+                    .transactionId(result.transactionId())
+                    .intentId(SOME_INTENT_ID)
+                    .finalStatus(FINALIZED)
+                    .txHash(SOME_TX_HASH)
+                    .totalGasSpent(BigDecimal.ZERO)
+                    .totalAttempts(0)
+                    .completedAt(result.completedAt())
+                    .build();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .isEqualTo(expected);
+
+            then(activities).should().consumeResource(any());
+        }
+    }
+
+    @Nested
+    class CancelSignal {
+
+        @Test
+        void shouldCancelTransactionOnSignal() {
+            // given
+            var resource = someEvmResource();
+            var unsigned = someUnsignedTransaction();
+            var signed = someSignedTransaction();
+            var broadcastResult = someBroadcastResult();
+
+            given(activities.acquireResource(any(TransactionIntent.class))).willReturn(resource);
+            given(activities.build(any(TransactionIntent.class), any())).willReturn(unsigned);
+            given(activities.sign(any(UnsignedTransaction.class), anyString())).willReturn(signed);
+            given(activities.broadcast(any(SignedTransaction.class), anyString())).willReturn(broadcastResult);
+            given(activities.checkStatus(SOME_TX_HASH, SOME_CHAIN)).willReturn(PENDING);
+
+            testEnv.start();
+            var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
+            var stub = WorkflowStub.fromTyped(workflow);
+
+            // when
+            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT);
+
+            testEnv.registerDelayedCallback(
+                    Duration.ofSeconds(2),
+                    () -> workflow.cancelTransaction(CancelRequest.builder()
+                            .requestedBy("operator-1")
+                            .reason("test cancel")
+                            .build()));
+
+            var result = stub.getResult(TransactionResult.class);
+
+            // then
+            assertThat(result.finalStatus()).isEqualTo(CANCELLED);
+            then(activities).should(atLeastOnce()).releaseResource(any());
+        }
+    }
+
+    @Nested
+    class StuckRecovery {
+
+        @Test
+        void shouldRecoverStuckTransactionWithSpeedUp() {
+            // given
+            var resource = someEvmResource();
+            var unsigned = someUnsignedTransaction();
+            var signed = someSignedTransaction();
+            var broadcastResult = someBroadcastResult();
+            var replacementHash = "0xreplacement789";
+            var speedUpPlan = someSpeedUpPlan(SOME_TX_HASH);
+            var assessment = StuckAssessment.builder()
+                    .reason(StuckReason.UNDERPRICED)
+                    .severity(StuckSeverity.MEDIUM)
+                    .recommendedPlan(speedUpPlan)
+                    .explanation("Gas price too low")
+                    .build();
+            var recoveryResult = RecoveryResult.builder()
+                    .outcome(RecoveryOutcome.REPLACEMENT_SUBMITTED)
+                    .replacementTxHash(replacementHash)
+                    .gasCost(new BigDecimal("0.002"))
+                    .build();
+            var confirmation = someFinalizedConfirmation();
+
+            given(activities.acquireResource(any(TransactionIntent.class))).willReturn(resource);
+            given(activities.build(any(TransactionIntent.class), any())).willReturn(unsigned);
+            given(activities.sign(any(UnsignedTransaction.class), anyString())).willReturn(signed);
+            given(activities.broadcast(any(SignedTransaction.class), anyString())).willReturn(broadcastResult);
+            given(activities.checkStatus(SOME_TX_HASH, SOME_CHAIN)).willReturn(STUCK);
+            given(activities.assessStuck(any())).willReturn(assessment);
+            given(activities.executeRecovery(any())).willReturn(recoveryResult);
+            given(activities.checkStatus(replacementHash, SOME_CHAIN)).willReturn(CONFIRMED);
+            given(activities.waitForFinality(replacementHash, SOME_CHAIN)).willReturn(confirmation);
+
+            // when
+            testEnv.start();
+            var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
+            var result = workflow.process(SOME_SEQUENTIAL_INTENT);
+
+            // then
+            var expected = TransactionResult.builder()
+                    .transactionId(result.transactionId())
+                    .intentId(SOME_INTENT_ID)
+                    .finalStatus(FINALIZED)
+                    .txHash(replacementHash)
+                    .totalGasSpent(new BigDecimal("0.002"))
+                    .totalAttempts(1)
+                    .completedAt(result.completedAt())
+                    .build();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .isEqualTo(expected);
+        }
+    }
+
+    @Nested
+    class DroppedTransaction {
+
+        @Test
+        void shouldResubmitDroppedTransaction() {
+            // given
+            var resource = someEvmResource();
+            var newResource = EvmSubmissionResource.builder()
+                    .chain(SOME_CHAIN)
+                    .fromAddress(SOME_FROM_ADDRESS)
+                    .nonce(42L)
+                    .tier(AddressTier.HOT)
+                    .build();
+            var unsigned = someUnsignedTransaction();
+            var signed = someSignedTransaction();
+            var broadcastResult = someBroadcastResult();
+            var newTxHash = "0xnew456";
+            var newBroadcast = BroadcastResult.builder()
+                    .txHash(newTxHash)
+                    .chain(SOME_CHAIN)
+                    .broadcastedAt(Instant.parse("2026-01-01T00:01:00Z"))
+                    .build();
+            var confirmation = ConfirmationStatus.builder()
+                    .txHash(newTxHash)
+                    .chain(SOME_CHAIN)
+                    .confirmations(12)
+                    .requiredConfirmations(12)
+                    .finalized(true)
+                    .build();
+
+            var acquireCount = new AtomicInteger(0);
+            given(activities.acquireResource(any(TransactionIntent.class)))
+                    .willAnswer(_ -> acquireCount.incrementAndGet() == 1 ? resource : newResource);
+            given(activities.build(any(TransactionIntent.class), any())).willReturn(unsigned);
+            given(activities.sign(any(UnsignedTransaction.class), anyString())).willReturn(signed);
+            var broadcastCount = new AtomicInteger(0);
+            given(activities.broadcast(any(SignedTransaction.class), anyString()))
+                    .willAnswer(_ -> broadcastCount.incrementAndGet() == 1 ? broadcastResult : newBroadcast);
+            given(activities.checkStatus(SOME_TX_HASH, SOME_CHAIN)).willReturn(DROPPED);
+            given(activities.checkStatus(newTxHash, SOME_CHAIN)).willReturn(CONFIRMED);
+            given(activities.waitForFinality(newTxHash, SOME_CHAIN)).willReturn(confirmation);
+
+            // when
+            testEnv.start();
+            var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
+            var result = workflow.process(SOME_SEQUENTIAL_INTENT);
+
+            // then
+            var expected = TransactionResult.builder()
+                    .transactionId(result.transactionId())
+                    .intentId(SOME_INTENT_ID)
+                    .finalStatus(FINALIZED)
+                    .txHash(newTxHash)
+                    .totalGasSpent(BigDecimal.ZERO)
+                    .totalAttempts(1)
+                    .completedAt(result.completedAt())
+                    .build();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .isEqualTo(expected);
+            then(activities).should(atLeastOnce()).releaseResource(any());
+            then(activities).should().consumeResource(any());
+        }
+    }
+
+    @Nested
+    class ApprovalSignal {
+
+        @Test
+        void shouldResumeAfterHumanApprovalRetry() {
+            // given
+            var resource = someEvmResource();
+            var unsigned = someUnsignedTransaction();
+            var signed = someSignedTransaction();
+            var broadcastResult = someBroadcastResult();
+            var assessment = StuckAssessment.builder()
+                    .reason(StuckReason.UNDERPRICED)
+                    .severity(StuckSeverity.HIGH)
+                    .recommendedPlan(someSpeedUpPlan(SOME_TX_HASH))
+                    .explanation("Gas price too low")
+                    .build();
+            var confirmation = someFinalizedConfirmation();
+
+            given(activities.acquireResource(any(TransactionIntent.class))).willReturn(resource);
+            given(activities.build(any(TransactionIntent.class), any())).willReturn(unsigned);
+            given(activities.sign(any(UnsignedTransaction.class), anyString())).willReturn(signed);
+            given(activities.broadcast(any(SignedTransaction.class), anyString())).willReturn(broadcastResult);
+            var checkCount = new AtomicInteger(0);
+            given(activities.checkStatus(SOME_TX_HASH, SOME_CHAIN))
+                    .willAnswer(_ -> checkCount.incrementAndGet() <= 3 ? STUCK : CONFIRMED);
+            given(activities.assessStuck(any())).willReturn(assessment);
+            given(activities.waitForFinality(SOME_TX_HASH, SOME_CHAIN)).willReturn(confirmation);
+
+            testEnv.start();
+            var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
+            var stub = WorkflowStub.fromTyped(workflow);
+
+            // when
+            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT);
+
+            testEnv.registerDelayedCallback(
+                    Duration.ofSeconds(5),
+                    () -> workflow.approveRecovery(HumanApproval.builder()
+                            .action(ApprovalAction.RETRY)
+                            .approvedBy("admin-1")
+                            .reason("approved")
+                            .approvedAt(Instant.parse("2026-01-01T01:00:00Z"))
+                            .build()));
+
+            var result = stub.getResult(TransactionResult.class);
+
+            // then
+            assertThat(result.finalStatus()).isEqualTo(FINALIZED);
+        }
+    }
+
+    @Nested
+    class QueryStatus {
+
+        @Test
+        void shouldReturnCurrentSnapshotViaQuery() {
+            // given
+            var resource = someEvmResource();
+            var unsigned = someUnsignedTransaction();
+            var signed = someSignedTransaction();
+            var broadcastResult = someBroadcastResult();
+
+            given(activities.acquireResource(any(TransactionIntent.class))).willReturn(resource);
+            given(activities.build(any(TransactionIntent.class), any())).willReturn(unsigned);
+            given(activities.sign(any(UnsignedTransaction.class), anyString())).willReturn(signed);
+            given(activities.broadcast(any(SignedTransaction.class), anyString())).willReturn(broadcastResult);
+            given(activities.checkStatus(SOME_TX_HASH, SOME_CHAIN)).willReturn(PENDING);
+
+            testEnv.start();
+            var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
+            var stub = WorkflowStub.fromTyped(workflow);
+
+            // when
+            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT);
+
+            testEnv.registerDelayedCallback(Duration.ofSeconds(1), () -> {
+                var snapshot = workflow.getStatus();
+
+                // then
+                assertThat(snapshot.intentId()).isEqualTo(SOME_INTENT_ID);
+                assertThat(snapshot.txHash()).isEqualTo(SOME_TX_HASH);
+                assertThat(snapshot.status()).isEqualTo(PENDING);
+
+                workflow.cancelTransaction(CancelRequest.builder()
+                        .requestedBy("test").build());
+            });
+
+            stub.getResult(TransactionResult.class);
+        }
+    }
+
+    @Nested
+    class HumanAbort {
+
+        @Test
+        void shouldFailOnHumanAbort() {
+            // given
+            var resource = someEvmResource();
+            var unsigned = someUnsignedTransaction();
+            var signed = someSignedTransaction();
+            var broadcastResult = someBroadcastResult();
+            var assessment = StuckAssessment.builder()
+                    .reason(StuckReason.UNDERPRICED)
+                    .severity(StuckSeverity.HIGH)
+                    .recommendedPlan(someSpeedUpPlan(SOME_TX_HASH))
+                    .explanation("Gas price too low")
+                    .build();
+
+            given(activities.acquireResource(any(TransactionIntent.class))).willReturn(resource);
+            given(activities.build(any(TransactionIntent.class), any())).willReturn(unsigned);
+            given(activities.sign(any(UnsignedTransaction.class), anyString())).willReturn(signed);
+            given(activities.broadcast(any(SignedTransaction.class), anyString())).willReturn(broadcastResult);
+            given(activities.checkStatus(SOME_TX_HASH, SOME_CHAIN)).willReturn(STUCK);
+            given(activities.assessStuck(any())).willReturn(assessment);
+
+            testEnv.start();
+            var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
+            var stub = WorkflowStub.fromTyped(workflow);
+
+            // when
+            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT);
+
+            testEnv.registerDelayedCallback(
+                    Duration.ofSeconds(5),
+                    () -> workflow.approveRecovery(HumanApproval.builder()
+                            .action(ApprovalAction.ABORT)
+                            .approvedBy("admin-1")
+                            .reason("abort requested")
+                            .approvedAt(Instant.parse("2026-01-01T01:00:00Z"))
+                            .build()));
+
+            var result = stub.getResult(TransactionResult.class);
+
+            // then
+            assertThat(result.finalStatus()).isEqualTo(FAILED);
+            then(activities).should(atLeastOnce()).releaseResource(any());
+            then(activities).should(never()).consumeResource(any());
+        }
+    }
+
+    @Nested
+    class WorkflowId {
+
+        @Test
+        void shouldGenerateWorkflowIdFromIntentId() {
+            // when
+            var workflowId = TransactionLifecycleWorkflow.workflowId("intent-123");
+
+            // then
+            assertThat(workflowId).isEqualTo("str-tx-intent-123");
+        }
+    }
+
+    private TransactionLifecycleWorkflow startWorkflow(TransactionIntent intent) {
+        var workflowId = TransactionLifecycleWorkflow.workflowId(intent.intentId());
+        return client.newWorkflowStub(
+                TransactionLifecycleWorkflow.class,
+                WorkflowOptions.newBuilder()
+                        .setWorkflowId(workflowId)
+                        .setTaskQueue(TASK_QUEUE)
+                        .build());
+    }
+
+    private static EvmSubmissionResource someEvmResource() {
+        return EvmSubmissionResource.builder()
+                .chain(SOME_CHAIN)
+                .fromAddress(SOME_FROM_ADDRESS)
+                .nonce(1L)
+                .tier(AddressTier.HOT)
+                .build();
+    }
+
+    private static UnsignedTransaction someUnsignedTransaction() {
+        return UnsignedTransaction.builder()
+                .intentId(SOME_INTENT_ID)
+                .chain(SOME_CHAIN)
+                .fromAddress(SOME_FROM_ADDRESS)
+                .toAddress(SOME_TO_ADDRESS)
+                .payload(new byte[]{0x01, 0x02})
+                .feeEstimate(someFeeEstimate())
+                .build();
+    }
+
+    private static SignedTransaction someSignedTransaction() {
+        return SignedTransaction.builder()
+                .intentId(SOME_INTENT_ID)
+                .chain(SOME_CHAIN)
+                .signedPayload(new byte[]{0x01, 0x02, 0x03})
+                .signerAddress(SOME_FROM_ADDRESS)
+                .build();
+    }
+
+    private static BroadcastResult someBroadcastResult() {
+        return BroadcastResult.builder()
+                .txHash(SOME_TX_HASH)
+                .chain(SOME_CHAIN)
+                .broadcastedAt(Instant.parse("2026-01-01T00:00:30Z"))
+                .build();
+    }
+
+    private static ConfirmationStatus someFinalizedConfirmation() {
+        return ConfirmationStatus.builder()
+                .txHash(SOME_TX_HASH)
+                .chain(SOME_CHAIN)
+                .confirmations(12)
+                .requiredConfirmations(12)
+                .finalized(true)
+                .build();
+    }
+
+    private static FeeEstimate someFeeEstimate() {
+        return FeeEstimate.builder()
+                .maxFeePerGas(new BigDecimal("20"))
+                .maxPriorityFeePerGas(new BigDecimal("1"))
+                .estimatedCost(new BigDecimal("0.001"))
+                .denomination("ETH")
+                .urgency(FeeUrgency.MEDIUM)
+                .build();
+    }
+
+    private static RecoveryPlan.SpeedUp someSpeedUpPlan(String originalTxHash) {
+        return RecoveryPlan.SpeedUp.builder()
+                .originalTxHash(originalTxHash)
+                .newFee(FeeEstimate.builder()
+                        .maxFeePerGas(new BigDecimal("30"))
+                        .maxPriorityFeePerGas(new BigDecimal("2"))
+                        .estimatedCost(new BigDecimal("0.002"))
+                        .denomination("ETH")
+                        .urgency(FeeUrgency.FAST)
+                        .build())
+                .build();
+    }
+}

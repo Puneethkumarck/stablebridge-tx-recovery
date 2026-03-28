@@ -3,8 +3,18 @@ package com.stablebridge.txrecovery.domain.recovery.model;
 import java.time.Duration;
 import java.util.Objects;
 
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+
 import lombok.Builder;
 
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "@type")
+@JsonSubTypes({
+        @JsonSubTypes.Type(value = RecoveryPlan.SpeedUp.class, name = "SpeedUp"),
+        @JsonSubTypes.Type(value = RecoveryPlan.Cancel.class, name = "Cancel"),
+        @JsonSubTypes.Type(value = RecoveryPlan.Resubmit.class, name = "Resubmit"),
+        @JsonSubTypes.Type(value = RecoveryPlan.Wait.class, name = "Wait")
+})
 public sealed interface RecoveryPlan {
 
     @Builder(toBuilder = true)
