@@ -1,12 +1,17 @@
 package com.stablebridge.txrecovery.infrastructure.signer;
 
+import static com.stablebridge.txrecovery.testutil.fixtures.SignerFixtures.SOME_EVM_ADDRESS;
+import static com.stablebridge.txrecovery.testutil.fixtures.SignerFixtures.SOME_EVM_CHAIN;
+import static com.stablebridge.txrecovery.testutil.fixtures.SignerFixtures.SOME_INTENT_ID;
+import static com.stablebridge.txrecovery.testutil.fixtures.SignerFixtures.SOME_PAYLOAD;
+import static com.stablebridge.txrecovery.testutil.fixtures.SignerFixtures.SOME_SOLANA_ADDRESS;
+import static com.stablebridge.txrecovery.testutil.fixtures.SignerFixtures.SOME_SOLANA_CHAIN;
+import static com.stablebridge.txrecovery.testutil.fixtures.SignerFixtures.someUnsignedTransaction;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.security.SecureRandom;
-import java.util.HexFormat;
 import java.util.Map;
 
 import org.bouncycastle.crypto.ec.CustomNamedCurves;
@@ -20,19 +25,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import com.stablebridge.txrecovery.domain.recovery.model.FeeEstimate;
-import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
+import com.stablebridge.txrecovery.domain.exception.SignerKeyNotFoundException;
 import com.stablebridge.txrecovery.domain.transaction.model.SignedTransaction;
-import com.stablebridge.txrecovery.domain.transaction.model.UnsignedTransaction;
 
 class LocalKeystoreSignerTest {
-
-    private static final String SOME_EVM_ADDRESS = "0xTestEvmAddress";
-    private static final String SOME_SOLANA_ADDRESS = "solana-test-address";
-    private static final String SOME_INTENT_ID = "intent-123";
-    private static final String SOME_EVM_CHAIN = "ethereum";
-    private static final String SOME_SOLANA_CHAIN = "solana-mainnet";
-    private static final byte[] SOME_PAYLOAD = {0x01, 0x02, 0x03, 0x04};
 
     private static byte[] ed25519PrivateKey;
     private static byte[] ed25519PublicKey;
@@ -82,7 +78,7 @@ class LocalKeystoreSignerTest {
         @Test
         void shouldSignTransactionWithSecp256k1() {
             // given
-            var transaction = buildUnsignedTransaction(SOME_INTENT_ID, SOME_EVM_CHAIN);
+            var transaction = someUnsignedTransaction(SOME_INTENT_ID, SOME_EVM_CHAIN);
 
             // when
             var result = signer.sign(transaction, SOME_EVM_ADDRESS);
@@ -106,17 +102,31 @@ class LocalKeystoreSignerTest {
         }
 
         @Test
-        void shouldProduceValidKeccakHash() {
+        void shouldProduceLowSSignature() {
             // given
-            var transaction = buildUnsignedTransaction(SOME_INTENT_ID, SOME_EVM_CHAIN);
+            var transaction = someUnsignedTransaction(SOME_INTENT_ID, SOME_EVM_CHAIN);
+
+            // when
+            var result = signer.sign(transaction, SOME_EVM_ADDRESS);
+
+            // then
+            var s = new BigInteger(1, result.signedPayload(), 32, 32);
+            var halfN = CustomNamedCurves.getByName("secp256k1").getN().shiftRight(1);
+            assertThat(s).isLessThanOrEqualTo(halfN);
+        }
+
+        @Test
+        void shouldSignNonSolanaChainWithEcdsa() {
+            // given
+            var transaction = someUnsignedTransaction(SOME_INTENT_ID, "polygon");
 
             // when
             var result = signer.sign(transaction, SOME_EVM_ADDRESS);
 
             // then
             assertThat(result.signedPayload()).hasSize(65);
-            var txHash = "0x" + HexFormat.of().formatHex(new Keccak.Digest256().digest(result.signedPayload()));
-            assertThat(txHash).startsWith("0x").hasSize(66);
+            var v = result.signedPayload()[64] & 0xFF;
+            assertThat(v).isBetween(27, 28);
         }
     }
 
@@ -126,7 +136,7 @@ class LocalKeystoreSignerTest {
         @Test
         void shouldSignTransactionWithEd25519() {
             // given
-            var transaction = buildUnsignedTransaction(SOME_INTENT_ID, SOME_SOLANA_CHAIN);
+            var transaction = someUnsignedTransaction(SOME_INTENT_ID, SOME_SOLANA_CHAIN);
 
             // when
             var result = signer.sign(transaction, SOME_SOLANA_ADDRESS);
@@ -141,24 +151,22 @@ class LocalKeystoreSignerTest {
             assertThat(result).usingRecursiveComparison().isEqualTo(expected);
 
             var signature = new byte[64];
-            System.arraycopy(result.signedPayload(), 0, signature, 0, 64);
+            System.arraycopy(result.signedPayload(), 1, signature, 0, 64);
             assertThat(Ed25519.verify(signature, 0, ed25519PublicKey, 0,
                     SOME_PAYLOAD, 0, SOME_PAYLOAD.length)).isTrue();
         }
 
         @Test
-        void shouldProduceValidSignature() {
+        void shouldPrependSignatureCountByte() {
             // given
-            var transaction = buildUnsignedTransaction(SOME_INTENT_ID, SOME_SOLANA_CHAIN);
+            var transaction = someUnsignedTransaction(SOME_INTENT_ID, SOME_SOLANA_CHAIN);
 
             // when
             var result = signer.sign(transaction, SOME_SOLANA_ADDRESS);
 
             // then
-            assertThat(result.signedPayload()).hasSize(64 + SOME_PAYLOAD.length);
-            var signature = new byte[64];
-            System.arraycopy(result.signedPayload(), 0, signature, 0, 64);
-            assertThat(signature).hasSize(64);
+            assertThat(result.signedPayload()).hasSize(1 + 64 + SOME_PAYLOAD.length);
+            assertThat(result.signedPayload()[0]).isEqualTo((byte) 0x01);
         }
     }
 
@@ -168,28 +176,13 @@ class LocalKeystoreSignerTest {
         @Test
         void shouldThrowWhenAddressNotFound() {
             // given
-            var transaction = buildUnsignedTransaction(SOME_INTENT_ID, SOME_EVM_CHAIN);
+            var transaction = someUnsignedTransaction(SOME_INTENT_ID, SOME_EVM_CHAIN);
             var unknownAddress = "0xUnknownAddress";
 
             // when/then
             assertThatThrownBy(() -> signer.sign(transaction, unknownAddress))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(SignerKeyNotFoundException.class)
                     .hasMessage("No private key found for address: " + unknownAddress);
         }
-    }
-
-    private static UnsignedTransaction buildUnsignedTransaction(String intentId, String chain) {
-        return UnsignedTransaction.builder()
-                .intentId(intentId)
-                .chain(chain)
-                .fromAddress("from-address")
-                .toAddress("to-address")
-                .payload(SOME_PAYLOAD)
-                .feeEstimate(FeeEstimate.builder()
-                        .estimatedCost(BigDecimal.ZERO)
-                        .denomination("ETH")
-                        .urgency(FeeUrgency.MEDIUM)
-                        .build())
-                .build();
     }
 }
