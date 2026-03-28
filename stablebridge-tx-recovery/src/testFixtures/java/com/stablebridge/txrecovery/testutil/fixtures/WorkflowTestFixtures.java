@@ -71,6 +71,16 @@ public final class WorkflowTestFixtures {
                 .build();
     }
 
+    public static ConfirmationStatus someNotFinalizedConfirmation() {
+        return ConfirmationStatus.builder()
+                .txHash(SOME_TX_HASH)
+                .chain(SOME_CHAIN)
+                .confirmations(4)
+                .requiredConfirmations(12)
+                .finalized(false)
+                .build();
+    }
+
     public static FeeEstimate someFeeEstimate() {
         return FeeEstimate.builder()
                 .maxFeePerGas(new BigDecimal("20"))

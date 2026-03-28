@@ -166,6 +166,10 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
             rpcActivities.consumeResource(currentResource);
             transition(FINALIZED);
             publishStatusEvent(FINALIZED, null);
+        } else {
+            log.info("Transaction {} confirmed but not yet finalized ({}/{}), resuming monitoring",
+                    transactionId, confirmation.confirmations(), confirmation.requiredConfirmations());
+            transition(PENDING);
         }
     }
 
@@ -222,6 +226,7 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
                 var cancelPlan = RecoveryPlan.Cancel.builder()
                         .originalTxHash(txHash).build();
                 rpcActivities.executeRecovery(cancelPlan);
+                releaseCurrentResource();
                 transition(CANCELLED);
                 publishStatusEvent(CANCELLED, null);
             }
