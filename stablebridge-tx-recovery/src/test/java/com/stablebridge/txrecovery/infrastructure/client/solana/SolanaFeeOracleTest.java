@@ -18,7 +18,7 @@ import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -26,14 +26,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.core.HashOperations;
-import org.springframework.data.redis.core.StringRedisTemplate;
 
 import com.stablebridge.txrecovery.domain.recovery.model.FeeEstimate;
 import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
-
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
+import com.stablebridge.txrecovery.infrastructure.redis.RedisFeeCache;
 
 @ExtendWith(MockitoExtension.class)
 class SolanaFeeOracleTest {
@@ -43,29 +39,21 @@ class SolanaFeeOracleTest {
     private static final BigDecimal LAMPORTS_PER_SOL = BigDecimal.valueOf(1_000_000_000L);
     private static final MathContext MATH_CONTEXT = MathContext.DECIMAL128;
     private static final int SCALE = 18;
-    private static final String CACHE_KEY = "str:gas:cache:solana-mainnet";
-
     @Mock
     private SolanaRpcClient rpcClient;
 
     @Mock
-    private StringRedisTemplate redisTemplate;
+    private RedisFeeCache feeCache;
 
-    @Mock
-    private HashOperations<String, Object, Object> hashOperations;
-
-    private ObjectMapper objectMapper;
     private SolanaFeeOracle oracle;
 
     @BeforeEach
     void setUp() {
-        objectMapper = JsonMapper.builder().build();
-        oracle = new SolanaFeeOracle(rpcClient, SOME_SOLANA_PROPERTIES, redisTemplate, objectMapper);
+        oracle = new SolanaFeeOracle(rpcClient, SOME_SOLANA_PROPERTIES, feeCache);
     }
 
     private void stubCacheMiss(FeeUrgency urgency) {
-        given(redisTemplate.opsForHash()).willReturn(hashOperations);
-        given(hashOperations.get(CACHE_KEY, urgency.name())).willReturn(null);
+        given(feeCache.read(SOME_CHAIN, urgency)).willReturn(Optional.empty());
     }
 
     private BigDecimal computeEstimatedCost(BigDecimal computeUnitPrice) {
@@ -201,9 +189,8 @@ class SolanaFeeOracleTest {
                     .blockTime(SOME_BLOCK_TIME)
                     .programAddresses(SOME_PROGRAM_ADDRESSES)
                     .build();
-            var cappedOracle = new SolanaFeeOracle(rpcClient, highFeePropperties, redisTemplate, objectMapper);
-            given(redisTemplate.opsForHash()).willReturn(hashOperations);
-            given(hashOperations.get("str:gas:cache:solana-mainnet", "FAST")).willReturn(null);
+            var cappedOracle = new SolanaFeeOracle(rpcClient, highFeePropperties, feeCache);
+            given(feeCache.read(SOME_CHAIN, FeeUrgency.FAST)).willReturn(Optional.empty());
             given(rpcClient.getRecentPrioritizationFees(SOME_PROGRAM_ADDRESSES))
                     .willReturn(SOME_PRIORITIZATION_FEES);
 
@@ -334,9 +321,8 @@ class SolanaFeeOracleTest {
                     .blockTime(SOME_BLOCK_TIME)
                     .programAddresses(SOME_PROGRAM_ADDRESSES)
                     .build();
-            var cappedOracle = new SolanaFeeOracle(rpcClient, lowCapProperties, redisTemplate, objectMapper);
-            given(redisTemplate.opsForHash()).willReturn(hashOperations);
-            given(hashOperations.get(CACHE_KEY, "FAST")).willReturn(null);
+            var cappedOracle = new SolanaFeeOracle(rpcClient, lowCapProperties, feeCache);
+            given(feeCache.read(SOME_CHAIN, FeeUrgency.FAST)).willReturn(Optional.empty());
             given(rpcClient.getRecentPrioritizationFees(SOME_PROGRAM_ADDRESSES))
                     .willReturn(SOME_PRIORITIZATION_FEES);
 
@@ -362,9 +348,7 @@ class SolanaFeeOracleTest {
                     .urgency(FeeUrgency.SLOW)
                     .details(Map.of("computeUnitPrice", "2500"))
                     .build();
-            given(redisTemplate.opsForHash()).willReturn(hashOperations);
-            given(hashOperations.get(CACHE_KEY, "SLOW"))
-                    .willReturn(objectMapper.writeValueAsString(cachedEstimate));
+            given(feeCache.read(SOME_CHAIN, FeeUrgency.SLOW)).willReturn(Optional.of(cachedEstimate));
 
             // when
             var result = oracle.estimate(SOME_CHAIN, FeeUrgency.SLOW);
@@ -391,20 +375,17 @@ class SolanaFeeOracleTest {
         }
 
         @Test
-        void shouldSetCacheTtlAfterFetch() {
+        void shouldWriteToCacheAfterFetch() {
             // given
             stubCacheMiss(FeeUrgency.SLOW);
             given(rpcClient.getRecentPrioritizationFees(SOME_PROGRAM_ADDRESSES))
                     .willReturn(SOME_PRIORITIZATION_FEES);
-            given(redisTemplate.expire(CACHE_KEY, SOME_BLOCK_TIME.toMillis(), TimeUnit.MILLISECONDS))
-                    .willReturn(true);
 
             // when
-            oracle.estimate(SOME_CHAIN, FeeUrgency.SLOW);
+            var result = oracle.estimate(SOME_CHAIN, FeeUrgency.SLOW);
 
             // then
-            then(redisTemplate).should()
-                    .expire(CACHE_KEY, SOME_BLOCK_TIME.toMillis(), TimeUnit.MILLISECONDS);
+            then(feeCache).should().write(SOME_CHAIN, FeeUrgency.SLOW, result, SOME_BLOCK_TIME.toMillis());
         }
     }
 

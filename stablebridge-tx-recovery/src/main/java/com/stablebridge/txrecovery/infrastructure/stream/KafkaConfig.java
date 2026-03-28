@@ -4,7 +4,6 @@ import static com.stablebridge.txrecovery.infrastructure.stream.KafkaTransaction
 import static com.stablebridge.txrecovery.infrastructure.stream.KafkaTransactionEventPublisher.TOPIC_PREFIX;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -14,6 +13,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.TopicBuilder;
@@ -24,16 +24,21 @@ import org.springframework.kafka.core.ProducerFactory;
 
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionEventPublisher;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
 
 @Configuration
 @Slf4j
+@RequiredArgsConstructor
+@EnableConfigurationProperties(KafkaProperties.class)
 @ConditionalOnProperty(name = "spring.kafka.bootstrap-servers")
 public class KafkaConfig {
 
     static final int PARTITIONS = 6;
     static final int RETENTION_DAYS = 30;
+
+    private final KafkaProperties kafkaProperties;
 
     @Bean
     KafkaAdmin kafkaAdmin(@Value("${spring.kafka.bootstrap-servers}") String bootstrapServers) {
@@ -62,9 +67,10 @@ public class KafkaConfig {
     }
 
     @Bean
-    KafkaAdmin.NewTopics chainTopics(
-            @Value("${str.kafka.enabled-chains:}") List<String> enabledChains) {
-        var chains = enabledChains.stream().filter(Predicate.not(String::isBlank)).toList();
+    KafkaAdmin.NewTopics chainTopics() {
+        var chains = kafkaProperties.enabledChains().stream()
+                .filter(Predicate.not(String::isBlank))
+                .toList();
 
         var topics = chains.stream()
                 .flatMap(chain -> Stream.of(buildEventTopic(chain), buildDlqTopic(chain)))
@@ -83,7 +89,7 @@ public class KafkaConfig {
     private NewTopic buildEventTopic(String chain) {
         return TopicBuilder.name(TOPIC_PREFIX + chain)
                 .partitions(PARTITIONS)
-                .replicas(1)
+                .replicas(kafkaProperties.topicReplicas())
                 .config("retention.ms", String.valueOf((long) RETENTION_DAYS * 24 * 60 * 60 * 1000))
                 .config("cleanup.policy", "delete")
                 .build();
@@ -92,7 +98,7 @@ public class KafkaConfig {
     private NewTopic buildDlqTopic(String chain) {
         return TopicBuilder.name(DLQ_PREFIX + chain)
                 .partitions(PARTITIONS)
-                .replicas(1)
+                .replicas(kafkaProperties.topicReplicas())
                 .config("cleanup.policy", "delete")
                 .build();
     }

@@ -60,7 +60,10 @@ public class EvmSubmissionResourceManager implements SubmissionResourceManager {
 
     @Override
     public void release(SubmissionResource resource) {
-        var evmResource = (EvmSubmissionResource) resource;
+        if (!(resource instanceof EvmSubmissionResource evmResource)) {
+            throw new IllegalArgumentException(
+                    "Expected EvmSubmissionResource but got " + resource.getClass().getSimpleName());
+        }
         var allocation = toNonceAllocation(evmResource);
 
         nonceManager.release(allocation);
@@ -72,7 +75,10 @@ public class EvmSubmissionResourceManager implements SubmissionResourceManager {
 
     @Override
     public void consume(SubmissionResource resource) {
-        var evmResource = (EvmSubmissionResource) resource;
+        if (!(resource instanceof EvmSubmissionResource evmResource)) {
+            throw new IllegalArgumentException(
+                    "Expected EvmSubmissionResource but got " + resource.getClass().getSimpleName());
+        }
         var allocation = toNonceAllocation(evmResource);
 
         nonceManager.confirm(allocation);

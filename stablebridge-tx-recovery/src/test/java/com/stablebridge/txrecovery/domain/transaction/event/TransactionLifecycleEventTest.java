@@ -15,20 +15,23 @@ import org.junit.jupiter.api.Test;
 class TransactionLifecycleEventTest {
 
     @Test
-    void shouldCreateTransactionLifecycleEvent() {
+    void shouldModifyStatusViaToBuilder() {
         // given
         var now = Instant.now();
-
-        // when
         var event = TransactionLifecycleEvent.builder()
                 .eventId("evt-001")
                 .intentId("intent-001")
                 .transactionHash("0xabc123")
                 .chain("ethereum")
-                .status(SUBMITTED)
-                .previousStatus(SIGNING)
+                .status(SIGNING)
                 .timestamp(now)
                 .metadata(Map.of("gasPrice", "50gwei"))
+                .build();
+
+        // when
+        var modified = event.toBuilder()
+                .status(SUBMITTED)
+                .previousStatus(SIGNING)
                 .build();
 
         // then
@@ -42,12 +45,11 @@ class TransactionLifecycleEventTest {
                 .timestamp(now)
                 .metadata(Map.of("gasPrice", "50gwei"))
                 .build();
-
-        assertThat(event).usingRecursiveComparison().isEqualTo(expected);
+        assertThat(modified).usingRecursiveComparison().isEqualTo(expected);
     }
 
     @Test
-    void shouldCreateTransactionLifecycleEvent_whenOptionalFieldsAreNull() {
+    void shouldDefaultOptionalFieldsToNull() {
         // when
         var event = TransactionLifecycleEvent.builder()
                 .eventId("evt-002")
@@ -58,15 +60,10 @@ class TransactionLifecycleEventTest {
                 .build();
 
         // then
-        var expected = TransactionLifecycleEvent.builder()
-                .eventId("evt-002")
-                .intentId("intent-002")
-                .chain("base")
-                .status(RECEIVED)
-                .timestamp(event.timestamp())
-                .build();
-
-        assertThat(event).usingRecursiveComparison().isEqualTo(expected);
+        assertThat(event.transactionHash()).isNull();
+        assertThat(event.toAddress()).isNull();
+        assertThat(event.previousStatus()).isNull();
+        assertThat(event.metadata()).isEmpty();
     }
 
     @Test

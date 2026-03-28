@@ -20,6 +20,7 @@ import org.springframework.validation.annotation.Validated;
 
 import com.stablebridge.txrecovery.domain.address.port.OnChainNonceProvider;
 import com.stablebridge.txrecovery.domain.recovery.port.FeeOracle;
+import com.stablebridge.txrecovery.infrastructure.redis.RedisFeeCache;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
@@ -41,9 +42,15 @@ public class EvmFeeOracleConfig {
 
     @Bean
     @ConditionalOnBean(StringRedisTemplate.class)
+    RedisFeeCache redisFeeCache(StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
+        return new RedisFeeCache(redisTemplate, objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnBean(RedisFeeCache.class)
     EvmFeeOracleFactory evmFeeOracleFactory(
             EvmFeeOracleSettings settings,
-            StringRedisTemplate redisTemplate,
+            RedisFeeCache feeCache,
             ObjectMapper objectMapper,
             CircuitBreakerRegistry circuitBreakerRegistry,
             RateLimiterRegistry rateLimiterRegistry) {
@@ -60,7 +67,7 @@ public class EvmFeeOracleConfig {
                 .toList();
         return new EvmFeeOracleFactory(
                 chainInputs,
-                redisTemplate,
+                feeCache,
                 objectMapper,
                 circuitBreakerRegistry,
                 rateLimiterRegistry);

@@ -5,19 +5,14 @@ import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.TimeUnit;
-
-import org.springframework.data.redis.core.StringRedisTemplate;
 
 import com.stablebridge.txrecovery.domain.recovery.model.FeeEstimate;
 import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
 import com.stablebridge.txrecovery.domain.recovery.port.FeeOracle;
-import com.stablebridge.txrecovery.infrastructure.redis.RedisKeyNamespace;
+import com.stablebridge.txrecovery.infrastructure.redis.RedisFeeCache;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -33,13 +28,12 @@ class EvmFeeOracle implements FeeOracle {
 
     private final EvmRpcClient rpcClient;
     private final EvmChainProperties chainProperties;
-    private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
+    private final RedisFeeCache feeCache;
 
     @Override
     public FeeEstimate estimate(String chain, FeeUrgency urgency) {
         validateChain(chain);
-        return readFromCache(chainProperties.chain(), urgency)
+        return feeCache.read(chainProperties.chain(), urgency)
                 .orElseGet(() -> fetchAndCache(chainProperties.chain(), urgency));
     }
 
@@ -181,7 +175,7 @@ class EvmFeeOracle implements FeeOracle {
                 .details(details)
                 .build();
 
-        writeToCache(chain, urgency, estimate);
+        feeCache.write(chain, urgency, estimate, chainProperties.blockTime().toMillis());
         return estimate;
     }
 
@@ -203,30 +197,5 @@ class EvmFeeOracle implements FeeOracle {
             return BigDecimal.ZERO;
         }
         return new BigDecimal(EvmHex.decodeQuantity(hex));
-    }
-
-    private Optional<FeeEstimate> readFromCache(String chain, FeeUrgency urgency) {
-        try {
-            var key = RedisKeyNamespace.gasCacheHash(chain);
-            var raw = redisTemplate.opsForHash().get(key, urgency.name());
-            return Optional.ofNullable(raw)
-                    .map(Object::toString)
-                    .filter(json -> !"null".equals(json))
-                    .map(json -> objectMapper.readValue(json, FeeEstimate.class));
-        } catch (Exception e) {
-            log.warn("Failed to read fee estimate from cache for chain={} urgency={}", chain, urgency, e);
-            return Optional.empty();
-        }
-    }
-
-    private void writeToCache(String chain, FeeUrgency urgency, FeeEstimate estimate) {
-        try {
-            var key = RedisKeyNamespace.gasCacheHash(chain);
-            var json = objectMapper.writeValueAsString(estimate);
-            redisTemplate.opsForHash().put(key, urgency.name(), json);
-            redisTemplate.expire(key, chainProperties.blockTime().toMillis(), TimeUnit.MILLISECONDS);
-        } catch (Exception e) {
-            log.warn("Failed to write fee estimate to cache for chain={} urgency={}", chain, urgency, e);
-        }
     }
 }

@@ -19,6 +19,7 @@ public record TemporalProperties(
         SigningActivityProperties signingActivity) {
 
     public TemporalProperties {
+        target = Objects.requireNonNullElse(target, "localhost:7233");
         namespace = Objects.requireNonNullElse(namespace, "stablebridge-tx-recovery");
         taskQueue = Objects.requireNonNullElse(taskQueue, "str-transaction-lifecycle");
         workflowExecutionTimeout = Objects.requireNonNullElse(workflowExecutionTimeout, Duration.ofHours(24));

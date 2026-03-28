@@ -1,5 +1,6 @@
 package com.stablebridge.txrecovery.infrastructure.db.address;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -19,6 +20,7 @@ class AddressPoolRepositoryAdapter implements AddressPoolRepository {
 
     private final AddressPoolJpaRepository jpaRepository;
     private final AddressPoolEntityMapper mapper;
+    private final Clock clock;
 
     @Override
     @Transactional
@@ -31,7 +33,7 @@ class AddressPoolRepositoryAdapter implements AddressPoolRepository {
     @Override
     @Transactional
     public void incrementInFlightCount(String address, String chain) {
-        jpaRepository.incrementInFlightCount(address, chain, Instant.now());
+        jpaRepository.incrementInFlightCount(address, chain, Instant.now(clock));
     }
 
     @Override

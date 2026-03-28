@@ -18,6 +18,7 @@ spring:
 str:
   kafka:
     enabled-chains: ethereum_mainnet,solana_mainnet
+    topic-replicas: 1
   evm:
     chains:
       - name: ethereum

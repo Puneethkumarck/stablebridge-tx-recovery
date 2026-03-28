@@ -7,9 +7,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import org.springframework.data.redis.core.StringRedisTemplate;
-
 import com.stablebridge.txrecovery.domain.recovery.port.FeeOracle;
+import com.stablebridge.txrecovery.infrastructure.redis.RedisFeeCache;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
@@ -18,19 +17,19 @@ import tools.jackson.databind.ObjectMapper;
 public class EvmFeeOracleFactory {
 
     private final List<ChainInput> chainInputs;
-    private final StringRedisTemplate redisTemplate;
+    private final RedisFeeCache feeCache;
     private final ObjectMapper objectMapper;
     private final CircuitBreakerRegistry circuitBreakerRegistry;
     private final RateLimiterRegistry rateLimiterRegistry;
 
     public EvmFeeOracleFactory(
             List<ChainInput> chainInputs,
-            StringRedisTemplate redisTemplate,
+            RedisFeeCache feeCache,
             ObjectMapper objectMapper,
             CircuitBreakerRegistry circuitBreakerRegistry,
             RateLimiterRegistry rateLimiterRegistry) {
         this.chainInputs = List.copyOf(Objects.requireNonNull(chainInputs));
-        this.redisTemplate = Objects.requireNonNull(redisTemplate);
+        this.feeCache = Objects.requireNonNull(feeCache);
         this.objectMapper = Objects.requireNonNull(objectMapper);
         this.circuitBreakerRegistry = Objects.requireNonNull(circuitBreakerRegistry);
         this.rateLimiterRegistry = Objects.requireNonNull(rateLimiterRegistry);
@@ -69,7 +68,7 @@ public class EvmFeeOracleFactory {
                 .blockTime(input.blockTime())
                 .build();
 
-        return new EvmFeeOracle(rpcClient, properties, redisTemplate, objectMapper);
+        return new EvmFeeOracle(rpcClient, properties, feeCache);
     }
 
     @lombok.Builder(toBuilder = true)

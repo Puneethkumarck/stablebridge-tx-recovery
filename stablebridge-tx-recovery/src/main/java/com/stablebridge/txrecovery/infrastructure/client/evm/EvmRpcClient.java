@@ -23,7 +23,7 @@ import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
-public class EvmRpcClient {
+public class EvmRpcClient implements AutoCloseable {
 
     private static final String CONTENT_TYPE = "application/json";
     private static final int HTTP_OK = 200;
@@ -217,6 +217,11 @@ public class EvmRpcClient {
         } catch (Exception e) {
             throw new EvmRpcException("RPC call failed for " + url, e);
         }
+    }
+
+    @Override
+    public void close() {
+        httpClient.close();
     }
 
     public String getChain() {

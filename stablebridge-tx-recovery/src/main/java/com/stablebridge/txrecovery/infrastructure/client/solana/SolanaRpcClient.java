@@ -4,6 +4,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,7 @@ public class SolanaRpcClient {
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final List<URI> rpcEndpoints;
+    private final Duration timeout;
     private final CircuitBreaker circuitBreaker;
     private final RateLimiter rateLimiter;
     private final AtomicLong requestIdCounter;
@@ -32,11 +34,13 @@ public class SolanaRpcClient {
             HttpClient httpClient,
             ObjectMapper objectMapper,
             List<URI> rpcEndpoints,
+            Duration timeout,
             CircuitBreaker circuitBreaker,
             RateLimiter rateLimiter) {
         this.httpClient = httpClient;
         this.objectMapper = objectMapper;
         this.rpcEndpoints = List.copyOf(rpcEndpoints);
+        this.timeout = timeout;
         this.circuitBreaker = circuitBreaker;
         this.rateLimiter = rateLimiter;
         this.requestIdCounter = new AtomicLong(1);
@@ -132,6 +136,7 @@ public class SolanaRpcClient {
             var body = objectMapper.writeValueAsString(rpcRequest);
             var httpRequest = HttpRequest.newBuilder()
                     .uri(endpoint)
+                    .timeout(timeout)
                     .header("Content-Type", CONTENT_TYPE)
                     .POST(HttpRequest.BodyPublishers.ofString(body))
                     .build();

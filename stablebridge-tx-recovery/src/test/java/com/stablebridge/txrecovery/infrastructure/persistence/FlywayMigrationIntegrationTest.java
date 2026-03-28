@@ -31,7 +31,7 @@ class FlywayMigrationIntegrationTest {
     @Test
     void shouldRunAllRequiredMigrations() {
         // given
-        var requiredVersions = List.of("1", "2", "3", "4", "5", "6", "7");
+        var requiredVersions = List.of("1", "2", "3", "4", "5", "6", "7", "8", "9");
 
         // when
         var appliedVersions = Arrays.stream(flyway.info().applied())

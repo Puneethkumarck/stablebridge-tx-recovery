@@ -20,7 +20,7 @@ public record TransactionLifecycleEvent(
         Instant timestamp,
         Map<String, String> metadata) {
 
-    public static final String TOPIC = "str.tx.events";
+    public static final String TOPIC_PREFIX = "str.tx.events";
 
     public TransactionLifecycleEvent {
         Objects.requireNonNull(eventId);

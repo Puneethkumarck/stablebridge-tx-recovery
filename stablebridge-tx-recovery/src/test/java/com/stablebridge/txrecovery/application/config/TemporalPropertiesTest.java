@@ -16,7 +16,7 @@ class TemporalPropertiesTest {
         void shouldApplyDefaultValues() {
             // when
             var properties = new TemporalProperties(
-                    "localhost:7233", null, null, null, null, null, null);
+                    null, null, null, null, null, null, null);
 
             // then
             var expected = new TemporalProperties(
