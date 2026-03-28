@@ -5,6 +5,7 @@ import static com.stablebridge.txrecovery.domain.transaction.model.TransactionSt
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -37,6 +38,16 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
     private static final int RPC_MAX_ATTEMPTS = 3;
     private static final int SIGNING_MAX_ATTEMPTS = 2;
     private static final Logger log = Workflow.getLogger(TransactionLifecycleWorkflowImpl.class);
+    private static final List<EscalationTier> ESCALATION_TIERS = List.of(
+            EscalationTier.builder()
+                    .level(0).stuckThreshold(Duration.ofMinutes(5))
+                    .gasMultiplier(new BigDecimal("1.5")).requiresHumanApproval(false).build(),
+            EscalationTier.builder()
+                    .level(1).stuckThreshold(Duration.ofMinutes(15))
+                    .gasMultiplier(new BigDecimal("2.0")).requiresHumanApproval(false).build(),
+            EscalationTier.builder()
+                    .level(2).stuckThreshold(Duration.ofMinutes(30))
+                    .gasMultiplier(new BigDecimal("3.0")).requiresHumanApproval(true).build());
 
     private final TransactionLifecycleActivities rpcActivities;
     private final TransactionLifecycleActivities signingActivities;
@@ -49,6 +60,7 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
     private int retryCount;
     private BigDecimal totalGasSpent = BigDecimal.ZERO;
     private BigDecimal gasBudget = BigDecimal.ZERO;
+    private String gasDenomination;
     private EscalationTier currentTier;
     private SubmissionResource currentResource;
     private HumanApproval pendingApproval;
@@ -79,6 +91,7 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
         transition(BUILDING);
 
         var unsigned = rpcActivities.build(intent, currentResource);
+        gasDenomination = unsigned.feeEstimate().denomination();
         transition(SIGNING);
 
         var signed = signingActivities.sign(unsigned, currentResource.fromAddress());
@@ -97,6 +110,7 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
                 .finalStatus(currentState)
                 .txHash(txHash)
                 .totalGasSpent(totalGasSpent)
+                .gasDenomination(gasDenomination)
                 .totalAttempts(retryCount)
                 .completedAt(workflowNow())
                 .build();
@@ -156,6 +170,7 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
     }
 
     private void handleStuck(TransactionIntent intent) {
+        currentTier = ESCALATION_TIERS.get(Math.min(retryCount, ESCALATION_TIERS.size() - 1));
         transition(STUCK);
         var submitted = buildSubmittedTransaction();
         var assessment = rpcActivities.assessStuck(submitted);
@@ -245,6 +260,10 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
     }
 
     private void handleDropped(TransactionIntent intent) {
+        if (retryCount >= MAX_AUTOMATIC_RETRIES) {
+            awaitHumanDecision(intent);
+            return;
+        }
         transition(DROPPED);
         log.info("Transaction {} dropped, resubmitting", transactionId);
 

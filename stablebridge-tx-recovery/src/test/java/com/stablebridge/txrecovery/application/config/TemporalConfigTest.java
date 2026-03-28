@@ -20,7 +20,7 @@ class TemporalConfigTest {
         void shouldCreateWorkflowOptionsWithTimeouts() {
             // given
             var properties = new TemporalProperties(
-                    "localhost:7233", null, null, null, null, null, null);
+                    "localhost:7233", null, null, null, null);
 
             // when
             var result = config.workflowOptions(properties);
@@ -42,7 +42,7 @@ class TemporalConfigTest {
             // given
             var properties = new TemporalProperties(
                     "localhost:7233", null, "custom-queue",
-                    Duration.ofHours(48), Duration.ofHours(4), null, null);
+                    Duration.ofHours(48), Duration.ofHours(4));
 
             // when
             var result = config.workflowOptions(properties);
