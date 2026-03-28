@@ -10,6 +10,7 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 
+import com.stablebridge.txrecovery.domain.recovery.model.ApprovalAction;
 import com.stablebridge.txrecovery.domain.recovery.model.CancelRequest;
 import com.stablebridge.txrecovery.domain.recovery.model.EscalationTier;
 import com.stablebridge.txrecovery.domain.recovery.model.HumanApproval;
@@ -30,8 +31,10 @@ import io.temporal.workflow.Workflow;
 public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWorkflow {
 
     static final Duration POLL_INTERVAL = Duration.ofSeconds(15);
+    static final Duration APPROVAL_TIMEOUT_INTERVAL = Duration.ofHours(4);
     static final BigDecimal DEFAULT_GAS_BUDGET = new BigDecimal("500");
     static final int MAX_AUTOMATIC_RETRIES = 3;
+    static final int MAX_APPROVAL_TIMEOUTS = 3;
 
     private static final Duration RPC_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration SIGNING_TIMEOUT = Duration.ofSeconds(10);
@@ -213,11 +216,48 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
     }
 
     private void awaitHumanDecision(TransactionIntent intent) {
+        var version = Workflow.getVersion("STR-31-approval-timeout", Workflow.DEFAULT_VERSION, 1);
+
         transition(AWAITING_HUMAN);
-        publishStatusEvent(AWAITING_HUMAN, null);
+        publishStatusEvent(AWAITING_HUMAN, Map.of(
+                "event_type", "transaction.awaiting_human",
+                "current_tier", currentTier != null ? String.valueOf(currentTier.level()) : "unknown",
+                "retry_count", String.valueOf(retryCount),
+                "gas_spent", totalGasSpent.toPlainString(),
+                "gas_budget", gasBudget.toPlainString()));
         log.info("Transaction {} requires human approval", transactionId);
 
-        Workflow.await(() -> pendingApproval != null || cancelRequested);
+        if (version == Workflow.DEFAULT_VERSION) {
+            Workflow.await(() -> pendingApproval != null || cancelRequested);
+        } else {
+            var timeoutCount = 0;
+            while (pendingApproval == null && !cancelRequested && timeoutCount < MAX_APPROVAL_TIMEOUTS) {
+                var signalled = Workflow.await(APPROVAL_TIMEOUT_INTERVAL,
+                        () -> pendingApproval != null || cancelRequested);
+                if (!signalled) {
+                    timeoutCount++;
+                    publishStatusEvent(AWAITING_HUMAN, Map.of(
+                            "event_type", "transaction.human.timeout",
+                            "timeout_count", String.valueOf(timeoutCount),
+                            "max_timeouts", String.valueOf(MAX_APPROVAL_TIMEOUTS)));
+                }
+            }
+
+            if (pendingApproval == null && !cancelRequested) {
+                log.info("Transaction {} auto-aborted after {} approval timeouts", transactionId, MAX_APPROVAL_TIMEOUTS);
+                var systemApproval = HumanApproval.builder()
+                        .action(ApprovalAction.ABORT)
+                        .approvedBy("system")
+                        .reason("HUMAN_RESPONSE_TIMEOUT")
+                        .approvedAt(workflowNow())
+                        .build();
+                rpcActivities.recordApproval(transactionId, systemApproval);
+                releaseCurrentResource();
+                transition(FAILED);
+                publishStatusEvent(FAILED, Map.of("reason", "HUMAN_RESPONSE_TIMEOUT"));
+                return;
+            }
+        }
 
         if (cancelRequested) {
             handleCancellation();
@@ -226,6 +266,7 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
 
         var approval = pendingApproval;
         pendingApproval = null;
+        rpcActivities.recordApproval(transactionId, approval);
 
         switch (approval.action()) {
             case RETRY -> {

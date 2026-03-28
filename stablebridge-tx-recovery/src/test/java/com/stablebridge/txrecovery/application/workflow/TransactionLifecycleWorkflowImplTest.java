@@ -33,6 +33,7 @@ import com.stablebridge.txrecovery.domain.recovery.model.RecoveryResult;
 import com.stablebridge.txrecovery.domain.recovery.model.StuckAssessment;
 import com.stablebridge.txrecovery.domain.recovery.model.StuckReason;
 import com.stablebridge.txrecovery.domain.recovery.model.StuckSeverity;
+import com.stablebridge.txrecovery.domain.transaction.event.TransactionLifecycleEvent;
 import com.stablebridge.txrecovery.domain.transaction.model.BroadcastResult;
 import com.stablebridge.txrecovery.domain.transaction.model.ConfirmationStatus;
 import com.stablebridge.txrecovery.domain.transaction.model.EvmSubmissionResource;
@@ -666,6 +667,182 @@ class TransactionLifecycleWorkflowImplTest {
             assertThat(result.finalStatus()).isEqualTo(FINALIZED);
             then(activities).should(atLeastOnce()).assessStuck(
                     eqIgnoring(buildExpectedSubmitted(), "submittedAt", "gasSpent", "gasBudget", "transactionId", "currentTier", "retryCount"));
+        }
+    }
+
+    @Nested
+    class ApprovalTimeout {
+
+        @Test
+        void shouldAutoAbortAfterMaxApprovalTimeouts() {
+            // given
+            var resource = someEvmResource();
+            var unsigned = someUnsignedTransaction();
+            var signed = someSignedTransaction();
+            var broadcastResult = someBroadcastResult();
+            var assessment = StuckAssessment.builder()
+                    .reason(StuckReason.UNDERPRICED)
+                    .severity(StuckSeverity.HIGH)
+                    .recommendedPlan(someSpeedUpPlan(SOME_TX_HASH))
+                    .explanation("Gas price too low")
+                    .build();
+
+            given(activities.acquireResource(eqIgnoring(SOME_SEQUENTIAL_INTENT, "amount", "rawAmount"))).willReturn(resource);
+            given(activities.build(eqIgnoring(SOME_SEQUENTIAL_INTENT, "amount", "rawAmount"), eqIgnoring(resource))).willReturn(unsigned);
+            given(activities.sign(eqIgnoring(unsigned, "payload"), eqIgnoring(SOME_FROM_ADDRESS))).willReturn(signed);
+            given(activities.broadcast(eqIgnoring(signed, "signedPayload"), eqIgnoring(SOME_CHAIN))).willReturn(broadcastResult);
+            given(activities.checkStatus(SOME_TX_HASH, SOME_CHAIN)).willReturn(STUCK);
+            given(activities.assessStuck(eqIgnoring(buildExpectedSubmitted(), "submittedAt", "gasSpent", "gasBudget", "transactionId", "currentTier", "retryCount"))).willReturn(assessment);
+
+            // when
+            testEnv.start();
+            var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
+            var result = workflow.process(SOME_SEQUENTIAL_INTENT);
+
+            // then
+            var expected = TransactionResult.builder()
+                    .transactionId(result.transactionId())
+                    .intentId(SOME_INTENT_ID)
+                    .finalStatus(FAILED)
+                    .txHash(SOME_TX_HASH)
+                    .totalGasSpent(BigDecimal.ZERO)
+                    .gasDenomination("ETH")
+                    .totalAttempts(0)
+                    .completedAt(result.completedAt())
+                    .build();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .ignoringFields("transactionId", "completedAt", "totalAttempts", "gasDenomination")
+                    .isEqualTo(expected);
+
+            var expectedApproval = HumanApproval.builder()
+                    .action(ApprovalAction.ABORT)
+                    .approvedBy("system")
+                    .reason("HUMAN_RESPONSE_TIMEOUT")
+                    .build();
+            then(activities).should().recordApproval(
+                    eqIgnoring(result.transactionId()),
+                    eqIgnoring(expectedApproval, "approvedAt"));
+            then(activities).should(atLeastOnce()).publishEvent(
+                    eqIgnoring(TransactionLifecycleEvent.builder()
+                            .eventId("ignored")
+                            .intentId(SOME_INTENT_ID)
+                            .status(AWAITING_HUMAN)
+                            .chain(SOME_CHAIN)
+                            .timestamp(Instant.EPOCH)
+                            .build(), "eventId", "transactionHash", "timestamp", "metadata"));
+            then(activities).should(atLeastOnce()).releaseResource(eqIgnoring(resource));
+            then(activities).should(never()).consumeResource(eqIgnoring(resource));
+        }
+    }
+
+    @Nested
+    class ApprovalRecording {
+
+        @Test
+        void shouldRecordApprovalOnRetrySignal() {
+            // given
+            var resource = someEvmResource();
+            var unsigned = someUnsignedTransaction();
+            var signed = someSignedTransaction();
+            var broadcastResult = someBroadcastResult();
+            var assessment = StuckAssessment.builder()
+                    .reason(StuckReason.UNDERPRICED)
+                    .severity(StuckSeverity.HIGH)
+                    .recommendedPlan(someSpeedUpPlan(SOME_TX_HASH))
+                    .explanation("Gas price too low")
+                    .build();
+            var confirmation = someFinalizedConfirmation();
+
+            given(activities.acquireResource(eqIgnoring(SOME_SEQUENTIAL_INTENT, "amount", "rawAmount"))).willReturn(resource);
+            given(activities.build(eqIgnoring(SOME_SEQUENTIAL_INTENT, "amount", "rawAmount"), eqIgnoring(resource))).willReturn(unsigned);
+            given(activities.sign(eqIgnoring(unsigned, "payload"), eqIgnoring(SOME_FROM_ADDRESS))).willReturn(signed);
+            given(activities.broadcast(eqIgnoring(signed, "signedPayload"), eqIgnoring(SOME_CHAIN))).willReturn(broadcastResult);
+            var checkCount = new AtomicInteger(0);
+            given(activities.checkStatus(SOME_TX_HASH, SOME_CHAIN))
+                    .willAnswer(_ -> checkCount.incrementAndGet() <= 3 ? STUCK : CONFIRMED);
+            given(activities.assessStuck(eqIgnoring(buildExpectedSubmitted(), "submittedAt", "gasSpent", "gasBudget", "transactionId", "currentTier", "retryCount"))).willReturn(assessment);
+            given(activities.waitForFinality(SOME_TX_HASH, SOME_CHAIN)).willReturn(confirmation);
+
+            testEnv.start();
+            var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
+            var stub = WorkflowStub.fromTyped(workflow);
+
+            // when
+            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT);
+
+            testEnv.registerDelayedCallback(
+                    Duration.ofSeconds(5),
+                    () -> workflow.approveRecovery(HumanApproval.builder()
+                            .action(ApprovalAction.RETRY)
+                            .approvedBy("admin-1")
+                            .reason("approved")
+                            .approvedAt(Instant.parse("2026-01-01T01:00:00Z"))
+                            .build()));
+
+            var result = stub.getResult(TransactionResult.class);
+
+            // then
+            var expectedApproval = HumanApproval.builder()
+                    .action(ApprovalAction.RETRY)
+                    .approvedBy("admin-1")
+                    .reason("approved")
+                    .build();
+            then(activities).should().recordApproval(
+                    eqIgnoring(result.transactionId()),
+                    eqIgnoring(expectedApproval, "approvedAt"));
+        }
+
+        @Test
+        void shouldRecordApprovalOnAbortSignal() {
+            // given
+            var resource = someEvmResource();
+            var unsigned = someUnsignedTransaction();
+            var signed = someSignedTransaction();
+            var broadcastResult = someBroadcastResult();
+            var assessment = StuckAssessment.builder()
+                    .reason(StuckReason.UNDERPRICED)
+                    .severity(StuckSeverity.HIGH)
+                    .recommendedPlan(someSpeedUpPlan(SOME_TX_HASH))
+                    .explanation("Gas price too low")
+                    .build();
+
+            given(activities.acquireResource(eqIgnoring(SOME_SEQUENTIAL_INTENT, "amount", "rawAmount"))).willReturn(resource);
+            given(activities.build(eqIgnoring(SOME_SEQUENTIAL_INTENT, "amount", "rawAmount"), eqIgnoring(resource))).willReturn(unsigned);
+            given(activities.sign(eqIgnoring(unsigned, "payload"), eqIgnoring(SOME_FROM_ADDRESS))).willReturn(signed);
+            given(activities.broadcast(eqIgnoring(signed, "signedPayload"), eqIgnoring(SOME_CHAIN))).willReturn(broadcastResult);
+            given(activities.checkStatus(SOME_TX_HASH, SOME_CHAIN)).willReturn(STUCK);
+            given(activities.assessStuck(eqIgnoring(buildExpectedSubmitted(), "submittedAt", "gasSpent", "gasBudget", "transactionId", "currentTier", "retryCount"))).willReturn(assessment);
+
+            testEnv.start();
+            var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
+            var stub = WorkflowStub.fromTyped(workflow);
+
+            // when
+            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT);
+
+            testEnv.registerDelayedCallback(
+                    Duration.ofSeconds(5),
+                    () -> workflow.approveRecovery(HumanApproval.builder()
+                            .action(ApprovalAction.ABORT)
+                            .approvedBy("admin-1")
+                            .reason("abort requested")
+                            .approvedAt(Instant.parse("2026-01-01T01:00:00Z"))
+                            .build()));
+
+            var result = stub.getResult(TransactionResult.class);
+
+            // then
+            var expectedApproval = HumanApproval.builder()
+                    .action(ApprovalAction.ABORT)
+                    .approvedBy("admin-1")
+                    .reason("abort requested")
+                    .build();
+            then(activities).should().recordApproval(
+                    eqIgnoring(result.transactionId()),
+                    eqIgnoring(expectedApproval, "approvedAt"));
+            then(activities).should(atLeastOnce()).releaseResource(eqIgnoring(resource));
+            then(activities).should(never()).consumeResource(eqIgnoring(resource));
         }
     }
 
