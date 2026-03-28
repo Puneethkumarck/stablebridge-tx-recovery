@@ -87,20 +87,29 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
         transition(RECEIVED);
         publishStatusEvent(RECEIVED, null);
 
-        currentResource = rpcActivities.acquireResource(intent);
-        transition(BUILDING);
+        try {
+            currentResource = rpcActivities.acquireResource(intent);
+            transition(BUILDING);
 
-        var unsigned = rpcActivities.build(intent, currentResource);
-        gasDenomination = unsigned.feeEstimate().denomination();
-        transition(SIGNING);
+            var unsigned = rpcActivities.build(intent, currentResource);
+            gasDenomination = unsigned.feeEstimate().denomination();
+            transition(SIGNING);
 
-        var signed = signingActivities.sign(unsigned, currentResource.fromAddress());
-        var broadcastResult = rpcActivities.broadcast(signed, chain);
-        txHash = broadcastResult.txHash();
-        transition(PENDING);
-        publishStatusEvent(SUBMITTED, null);
+            var signed = signingActivities.sign(unsigned, currentResource.fromAddress());
+            var broadcastResult = rpcActivities.broadcast(signed, chain);
+            txHash = broadcastResult.txHash();
+            transition(PENDING);
+            publishStatusEvent(SUBMITTED, null);
 
-        monitorAndRecover(intent);
+            monitorAndRecover(intent);
+        } catch (Exception e) {
+            log.error("Transaction {} failed mid-flight: {}", transactionId, e.getMessage());
+            releaseCurrentResource();
+            if (!currentState.isTerminal()) {
+                transition(FAILED);
+                publishStatusEvent(FAILED, Map.of("reason", "activity_failure"));
+            }
+        }
 
         log.info("Transaction lifecycle completed for intent {} with status {}", intentId, currentState);
 
@@ -219,6 +228,7 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
             case RETRY -> {
                 log.info("Human approved retry for {}", transactionId);
                 gasBudget = gasBudget.add(DEFAULT_GAS_BUDGET);
+                retryCount = 0;
                 transition(PENDING);
             }
             case CANCEL -> {
@@ -284,6 +294,11 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
 
     private void handleCancellation() {
         log.info("Processing cancellation for {}", transactionId);
+        if (txHash != null) {
+            var cancelPlan = RecoveryPlan.Cancel.builder()
+                    .originalTxHash(txHash).build();
+            rpcActivities.executeRecovery(cancelPlan);
+        }
         releaseCurrentResource();
         transition(CANCELLED);
         publishStatusEvent(CANCELLED, cancelRequest != null

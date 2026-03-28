@@ -23,10 +23,12 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import com.stablebridge.txrecovery.domain.address.model.AddressTier;
+import com.stablebridge.txrecovery.domain.exception.NonRetryableException;
 import com.stablebridge.txrecovery.domain.recovery.model.ApprovalAction;
 import com.stablebridge.txrecovery.domain.recovery.model.CancelRequest;
 import com.stablebridge.txrecovery.domain.recovery.model.HumanApproval;
 import com.stablebridge.txrecovery.domain.recovery.model.RecoveryOutcome;
+import com.stablebridge.txrecovery.domain.recovery.model.RecoveryPlan;
 import com.stablebridge.txrecovery.domain.recovery.model.RecoveryResult;
 import com.stablebridge.txrecovery.domain.recovery.model.StuckAssessment;
 import com.stablebridge.txrecovery.domain.recovery.model.StuckReason;
@@ -160,6 +162,9 @@ class TransactionLifecycleWorkflowImplTest {
                     .usingRecursiveComparison()
                     .ignoringFields("transactionId", "completedAt", "totalAttempts")
                     .isEqualTo(expected);
+            var expectedCancelPlan = RecoveryPlan.Cancel.builder()
+                    .originalTxHash(SOME_TX_HASH).build();
+            then(activities).should().executeRecovery(eqIgnoring(expectedCancelPlan));
             then(activities).should(atLeastOnce()).releaseResource(eqIgnoring(resource));
         }
     }
@@ -571,6 +576,96 @@ class TransactionLifecycleWorkflowImplTest {
                     .isEqualTo(expected);
             then(activities).should(atLeastOnce()).releaseResource(eqIgnoring(resource));
             then(activities).should(never()).consumeResource(eqIgnoring(resource));
+        }
+    }
+
+    @Nested
+    class MidFlightFailure {
+
+        @Test
+        void shouldReleaseResourceOnBuildFailure() {
+            // given
+            var resource = someEvmResource();
+
+            given(activities.acquireResource(eqIgnoring(SOME_SEQUENTIAL_INTENT, "amount", "rawAmount"))).willReturn(resource);
+            given(activities.build(eqIgnoring(SOME_SEQUENTIAL_INTENT, "amount", "rawAmount"), eqIgnoring(resource)))
+                    .willThrow(new NonRetryableException("build failed"));
+
+            // when
+            testEnv.start();
+            var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
+            var result = workflow.process(SOME_SEQUENTIAL_INTENT);
+
+            // then
+            assertThat(result.finalStatus()).isEqualTo(FAILED);
+            then(activities).should().releaseResource(eqIgnoring(resource));
+            then(activities).should(never()).consumeResource(eqIgnoring(resource));
+        }
+    }
+
+    @Nested
+    class RetryResetsCount {
+
+        @Test
+        void shouldAllowAutomaticRecoveryAfterHumanRetry() {
+            // given
+            var resource = someEvmResource();
+            var unsigned = someUnsignedTransaction();
+            var signed = someSignedTransaction();
+            var broadcastResult = someBroadcastResult();
+            var speedUpPlan = someSpeedUpPlan(SOME_TX_HASH);
+            var assessment = StuckAssessment.builder()
+                    .reason(StuckReason.UNDERPRICED)
+                    .severity(StuckSeverity.MEDIUM)
+                    .recommendedPlan(speedUpPlan)
+                    .explanation("Gas price too low")
+                    .build();
+            var recoveryResult = RecoveryResult.builder()
+                    .outcome(RecoveryOutcome.REPLACEMENT_SUBMITTED)
+                    .replacementTxHash(SOME_TX_HASH)
+                    .gasCost(new BigDecimal("0.001"))
+                    .build();
+            var confirmation = someFinalizedConfirmation();
+
+            given(activities.acquireResource(eqIgnoring(SOME_SEQUENTIAL_INTENT, "amount", "rawAmount"))).willReturn(resource);
+            given(activities.build(eqIgnoring(SOME_SEQUENTIAL_INTENT, "amount", "rawAmount"), eqIgnoring(resource))).willReturn(unsigned);
+            given(activities.sign(eqIgnoring(unsigned, "payload"), eqIgnoring(SOME_FROM_ADDRESS))).willReturn(signed);
+            given(activities.broadcast(eqIgnoring(signed, "signedPayload"), eqIgnoring(SOME_CHAIN))).willReturn(broadcastResult);
+            given(activities.assessStuck(eqIgnoring(buildExpectedSubmitted(), "submittedAt", "gasSpent", "gasBudget", "transactionId", "currentTier", "retryCount"))).willReturn(assessment);
+            given(activities.executeRecovery(eqIgnoring(speedUpPlan))).willReturn(recoveryResult);
+            given(activities.waitForFinality(SOME_TX_HASH, SOME_CHAIN)).willReturn(confirmation);
+
+            var checkCount = new AtomicInteger(0);
+            given(activities.checkStatus(SOME_TX_HASH, SOME_CHAIN))
+                    .willAnswer(_ -> {
+                        var count = checkCount.incrementAndGet();
+                        if (count <= 3) return STUCK;
+                        if (count == 4) return STUCK;
+                        return CONFIRMED;
+                    });
+
+            testEnv.start();
+            var workflow = startWorkflow(SOME_SEQUENTIAL_INTENT);
+            var stub = WorkflowStub.fromTyped(workflow);
+
+            // when
+            WorkflowClient.start(workflow::process, SOME_SEQUENTIAL_INTENT);
+
+            testEnv.registerDelayedCallback(
+                    Duration.ofSeconds(5),
+                    () -> workflow.approveRecovery(HumanApproval.builder()
+                            .action(ApprovalAction.RETRY)
+                            .approvedBy("admin-1")
+                            .reason("approved")
+                            .approvedAt(Instant.parse("2026-01-01T01:00:00Z"))
+                            .build()));
+
+            var result = stub.getResult(TransactionResult.class);
+
+            // then
+            assertThat(result.finalStatus()).isEqualTo(FINALIZED);
+            then(activities).should(atLeastOnce()).assessStuck(
+                    eqIgnoring(buildExpectedSubmitted(), "submittedAt", "gasSpent", "gasBudget", "transactionId", "currentTier", "retryCount"));
         }
     }
 
