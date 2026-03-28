@@ -35,7 +35,7 @@ class DomainEnumsTest {
                 }),
                 Arguments.of(StuckReason.class, new String[] {
                         "UNDERPRICED", "NONCE_GAP", "NONCE_CONSUMED", "EXPIRED",
-                        "MEMPOOL_DROPPED", "NOT_PROPAGATED", "NOT_SEEN"
+                        "MEMPOOL_DROPPED", "NOT_PROPAGATED", "NOT_SEEN", "CONFIRMING"
                 }),
                 Arguments.of(RecoveryAction.class, new String[] {
                         "SPEED_UP", "CANCEL", "RESUBMIT", "WAIT"

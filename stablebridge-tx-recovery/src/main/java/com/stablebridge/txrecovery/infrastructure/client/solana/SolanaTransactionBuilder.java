@@ -55,13 +55,19 @@ class SolanaTransactionBuilder {
     }
 
     public UnsignedTransaction build(TransactionIntent intent, SolanaSubmissionResource resource) {
+        var feeEstimate = feeOracle.estimate(intent.chain(), FeeUrgency.MEDIUM);
+        return build(intent, resource, feeEstimate);
+    }
+
+    public UnsignedTransaction build(
+            TransactionIntent intent, SolanaSubmissionResource resource, FeeEstimate feeOverride) {
         Objects.requireNonNull(intent, "TransactionIntent must not be null");
         Objects.requireNonNull(resource, "SolanaSubmissionResource must not be null");
+        Objects.requireNonNull(feeOverride, "FeeEstimate must not be null");
 
-        var feeEstimate = feeOracle.estimate(intent.chain(), FeeUrgency.MEDIUM);
-        validateFeeEstimate(feeEstimate);
+        validateFeeEstimate(feeOverride);
 
-        var computeUnitPrice = feeEstimate.computeUnitPrice().longValueExact();
+        var computeUnitPrice = feeOverride.computeUnitPrice().longValueExact();
 
         var fromKey = decodeBase58(resource.fromAddress());
         var mintKey = decodeBase58(intent.tokenContractAddress());
@@ -92,7 +98,7 @@ class SolanaTransactionBuilder {
                 .fromAddress(resource.fromAddress())
                 .toAddress(intent.toAddress())
                 .payload(payload)
-                .feeEstimate(feeEstimate)
+                .feeEstimate(feeOverride)
                 .metadata(metadata)
                 .build();
     }

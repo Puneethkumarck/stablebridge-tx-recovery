@@ -7,5 +7,6 @@ public enum StuckReason {
     EXPIRED,
     MEMPOOL_DROPPED,
     NOT_PROPAGATED,
-    NOT_SEEN
+    NOT_SEEN,
+    CONFIRMING
 }
