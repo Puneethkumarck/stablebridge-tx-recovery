@@ -81,7 +81,7 @@ class SolanaRecoveryStrategy implements RecoveryStrategy {
 
     private StuckAssessment assessConfirmingTransaction() {
         return StuckAssessment.builder()
-                .reason(StuckReason.NOT_PROPAGATED)
+                .reason(StuckReason.CONFIRMING)
                 .severity(StuckSeverity.LOW)
                 .recommendedPlan(RecoveryPlan.Wait.builder()
                         .estimatedClearance(DEFAULT_WAIT_DURATION)
@@ -161,8 +161,6 @@ class SolanaRecoveryStrategy implements RecoveryStrategy {
             var signedTx = signer.sign(unsignedTx, originalResource.fromAddress());
             var txHash = rpcClient.sendTransaction(signedTx.signedPayload());
 
-            submissionResourceManager.release(originalResource);
-
             return RecoveryResult.builder()
                     .outcome(RecoveryOutcome.REPLACEMENT_SUBMITTED)
                     .replacementTxHash(txHash)
@@ -172,11 +170,14 @@ class SolanaRecoveryStrategy implements RecoveryStrategy {
         } catch (RuntimeException ex) {
             submissionResourceManager.release(freshResource);
             throw ex;
+        } finally {
+            submissionResourceManager.release(originalResource);
         }
     }
 
     private RecoveryResult executeSpeedUp(RecoveryPlan.SpeedUp speedUp, TransactionSigner signer) {
         var transaction = lookupAssessedTransaction(speedUp.originalTxHash());
+        assessedTransactions.invalidate(speedUp.originalTxHash());
         var originalResource = requireSolanaResource(transaction);
         var originalIntent = lookupOriginalIntent(transaction.intentId());
 
@@ -184,7 +185,7 @@ class SolanaRecoveryStrategy implements RecoveryStrategy {
                 .intentId("recovery-speedup-" + speedUp.originalTxHash())
                 .build();
 
-        var unsignedTx = transactionBuilder.build(recoveryIntent, originalResource);
+        var unsignedTx = transactionBuilder.build(recoveryIntent, originalResource, speedUp.newFee());
         var signedTx = signer.sign(unsignedTx, originalResource.fromAddress());
         var txHash = rpcClient.sendTransaction(signedTx.signedPayload());
 

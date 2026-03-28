@@ -111,7 +111,7 @@ class SolanaRecoveryStrategyTest {
         class WhenTransactionConfirming {
 
             @Test
-            void shouldReturnWaitWithNotPropagatedReason() {
+            void shouldReturnWaitWithConfirmingReason() {
                 // given
                 var transaction = someStuckSolanaTransaction();
                 given(rpcClient.getSignatureStatuses(List.of(SOME_TX_HASH)))
@@ -122,7 +122,7 @@ class SolanaRecoveryStrategyTest {
 
                 // then
                 var expected = StuckAssessment.builder()
-                        .reason(StuckReason.NOT_PROPAGATED)
+                        .reason(StuckReason.CONFIRMING)
                         .severity(StuckSeverity.LOW)
                         .recommendedPlan(RecoveryPlan.Wait.builder()
                                 .estimatedClearance(Duration.ofMinutes(5))
@@ -458,7 +458,9 @@ class SolanaRecoveryStrategyTest {
                 given(transactionIntentStore.findByIntentId(SOME_INTENT_ID))
                         .willReturn(Optional.of(originalIntent));
                 given(transactionBuilder.build(
-                                eqIgnoring(recoveryIntent, "metadata"), eqIgnoring(originalResource)))
+                                eqIgnoring(recoveryIntent, "metadata"),
+                                eqIgnoring(originalResource),
+                                eqIgnoring(SOME_URGENT_FEE)))
                         .willReturn(unsignedTx);
                 given(signer.sign(eqIgnoring(unsignedTx, "payload"), eqIgnoring(SOME_FROM_ADDRESS)))
                         .willReturn(signedTx);
