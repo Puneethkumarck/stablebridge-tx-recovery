@@ -2,7 +2,6 @@ package com.stablebridge.txrecovery.infrastructure.client.solana;
 
 import static com.stablebridge.txrecovery.testutil.fixtures.SolanaChainTransactionManagerFixtures.SOME_BROADCAST_TX_HASH;
 import static com.stablebridge.txrecovery.testutil.fixtures.SolanaChainTransactionManagerFixtures.SOME_CHAIN;
-import static com.stablebridge.txrecovery.testutil.fixtures.SolanaChainTransactionManagerFixtures.SOME_SIGNED_PAYLOAD;
 import static com.stablebridge.txrecovery.testutil.fixtures.SolanaChainTransactionManagerFixtures.SOME_SIGNED_TRANSACTION;
 import static com.stablebridge.txrecovery.testutil.fixtures.SolanaChainTransactionManagerFixtures.SOME_STUCK_THRESHOLD_SECONDS;
 import static com.stablebridge.txrecovery.testutil.fixtures.SolanaChainTransactionManagerFixtures.SOME_TX_HASH;
@@ -11,10 +10,11 @@ import static com.stablebridge.txrecovery.testutil.fixtures.SolanaTransactionFix
 import static com.stablebridge.txrecovery.testutil.fixtures.SolanaTransactionFixtures.someSolanaTransactionIntent;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.awaitility.Awaitility.await;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
-import java.time.Duration;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -113,7 +113,18 @@ class SolanaChainTransactionManagerTest {
             // when/then
             assertThatThrownBy(() -> manager.build(intent, resource))
                     .isInstanceOf(SolanaRpcException.class)
-                    .hasMessageContaining("Expected SolanaSubmissionResource");
+                    .hasMessageContaining("Expected SolanaSubmissionResource but got EvmSubmissionResource");
+        }
+
+        @Test
+        void shouldThrowWhenResourceIsNull() {
+            // given
+            var intent = someSolanaTransactionIntent();
+
+            // when/then
+            assertThatThrownBy(() -> manager.build(intent, null))
+                    .isInstanceOf(SolanaRpcException.class)
+                    .hasMessageContaining("Expected SolanaSubmissionResource but got null");
         }
     }
 
@@ -123,7 +134,8 @@ class SolanaChainTransactionManagerTest {
         @Test
         void shouldReturnBroadcastResultOnSuccess() {
             // given
-            given(rpcClient.sendTransaction(SOME_SIGNED_PAYLOAD)).willReturn(SOME_BROADCAST_TX_HASH);
+            given(rpcClient.sendTransaction(SOME_SIGNED_TRANSACTION.signedPayload()))
+                    .willReturn(SOME_BROADCAST_TX_HASH);
 
             // when
             var result = manager.broadcast(SOME_SIGNED_TRANSACTION, SOME_CHAIN);
@@ -154,6 +166,23 @@ class SolanaChainTransactionManagerTest {
             assertThatThrownBy(() -> manager.broadcast(stellarSignedTx, "stellar"))
                     .isInstanceOf(SolanaRpcException.class)
                     .hasMessageContaining("Manager for chain solana cannot serve chain stellar");
+        }
+
+        @Test
+        void shouldThrowWhenSignedTransactionChainMismatch() {
+            // given
+            var mismatchedTx = SignedTransaction.builder()
+                    .intentId("intent-001")
+                    .chain("ethereum")
+                    .signedPayload(new byte[] {0x01})
+                    .signerAddress("0x1234")
+                    .build();
+
+            // when/then
+            assertThatThrownBy(() -> manager.broadcast(mismatchedTx, SOME_CHAIN))
+                    .isInstanceOf(SolanaRpcException.class)
+                    .hasMessageContaining(
+                            "Signed transaction chain ethereum does not match manager chain solana");
         }
     }
 
@@ -207,7 +236,7 @@ class SolanaChainTransactionManagerTest {
         class WhenStatusNotFound {
 
             @Test
-            void shouldReturnDroppedWhenSignatureIsNull() {
+            void shouldReturnPendingWhenSignatureIsNull() {
                 // given
                 var nullList = new ArrayList<SolanaSignatureStatus>();
                 nullList.add(null);
@@ -218,11 +247,11 @@ class SolanaChainTransactionManagerTest {
                 var result = manager.checkStatus(SOME_TX_HASH, SOME_CHAIN);
 
                 // then
-                assertThat(result).isEqualTo(TransactionStatus.DROPPED);
+                assertThat(result).isEqualTo(TransactionStatus.PENDING);
             }
 
             @Test
-            void shouldReturnDroppedWhenStatusListIsEmpty() {
+            void shouldReturnPendingWhenStatusListIsEmpty() {
                 // given
                 given(rpcClient.getSignatureStatuses(List.of(SOME_TX_HASH)))
                         .willReturn(List.of());
@@ -231,7 +260,7 @@ class SolanaChainTransactionManagerTest {
                 var result = manager.checkStatus(SOME_TX_HASH, SOME_CHAIN);
 
                 // then
-                assertThat(result).isEqualTo(TransactionStatus.DROPPED);
+                assertThat(result).isEqualTo(TransactionStatus.PENDING);
             }
         }
 
@@ -254,18 +283,23 @@ class SolanaChainTransactionManagerTest {
             @Test
             void shouldReturnStuckWhenThresholdExceeded() {
                 // given
-                var shortThresholdManager = new SolanaChainTransactionManager(
-                        rpcClient, transactionBuilder, SOME_CHAIN, 1L);
+                var baseInstant = Instant.parse("2026-01-01T00:00:00Z");
+                var testClock = mock(Clock.class);
+                var clockedManager = new SolanaChainTransactionManager(
+                        rpcClient, transactionBuilder, SOME_CHAIN, SOME_STUCK_THRESHOLD_SECONDS, testClock);
+                given(testClock.instant()).willReturn(
+                        baseInstant,
+                        baseInstant,
+                        baseInstant.plusSeconds(SOME_STUCK_THRESHOLD_SECONDS + 1));
                 given(rpcClient.getSignatureStatuses(List.of(SOME_TX_HASH)))
                         .willReturn(List.of(PROCESSED_STATUS));
-                shortThresholdManager.checkStatus(SOME_TX_HASH, SOME_CHAIN);
+                clockedManager.checkStatus(SOME_TX_HASH, SOME_CHAIN);
 
-                // when/then
-                await().atMost(Duration.ofSeconds(3))
-                        .pollInterval(Duration.ofMillis(200))
-                        .untilAsserted(() -> assertThat(
-                                        shortThresholdManager.checkStatus(SOME_TX_HASH, SOME_CHAIN))
-                                .isEqualTo(TransactionStatus.STUCK));
+                // when
+                var result = clockedManager.checkStatus(SOME_TX_HASH, SOME_CHAIN);
+
+                // then
+                assertThat(result).isEqualTo(TransactionStatus.STUCK);
             }
         }
 

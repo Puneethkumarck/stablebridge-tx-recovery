@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.stablebridge.txrecovery.domain.transaction.model.BroadcastResult;
@@ -54,8 +55,9 @@ class SolanaChainTransactionManager implements ChainTransactionManager {
     @Override
     public UnsignedTransaction build(TransactionIntent intent, SubmissionResource resource) {
         if (!(resource instanceof SolanaSubmissionResource solanaResource)) {
+            var actualType = resource == null ? "null" : resource.getClass().getSimpleName();
             throw new SolanaRpcException(
-                    -1, "Expected SolanaSubmissionResource but got " + resource.getClass().getSimpleName());
+                    -1, "Expected SolanaSubmissionResource but got " + actualType);
         }
         return transactionBuilder.build(intent, solanaResource);
     }
@@ -63,6 +65,12 @@ class SolanaChainTransactionManager implements ChainTransactionManager {
     @Override
     public BroadcastResult broadcast(SignedTransaction signedTransaction, String chain) {
         validateChain(chain);
+        if (!this.chain.equals(signedTransaction.chain())) {
+            throw new SolanaRpcException(
+                    -1,
+                    "Signed transaction chain %s does not match manager chain %s"
+                            .formatted(signedTransaction.chain(), this.chain));
+        }
         var signature = rpcClient.sendTransaction(signedTransaction.signedPayload());
         return BroadcastResult.builder()
                 .txHash(signature)
@@ -78,10 +86,11 @@ class SolanaChainTransactionManager implements ChainTransactionManager {
         var status = statuses.isEmpty() ? null : statuses.getFirst();
 
         if (status == null) {
-            return TransactionStatus.DROPPED;
+            return classifyPendingTransaction(txHash);
         }
 
         if (status.hasError()) {
+            pendingFirstSeen.remove(txHash);
             return TransactionStatus.FAILED;
         }
 
@@ -116,6 +125,17 @@ class SolanaChainTransactionManager implements ChainTransactionManager {
         }
         var cutoff = clock.instant().minusSeconds(PENDING_MAP_EVICTION_SLOTS);
         pendingFirstSeen.entrySet().removeIf(entry -> entry.getValue().isBefore(cutoff));
+
+        while (pendingFirstSeen.size() > PENDING_MAP_MAX_SIZE) {
+            var oldestKey = pendingFirstSeen.entrySet().stream()
+                    .min(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse(null);
+            if (oldestKey == null) {
+                break;
+            }
+            pendingFirstSeen.remove(oldestKey);
+        }
     }
 
     private void validateChain(String chain) {

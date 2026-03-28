@@ -16,12 +16,17 @@ public final class SolanaChainTransactionManagerFixtures {
     public static final String SOME_BROADCAST_TX_HASH =
             "2jg2vFhLRGMfMfeChGuKBbKSFL2kFqSHjnXPgmBJpQnr5S8LxoJKVPXpZ5oEqJ7nGHWMqTpKCcgEkqAHdVYsCfy";
     public static final long SOME_STUCK_THRESHOLD_SECONDS = 30L;
-    public static final byte[] SOME_SIGNED_PAYLOAD = new byte[] {0x01, 0x02, 0x03};
+
+    private static final byte[] SOME_SIGNED_PAYLOAD = new byte[] {0x01, 0x02, 0x03};
+
+    public static byte[] someSignedPayload() {
+        return SOME_SIGNED_PAYLOAD.clone();
+    }
 
     public static final SignedTransaction SOME_SIGNED_TRANSACTION = SignedTransaction.builder()
             .intentId("solana-intent-001")
             .chain(SOME_CHAIN)
-            .signedPayload(SOME_SIGNED_PAYLOAD)
+            .signedPayload(someSignedPayload())
             .signerAddress(SOME_SIGNER_ADDRESS)
             .build();
 }
