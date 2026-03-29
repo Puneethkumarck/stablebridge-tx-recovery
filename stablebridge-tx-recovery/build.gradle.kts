@@ -55,6 +55,8 @@ dependencies {
     testFixturesImplementation("org.assertj:assertj-core")
     testFixturesImplementation("org.mockito:mockito-core")
     testFixturesImplementation("org.springframework.boot:spring-boot-starter-test")
+    testFixturesImplementation("org.springframework.boot:spring-boot-starter-web")
+    testFixturesImplementation("org.springframework.boot:spring-boot-webmvc-test")
     testFixturesImplementation("org.springframework.boot:spring-boot-starter-data-jpa")
     testFixturesImplementation(libs.testcontainers.junit)
     testFixturesImplementation(libs.testcontainers.postgresql)

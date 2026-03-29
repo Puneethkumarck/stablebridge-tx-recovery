@@ -10,32 +10,22 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
 import com.stablebridge.txrecovery.domain.address.model.AddressTier;
 import com.stablebridge.txrecovery.domain.address.model.ChainFamily;
 import com.stablebridge.txrecovery.domain.address.model.PooledAddress;
 import com.stablebridge.txrecovery.domain.address.port.AddressPoolRepository;
-import com.stablebridge.txrecovery.domain.address.port.NonceManager;
-import com.stablebridge.txrecovery.domain.address.port.PoolExhaustedAlertPublisher;
-import com.stablebridge.txrecovery.testutil.PgTest;
+import com.stablebridge.txrecovery.testutil.IntegrationTestBase;
 
-@PgTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-class AddressPoolRepositoryAdapterIntegrationTest {
+class AddressPoolRepositoryAdapterIntegrationTest extends IntegrationTestBase {
 
     @Autowired
     private AddressPoolRepository addressPoolRepository;
 
     @Autowired
     private AddressPoolJpaRepository jpaRepository;
-
-    @MockitoBean
-    private NonceManager nonceManager;
-
-    @MockitoBean
-    private PoolExhaustedAlertPublisher poolExhaustedAlertPublisher;
 
     @BeforeEach
     void setUp() {
