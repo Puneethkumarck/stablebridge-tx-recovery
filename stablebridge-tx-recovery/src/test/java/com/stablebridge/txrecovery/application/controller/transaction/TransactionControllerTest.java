@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.f4b6a3.uuid.UuidCreator;
 import com.stablebridge.txrecovery.api.model.BatchTransactionResponse;
 import com.stablebridge.txrecovery.api.model.ErrorResponse;
 import com.stablebridge.txrecovery.api.model.PagedResponse;
@@ -298,8 +299,8 @@ class TransactionControllerTest {
         void shouldReturn400WhenBatchExceedsMaxSize() throws Exception {
             // given
             var tooManyTransactions = IntStream.rangeClosed(1, 101)
-                    .mapToObj(i -> SOME_SUBMIT_REQUEST.toBuilder()
-                            .intentId("550e8400-e29b-41d4-a716-4466554400%02d".formatted(i))
+                    .mapToObj(_ -> SOME_SUBMIT_REQUEST.toBuilder()
+                            .intentId(UuidCreator.getTimeOrderedEpoch().toString())
                             .build())
                     .toList();
             var oversizedBatch = SubmitBatchRequest.builder()

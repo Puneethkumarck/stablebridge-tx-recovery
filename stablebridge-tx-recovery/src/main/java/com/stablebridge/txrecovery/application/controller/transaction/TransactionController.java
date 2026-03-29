@@ -97,7 +97,7 @@ public class TransactionController {
 
         var filters = TransactionFilters.builder()
                 .chain(chain)
-                .status(status != null ? TransactionStatus.valueOf(status) : null)
+                .status(parseStatus(status))
                 .fromAddress(fromAddress)
                 .toAddress(toAddress)
                 .token(token)
@@ -117,5 +117,16 @@ public class TransactionController {
                 .build();
 
         return ResponseEntity.ok(pagedResponse);
+    }
+
+    private TransactionStatus parseStatus(String status) {
+        if (status == null) {
+            return null;
+        }
+        try {
+            return TransactionStatus.valueOf(status);
+        } catch (IllegalArgumentException _) {
+            throw new IllegalArgumentException("Invalid status filter: %s".formatted(status));
+        }
     }
 }

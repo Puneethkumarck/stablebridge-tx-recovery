@@ -12,8 +12,8 @@ public final class TransactionControllerFixtures {
     private TransactionControllerFixtures() {}
 
     public static final String SOME_TRANSACTION_ID = "tx-12345";
-    public static final String SOME_INTENT_ID = "550e8400-e29b-41d4-a716-446655440000";
-    public static final String SOME_SECOND_INTENT_ID = "550e8400-e29b-41d4-a716-446655440001";
+    public static final String SOME_INTENT_ID = "019576a0-e29b-7000-a716-446655440000";
+    public static final String SOME_SECOND_INTENT_ID = "019576a0-e29b-7000-a716-446655440001";
     public static final String SOME_CHAIN = "ethereum";
     public static final String SOME_TO_ADDRESS = "0xrecipient0000000000000000000000000000001";
     public static final BigDecimal SOME_AMOUNT = new BigDecimal("100.00");

@@ -14,7 +14,7 @@ testcontainers = "1.21.4"
 wiremock = "3.13.2"
 instancio = "5.5.1"
 awaitility = "4.3.0"
-uuid-creator = "6.0.0"
+uuid-creator = "6.1.1"
 
 [libraries]
 # Lombok

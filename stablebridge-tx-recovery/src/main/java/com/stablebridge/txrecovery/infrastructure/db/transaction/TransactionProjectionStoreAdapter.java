@@ -32,13 +32,15 @@ class TransactionProjectionStoreAdapter implements TransactionProjectionStore {
 
     @Override
     public Optional<TransactionProjection> findById(String id) {
-        return jpaRepository.findById(UUID.fromString(id))
+        return parseUuid(id)
+                .flatMap(jpaRepository::findById)
                 .map(mapper::toDomain);
     }
 
     @Override
     public Optional<TransactionProjection> findByIntentId(String intentId) {
-        return jpaRepository.findByIntentId(UUID.fromString(intentId))
+        return parseUuid(intentId)
+                .flatMap(jpaRepository::findByIntentId)
                 .map(mapper::toDomain);
     }
 
@@ -54,6 +56,14 @@ class TransactionProjectionStoreAdapter implements TransactionProjectionStore {
                 .totalElements(springPage.getTotalElements())
                 .totalPages(springPage.getTotalPages())
                 .build();
+    }
+
+    private Optional<UUID> parseUuid(String value) {
+        try {
+            return Optional.of(UUID.fromString(value));
+        } catch (IllegalArgumentException _) {
+            return Optional.empty();
+        }
     }
 
     private Specification<TransactionProjectionEntity> buildSpecification(TransactionFilters filters) {

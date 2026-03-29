@@ -22,6 +22,13 @@ interface TransactionIntentEntityMapper {
     }
 
     default SubmissionStrategy mapStringToStrategy(String strategy) {
-        return strategy != null ? SubmissionStrategy.valueOf(strategy) : null;
+        if (strategy == null) {
+            return null;
+        }
+        try {
+            return SubmissionStrategy.valueOf(strategy);
+        } catch (IllegalArgumentException _) {
+            return null;
+        }
     }
 }

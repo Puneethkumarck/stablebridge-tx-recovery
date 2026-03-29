@@ -1,5 +1,6 @@
 package com.stablebridge.txrecovery.infrastructure.db.transaction;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 import org.mapstruct.InjectionStrategy;
@@ -19,7 +20,7 @@ interface TransactionProjectionEntityMapper {
     @Mapping(target = "txHash", source = "transactionHash")
     @Mapping(target = "token", source = "asset")
     @Mapping(target = "retryCount", source = "recoveryCount")
-    @Mapping(target = "gasSpent", ignore = true)
+    @Mapping(target = "gasSpent", expression = "java(calculateGasSpent(entity))")
     @Mapping(target = "submittedAt", source = "createdAt")
     TransactionProjection toDomain(TransactionProjectionEntity entity);
 
@@ -30,7 +31,7 @@ interface TransactionProjectionEntityMapper {
     @Mapping(target = "asset", source = "token")
     @Mapping(target = "recoveryCount", source = "retryCount")
     @Mapping(target = "createdAt", source = "submittedAt")
-    @Mapping(target = "updatedAt", expression = "java(java.time.Instant.now())")
+    @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "chainFamily", ignore = true)
     @Mapping(target = "nonce", ignore = true)
     @Mapping(target = "gasPrice", ignore = true)
@@ -55,5 +56,12 @@ interface TransactionProjectionEntityMapper {
 
     default TransactionStatus mapStringToStatus(String status) {
         return TransactionStatus.valueOf(status);
+    }
+
+    default BigDecimal calculateGasSpent(TransactionProjectionEntity entity) {
+        if (entity.getGasPrice() == null || entity.getGasUsed() == null) {
+            return null;
+        }
+        return entity.getGasPrice().multiply(BigDecimal.valueOf(entity.getGasUsed()));
     }
 }
