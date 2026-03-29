@@ -16,11 +16,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
 
-import com.stablebridge.txrecovery.testutil.PgTest;
+import com.stablebridge.txrecovery.testutil.IntegrationTestBase;
 
-@PgTest
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-class FlywayMigrationIntegrationTest {
+class FlywayMigrationIntegrationTest extends IntegrationTestBase {
 
     @Autowired
     private Flyway flyway;

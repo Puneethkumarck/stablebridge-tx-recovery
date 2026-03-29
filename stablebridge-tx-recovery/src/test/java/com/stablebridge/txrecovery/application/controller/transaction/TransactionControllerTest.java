@@ -3,8 +3,7 @@ package com.stablebridge.txrecovery.application.controller.transaction;
 import static com.stablebridge.txrecovery.testutil.TestUtils.eqIgnoring;
 import static com.stablebridge.txrecovery.testutil.fixtures.TransactionControllerFixtures.*;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -275,7 +274,7 @@ class TransactionControllerTest {
                     .willReturn(secondIntent);
             given(transactionSubmissionService.submitBatch(
                     eqIgnoring(List.of(SOME_TRANSACTION_INTENT, secondIntent)),
-                    anyString()))
+                    argThat(batchId -> batchId != null && !batchId.isBlank())))
                     .willReturn(List.of(SOME_TRANSACTION_PROJECTION, secondProjection));
             given(transactionControllerMapper.toResponseList(
                     List.of(SOME_TRANSACTION_PROJECTION, secondProjection)))
@@ -396,7 +395,7 @@ class TransactionControllerTest {
                     .totalPages(1)
                     .build();
 
-            given(transactionSubmissionService.findByFilters(eqIgnoring(expectedFilters), anyInt(), anyInt()))
+            given(transactionSubmissionService.findByFilters(expectedFilters, 0, 10))
                     .willReturn(pagedResult);
             given(transactionControllerMapper.toResponseList(List.of(SOME_TRANSACTION_PROJECTION)))
                     .willReturn(List.of(SOME_TRANSACTION_RESPONSE));
@@ -438,7 +437,7 @@ class TransactionControllerTest {
                     .totalPages(1)
                     .build();
 
-            given(transactionSubmissionService.findByFilters(eqIgnoring(defaultFilters), anyInt(), anyInt()))
+            given(transactionSubmissionService.findByFilters(defaultFilters, 0, 20))
                     .willReturn(pagedResult);
             given(transactionControllerMapper.toResponseList(List.of(SOME_TRANSACTION_PROJECTION)))
                     .willReturn(List.of(SOME_TRANSACTION_RESPONSE));

@@ -7,10 +7,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
-import com.stablebridge.txrecovery.testutil.RedisTest;
+import com.stablebridge.txrecovery.testutil.IntegrationTestBase;
 
-@RedisTest
-class RedisConfigIntegrationTest {
+class RedisConfigIntegrationTest extends IntegrationTestBase {
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
