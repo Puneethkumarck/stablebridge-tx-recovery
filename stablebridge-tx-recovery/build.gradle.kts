@@ -45,6 +45,9 @@ dependencies {
     // Caffeine cache
     implementation(libs.caffeine)
 
+    // UUID v7
+    implementation(libs.uuid.creator)
+
     // Database
     runtimeOnly("org.postgresql:postgresql")
 
