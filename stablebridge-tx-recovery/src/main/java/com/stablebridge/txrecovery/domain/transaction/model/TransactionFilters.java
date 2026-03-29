@@ -10,6 +10,7 @@ public record TransactionFilters(
         TransactionStatus status,
         String fromAddress,
         String toAddress,
+        String token,
         Instant fromDate,
         Instant toDate) {
 }

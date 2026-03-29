@@ -1,15 +1,16 @@
 package com.stablebridge.txrecovery.infrastructure.db.transaction;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import jakarta.persistence.criteria.Predicate;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Repository;
 
+import com.stablebridge.txrecovery.domain.transaction.model.PagedResult;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionFilters;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionProjection;
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionProjectionStore;
@@ -42,11 +43,17 @@ class TransactionProjectionStoreAdapter implements TransactionProjectionStore {
     }
 
     @Override
-    public List<TransactionProjection> findByFilters(TransactionFilters filters) {
-        Specification<TransactionProjectionEntity> spec = buildSpecification(filters);
-        return jpaRepository.findAll(spec).stream()
+    public PagedResult<TransactionProjection> findByFilters(TransactionFilters filters, int page, int size) {
+        var spec = buildSpecification(filters);
+        var springPage = jpaRepository.findAll(spec, PageRequest.of(page, size));
+        var content = springPage.getContent().stream()
                 .map(mapper::toDomain)
                 .toList();
+        return PagedResult.<TransactionProjection>builder()
+                .content(content)
+                .totalElements(springPage.getTotalElements())
+                .totalPages(springPage.getTotalPages())
+                .build();
     }
 
     private Specification<TransactionProjectionEntity> buildSpecification(TransactionFilters filters) {
@@ -64,6 +71,9 @@ class TransactionProjectionStoreAdapter implements TransactionProjectionStore {
             }
             if (filters.toAddress() != null) {
                 predicates.add(cb.equal(root.get("toAddress"), filters.toAddress()));
+            }
+            if (filters.token() != null) {
+                predicates.add(cb.equal(root.get("asset"), filters.token()));
             }
             if (filters.fromDate() != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), filters.fromDate()));

@@ -3,9 +3,9 @@ package com.stablebridge.txrecovery.application.controller.transaction;
 import static com.stablebridge.txrecovery.testutil.TestUtils.eqIgnoring;
 import static com.stablebridge.txrecovery.testutil.fixtures.TransactionControllerFixtures.*;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -39,7 +39,9 @@ import com.stablebridge.txrecovery.application.controller.transaction.mapper.Tra
 import com.stablebridge.txrecovery.domain.exception.DuplicateIntentException;
 import com.stablebridge.txrecovery.domain.exception.TransactionNotFoundException;
 import com.stablebridge.txrecovery.domain.transaction.TransactionSubmissionService;
+import com.stablebridge.txrecovery.domain.transaction.model.PagedResult;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionFilters;
+import com.stablebridge.txrecovery.domain.transaction.model.TransactionProjection;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
 
 @ExtendWith(MockitoExtension.class)
@@ -176,7 +178,15 @@ class TransactionControllerTest {
             // then
             var response = objectMapper.readValue(
                     result.getResponse().getContentAsString(), ErrorResponse.class);
-            assertThat(response.errorCode()).isEqualTo("STR-4000");
+            var expected = ErrorResponse.builder()
+                    .errorCode("STR-4000")
+                    .message("Validation failed")
+                    .details(response.details())
+                    .build();
+            assertThat(response)
+                    .usingRecursiveComparison()
+                    .ignoringFields("timestamp", "path")
+                    .isEqualTo(expected);
             assertThat(response.details()).containsKey("chain");
         }
 
@@ -197,7 +207,15 @@ class TransactionControllerTest {
             // then
             var response = objectMapper.readValue(
                     result.getResponse().getContentAsString(), ErrorResponse.class);
-            assertThat(response.errorCode()).isEqualTo("STR-4000");
+            var expected = ErrorResponse.builder()
+                    .errorCode("STR-4000")
+                    .message("Validation failed")
+                    .details(response.details())
+                    .build();
+            assertThat(response)
+                    .usingRecursiveComparison()
+                    .ignoringFields("timestamp", "path")
+                    .isEqualTo(expected);
             assertThat(response.details()).containsKey("amount");
         }
 
@@ -218,7 +236,15 @@ class TransactionControllerTest {
             // then
             var response = objectMapper.readValue(
                     result.getResponse().getContentAsString(), ErrorResponse.class);
-            assertThat(response.errorCode()).isEqualTo("STR-4000");
+            var expected = ErrorResponse.builder()
+                    .errorCode("STR-4000")
+                    .message("Validation failed")
+                    .details(response.details())
+                    .build();
+            assertThat(response)
+                    .usingRecursiveComparison()
+                    .ignoringFields("timestamp", "path")
+                    .isEqualTo(expected);
             assertThat(response.details()).containsKey("toAddress");
         }
     }
@@ -248,7 +274,7 @@ class TransactionControllerTest {
                     .willReturn(secondIntent);
             given(transactionSubmissionService.submitBatch(
                     eqIgnoring(List.of(SOME_TRANSACTION_INTENT, secondIntent)),
-                    argThat(batchId -> batchId != null && !batchId.isBlank())))
+                    anyString()))
                     .willReturn(List.of(SOME_TRANSACTION_PROJECTION, secondProjection));
             given(transactionControllerMapper.toResponseList(
                     List.of(SOME_TRANSACTION_PROJECTION, secondProjection)))
@@ -340,7 +366,14 @@ class TransactionControllerTest {
             // then
             var response = objectMapper.readValue(
                     result.getResponse().getContentAsString(), ErrorResponse.class);
-            assertThat(response.errorCode()).isEqualTo("STR-4041");
+            var expected = ErrorResponse.builder()
+                    .errorCode("STR-4041")
+                    .message("Transaction not found: non-existent-tx")
+                    .build();
+            assertThat(response)
+                    .usingRecursiveComparison()
+                    .ignoringFields("timestamp", "path")
+                    .isEqualTo(expected);
         }
     }
 
@@ -356,9 +389,14 @@ class TransactionControllerTest {
                     .fromAddress("0xsender001")
                     .toAddress(SOME_TO_ADDRESS)
                     .build();
+            var pagedResult = PagedResult.<TransactionProjection>builder()
+                    .content(List.of(SOME_TRANSACTION_PROJECTION))
+                    .totalElements(1)
+                    .totalPages(1)
+                    .build();
 
-            given(transactionSubmissionService.findByFilters(eqIgnoring(expectedFilters)))
-                    .willReturn(List.of(SOME_TRANSACTION_PROJECTION));
+            given(transactionSubmissionService.findByFilters(eqIgnoring(expectedFilters), anyInt(), anyInt()))
+                    .willReturn(pagedResult);
             given(transactionControllerMapper.toResponseList(List.of(SOME_TRANSACTION_PROJECTION)))
                     .willReturn(List.of(SOME_TRANSACTION_RESPONSE));
 
@@ -377,19 +415,30 @@ class TransactionControllerTest {
             var pagedResponse = objectMapper.readValue(
                     result.getResponse().getContentAsString(),
                     new TypeReference<PagedResponse<TransactionResponse>>() {});
-            assertThat(pagedResponse.content()).hasSize(1);
-            assertThat(pagedResponse.page()).isZero();
-            assertThat(pagedResponse.size()).isEqualTo(10);
-            then(transactionSubmissionService).should().findByFilters(eqIgnoring(expectedFilters));
+            var expected = PagedResponse.<TransactionResponse>builder()
+                    .content(List.of(SOME_TRANSACTION_RESPONSE))
+                    .page(0)
+                    .size(10)
+                    .totalElements(1)
+                    .totalPages(1)
+                    .build();
+            assertThat(pagedResponse)
+                    .usingRecursiveComparison()
+                    .isEqualTo(expected);
         }
 
         @Test
         void shouldListTransactionsWithDefaultPagination() throws Exception {
             // given
             var defaultFilters = TransactionFilters.builder().build();
+            var pagedResult = PagedResult.<TransactionProjection>builder()
+                    .content(List.of(SOME_TRANSACTION_PROJECTION))
+                    .totalElements(1)
+                    .totalPages(1)
+                    .build();
 
-            given(transactionSubmissionService.findByFilters(eqIgnoring(defaultFilters)))
-                    .willReturn(List.of(SOME_TRANSACTION_PROJECTION));
+            given(transactionSubmissionService.findByFilters(eqIgnoring(defaultFilters), anyInt(), anyInt()))
+                    .willReturn(pagedResult);
             given(transactionControllerMapper.toResponseList(List.of(SOME_TRANSACTION_PROJECTION)))
                     .willReturn(List.of(SOME_TRANSACTION_RESPONSE));
 
@@ -402,9 +451,16 @@ class TransactionControllerTest {
             var pagedResponse = objectMapper.readValue(
                     result.getResponse().getContentAsString(),
                     new TypeReference<PagedResponse<TransactionResponse>>() {});
-            assertThat(pagedResponse.page()).isZero();
-            assertThat(pagedResponse.size()).isEqualTo(20);
-            then(transactionSubmissionService).should().findByFilters(eqIgnoring(defaultFilters));
+            var expected = PagedResponse.<TransactionResponse>builder()
+                    .content(List.of(SOME_TRANSACTION_RESPONSE))
+                    .page(0)
+                    .size(20)
+                    .totalElements(1)
+                    .totalPages(1)
+                    .build();
+            assertThat(pagedResponse)
+                    .usingRecursiveComparison()
+                    .isEqualTo(expected);
         }
     }
 }

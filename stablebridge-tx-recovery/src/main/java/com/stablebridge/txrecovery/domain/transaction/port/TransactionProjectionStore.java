@@ -1,8 +1,8 @@
 package com.stablebridge.txrecovery.domain.transaction.port;
 
-import java.util.List;
 import java.util.Optional;
 
+import com.stablebridge.txrecovery.domain.transaction.model.PagedResult;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionFilters;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionProjection;
 
@@ -14,5 +14,5 @@ public interface TransactionProjectionStore {
 
     Optional<TransactionProjection> findByIntentId(String intentId);
 
-    List<TransactionProjection> findByFilters(TransactionFilters filters);
+    PagedResult<TransactionProjection> findByFilters(TransactionFilters filters, int page, int size);
 }

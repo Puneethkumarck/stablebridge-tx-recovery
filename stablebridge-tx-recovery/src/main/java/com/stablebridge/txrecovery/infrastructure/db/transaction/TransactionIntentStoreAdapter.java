@@ -2,8 +2,10 @@ package com.stablebridge.txrecovery.infrastructure.db.transaction;
 
 import java.util.Optional;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 
+import com.stablebridge.txrecovery.domain.exception.DuplicateIntentException;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionIntent;
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionIntentStore;
 
@@ -17,9 +19,13 @@ class TransactionIntentStoreAdapter implements TransactionIntentStore {
     private final TransactionIntentEntityMapper mapper;
 
     @Override
-    public void save(TransactionIntent intent) {
-        var entity = mapper.toEntity(intent);
-        jpaRepository.save(entity);
+    public void save(TransactionIntent intent) throws DuplicateIntentException {
+        try {
+            var entity = mapper.toEntity(intent);
+            jpaRepository.save(entity);
+        } catch (DataIntegrityViolationException ex) {
+            throw new DuplicateIntentException(intent.intentId());
+        }
     }
 
     @Override

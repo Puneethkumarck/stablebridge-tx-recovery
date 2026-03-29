@@ -1,12 +1,12 @@
 package com.stablebridge.txrecovery.application.controller.transaction;
 
 import java.time.Instant;
-import java.util.List;
 
 import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,7 +22,6 @@ import com.stablebridge.txrecovery.api.model.SubmitBatchRequest;
 import com.stablebridge.txrecovery.api.model.SubmitTransactionRequest;
 import com.stablebridge.txrecovery.api.model.TransactionResponse;
 import com.stablebridge.txrecovery.application.controller.transaction.mapper.TransactionControllerMapper;
-import com.stablebridge.txrecovery.domain.exception.BatchValidationException;
 import com.stablebridge.txrecovery.domain.exception.DuplicateIntentException;
 import com.stablebridge.txrecovery.domain.transaction.TransactionSubmissionService;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionFilters;
@@ -32,6 +31,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@Validated
 @RestController
 @RequestMapping("/api/v1/transactions")
 @RequiredArgsConstructor
@@ -46,6 +46,7 @@ public class TransactionController {
         try {
             var intent = transactionControllerMapper.toDomain(request);
             var projection = transactionSubmissionService.submitTransaction(intent);
+            transactionSubmissionService.startWorkflowAfterCommit(intent);
             var response = transactionControllerMapper.toResponse(projection);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (DuplicateIntentException ex) {
@@ -58,8 +59,6 @@ public class TransactionController {
     @PostMapping("/batch")
     public ResponseEntity<BatchTransactionResponse> submitBatch(
             @Valid @RequestBody SubmitBatchRequest request) {
-        validateBatchConsistency(request.transactions());
-
         var batchId = UuidCreator.getTimeOrderedEpoch().toString();
         var intents = request.transactions().stream()
                 .map(transactionControllerMapper::toDomain)
@@ -90,6 +89,7 @@ public class TransactionController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String fromAddress,
             @RequestParam(required = false) String toAddress,
+            @RequestParam(required = false) String token,
             @RequestParam(required = false) Instant fromDate,
             @RequestParam(required = false) Instant toDate,
             @RequestParam(defaultValue = "0") int page,
@@ -100,33 +100,22 @@ public class TransactionController {
                 .status(status != null ? TransactionStatus.valueOf(status) : null)
                 .fromAddress(fromAddress)
                 .toAddress(toAddress)
+                .token(token)
                 .fromDate(fromDate)
                 .toDate(toDate)
                 .build();
 
-        var projections = transactionSubmissionService.findByFilters(filters);
-        var responses = transactionControllerMapper.toResponseList(projections);
+        var pagedProjections = transactionSubmissionService.findByFilters(filters, page, size);
+        var responses = transactionControllerMapper.toResponseList(pagedProjections.content());
 
         var pagedResponse = PagedResponse.<TransactionResponse>builder()
                 .content(responses)
                 .page(page)
                 .size(size)
-                .totalElements(responses.size())
-                .totalPages(1)
+                .totalElements(pagedProjections.totalElements())
+                .totalPages(pagedProjections.totalPages())
                 .build();
 
         return ResponseEntity.ok(pagedResponse);
-    }
-
-    private void validateBatchConsistency(List<SubmitTransactionRequest> transactions) {
-        var firstChain = transactions.getFirst().chain();
-        var firstToken = transactions.getFirst().token();
-
-        var allConsistent = transactions.stream()
-                .allMatch(tx -> firstChain.equals(tx.chain()) && firstToken.equals(tx.token()));
-
-        if (!allConsistent) {
-            throw new BatchValidationException("all transactions in a batch must have the same chain and token");
-        }
     }
 }
