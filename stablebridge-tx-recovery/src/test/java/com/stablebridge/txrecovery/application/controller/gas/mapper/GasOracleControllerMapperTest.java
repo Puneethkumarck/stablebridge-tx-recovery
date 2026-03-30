@@ -62,6 +62,23 @@ class GasOracleControllerMapperTest {
         }
 
         @Test
+        void shouldReturnNullBaseFeeWhenMalformed() {
+            // given
+            var estimateMalformed = SOME_SLOW_ESTIMATE.toBuilder()
+                    .details(Map.of("baseFee", "notANumber"))
+                    .build();
+            var snapshot = SOME_GAS_SNAPSHOT.toBuilder()
+                    .estimates(List.of(estimateMalformed))
+                    .build();
+
+            // when
+            var result = mapper.toResponse(snapshot);
+
+            // then
+            assertThat(result.baseFee()).isNull();
+        }
+
+        @Test
         void shouldCalculateEstimatedCostPerTransferUsing65KGas() {
             // when
             var result = mapper.toResponse(SOME_GAS_SNAPSHOT);

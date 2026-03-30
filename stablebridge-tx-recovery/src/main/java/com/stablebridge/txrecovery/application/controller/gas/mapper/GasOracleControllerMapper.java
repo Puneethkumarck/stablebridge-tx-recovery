@@ -46,7 +46,14 @@ public interface GasOracleControllerMapper {
         }
         var first = snapshot.estimates().getFirst();
         var baseFee = first.details().get("baseFee");
-        return baseFee != null ? new BigDecimal(baseFee) : null;
+        if (baseFee == null) {
+            return null;
+        }
+        try {
+            return new BigDecimal(baseFee);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     default GasHistoryResponse toHistoryResponse(String chain, int hours, List<FeeEstimate> estimates) {

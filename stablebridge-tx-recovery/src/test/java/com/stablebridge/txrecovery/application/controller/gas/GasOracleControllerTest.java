@@ -142,5 +142,35 @@ class GasOracleControllerTest {
             mockMvc.perform(get("/api/v1/gas/{chain}/history", SOME_UNKNOWN_CHAIN))
                     .andExpect(status().isNotFound());
         }
+
+        @Test
+        void shouldReturn400ForNegativeHours() throws Exception {
+            given(gasOracleQueryService.getHistoricalEstimates(SOME_CHAIN, -1))
+                    .willThrow(new IllegalArgumentException("Hours must be between 1 and 168"));
+
+            mockMvc.perform(get("/api/v1/gas/{chain}/history", SOME_CHAIN)
+                            .param("hours", "-1"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void shouldReturn400ForZeroHours() throws Exception {
+            given(gasOracleQueryService.getHistoricalEstimates(SOME_CHAIN, 0))
+                    .willThrow(new IllegalArgumentException("Hours must be between 1 and 168"));
+
+            mockMvc.perform(get("/api/v1/gas/{chain}/history", SOME_CHAIN)
+                            .param("hours", "0"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void shouldReturn400ForHoursExceedingMax() throws Exception {
+            given(gasOracleQueryService.getHistoricalEstimates(SOME_CHAIN, 169))
+                    .willThrow(new IllegalArgumentException("Hours must be between 1 and 168"));
+
+            mockMvc.perform(get("/api/v1/gas/{chain}/history", SOME_CHAIN)
+                            .param("hours", "169"))
+                    .andExpect(status().isBadRequest());
+        }
     }
 }

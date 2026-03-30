@@ -43,12 +43,18 @@ public class GasOracleQueryService {
     }
 
     public List<FeeEstimate> getHistoricalEstimates(String chain, int hours) {
+        if (hours < 1 || hours > 168) {
+            throw new IllegalArgumentException("Hours must be between 1 and 168");
+        }
         validateChainExists(chain);
         resolveOracle(chain);
         return List.of();
     }
 
     private void validateChainExists(String chain) {
+        if (chain == null || chain.isBlank()) {
+            throw new IllegalArgumentException("Chain must not be null or blank");
+        }
         if (!chainConfigProvider.isChainEnabled(chain)) {
             throw new ChainNotFoundException(chain);
         }

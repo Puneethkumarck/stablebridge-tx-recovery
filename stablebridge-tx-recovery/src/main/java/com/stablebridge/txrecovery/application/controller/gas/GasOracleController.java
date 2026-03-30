@@ -1,5 +1,8 @@
 package com.stablebridge.txrecovery.application.controller.gas;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,7 +39,7 @@ public class GasOracleController {
     @GetMapping("/{chain}/history")
     public ResponseEntity<GasHistoryResponse> getHistory(
             @PathVariable String chain,
-            @RequestParam(defaultValue = "24") int hours) {
+            @RequestParam(defaultValue = "24") @Min(1) @Max(168) int hours) {
         var estimates = gasOracleQueryService.getHistoricalEstimates(chain, hours);
         var response = mapper.toHistoryResponse(chain, hours, estimates);
         return ResponseEntity.ok(response);

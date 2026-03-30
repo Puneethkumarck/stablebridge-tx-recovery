@@ -128,5 +128,29 @@ class GasOracleQueryServiceTest {
                     .isInstanceOf(ChainNotFoundException.class)
                     .hasMessageContaining(SOME_UNKNOWN_CHAIN);
         }
+
+        @Test
+        void shouldThrowForZeroHours() {
+            // when/then
+            assertThatThrownBy(() -> gasOracleQueryService.getHistoricalEstimates(SOME_CHAIN, 0))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("Hours must be between 1 and 168");
+        }
+
+        @Test
+        void shouldThrowForNegativeHours() {
+            // when/then
+            assertThatThrownBy(() -> gasOracleQueryService.getHistoricalEstimates(SOME_CHAIN, -1))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("Hours must be between 1 and 168");
+        }
+
+        @Test
+        void shouldThrowForHoursExceedingMax() {
+            // when/then
+            assertThatThrownBy(() -> gasOracleQueryService.getHistoricalEstimates(SOME_CHAIN, 169))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("Hours must be between 1 and 168");
+        }
     }
 }

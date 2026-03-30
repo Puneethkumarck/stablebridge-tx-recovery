@@ -1,5 +1,6 @@
 package com.stablebridge.txrecovery.testutil.fixtures;
 
+import static com.stablebridge.txrecovery.application.controller.gas.mapper.GasOracleControllerMapper.ERC20_TRANSFER_GAS;
 import static lombok.AccessLevel.PRIVATE;
 
 import java.math.BigDecimal;
@@ -26,7 +27,7 @@ public final class GasOracleControllerFixtures {
     public static final BigDecimal SOME_MAX_FEE = new BigDecimal("2000000000");
     public static final BigDecimal SOME_PRIORITY_FEE = new BigDecimal("1500000000");
     public static final BigDecimal SOME_ESTIMATED_COST = new BigDecimal("130000000000000");
-    public static final BigDecimal ERC20_GAS = BigDecimal.valueOf(65_000L);
+    public static final BigDecimal ERC20_GAS = ERC20_TRANSFER_GAS;
 
     public static final FeeEstimate SOME_SLOW_ESTIMATE = FeeEstimate.builder()
             .maxFeePerGas(SOME_MAX_FEE)
