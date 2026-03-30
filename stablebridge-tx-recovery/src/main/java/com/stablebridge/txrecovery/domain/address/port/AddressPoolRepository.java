@@ -1,5 +1,6 @@
 package com.stablebridge.txrecovery.domain.address.port;
 
+import java.util.List;
 import java.util.Optional;
 
 import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
@@ -15,4 +16,8 @@ public interface AddressPoolRepository {
     void decrementInFlightCount(String address, String chain);
 
     PooledAddress save(PooledAddress pooledAddress);
+
+    Optional<PooledAddress> findByAddressAndChain(String address, String chain);
+
+    List<PooledAddress> findByFilters(String chain, AddressTier tier, AddressStatus status);
 }

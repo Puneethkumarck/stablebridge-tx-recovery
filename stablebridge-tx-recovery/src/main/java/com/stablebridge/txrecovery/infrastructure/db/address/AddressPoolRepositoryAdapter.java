@@ -2,8 +2,10 @@ package com.stablebridge.txrecovery.infrastructure.db.address;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,5 +50,30 @@ class AddressPoolRepositoryAdapter implements AddressPoolRepository {
         var entity = mapper.toEntity(pooledAddress);
         var saved = jpaRepository.save(entity);
         return mapper.toDomain(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<PooledAddress> findByAddressAndChain(String address, String chain) {
+        return jpaRepository.findByAddressAndChain(address, chain)
+                .map(mapper::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PooledAddress> findByFilters(String chain, AddressTier tier, AddressStatus status) {
+        var spec = Specification.<AddressPoolEntity>where((Specification<AddressPoolEntity>) null);
+        if (chain != null) {
+            spec = spec.and((root, _, cb) -> cb.equal(root.get("chain"), chain));
+        }
+        if (tier != null) {
+            spec = spec.and((root, _, cb) -> cb.equal(root.get("tier"), tier));
+        }
+        if (status != null) {
+            spec = spec.and((root, _, cb) -> cb.equal(root.get("status"), status));
+        }
+        return jpaRepository.findAll(spec).stream()
+                .map(mapper::toDomain)
+                .toList();
     }
 }
