@@ -21,11 +21,23 @@ public abstract class ControllerIntegrationTestBase extends IntegrationTestBase 
     @Autowired
     protected MockMvc mockMvc;
 
-    @Value("${str.api.key}")
+    @Value("${str.api.operators.ops-lead}")
     protected String apiKey;
 
     protected MockHttpServletRequestBuilder authenticated(MockHttpServletRequestBuilder requestBuilder) {
         return requestBuilder.header(API_KEY_HEADER, apiKey);
+    }
+
+    protected MockHttpServletRequestBuilder authenticatedAs(MockHttpServletRequestBuilder requestBuilder,
+            String operatorApiKey) {
+        return requestBuilder.header(API_KEY_HEADER, operatorApiKey);
+    }
+
+    protected MockHttpServletRequestBuilder authenticatedAsJson(MockHttpServletRequestBuilder requestBuilder,
+            String operatorApiKey, String body) {
+        return authenticatedAs(requestBuilder, operatorApiKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body);
     }
 
     protected MockHttpServletRequestBuilder authenticatedJson(MockHttpServletRequestBuilder requestBuilder,

@@ -3,6 +3,7 @@ package com.stablebridge.txrecovery.application.controller.approval;
 import static com.stablebridge.txrecovery.testutil.fixtures.ApprovalControllerFixtures.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -10,11 +11,15 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.stablebridge.txrecovery.api.model.ApproveTransactionResponse;
 import com.stablebridge.txrecovery.api.model.CancelTransactionResponse;
+import com.stablebridge.txrecovery.domain.recovery.model.CancelRequest;
+import com.stablebridge.txrecovery.domain.recovery.model.HumanApproval;
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionProjectionStore;
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionWorkflowSignaler;
 import com.stablebridge.txrecovery.testutil.ControllerIntegrationTestBase;
@@ -25,6 +30,9 @@ class ApprovalControllerIntegrationTest extends ControllerIntegrationTestBase {
 
     private static final String APPROVE_PATH = "/api/v1/transactions/%s/approve";
     private static final String CANCEL_PATH = "/api/v1/transactions/%s/cancel";
+
+    @Value("${str.api.operators.compliance-officer}")
+    private String complianceOfficerKey;
 
     @MockitoBean
     private TransactionProjectionStore transactionProjectionStore;
@@ -58,6 +66,45 @@ class ApprovalControllerIntegrationTest extends ControllerIntegrationTestBase {
                     .ignoringFields("approvedAt")
                     .isEqualTo(expected);
             assertThat(response.approvedAt()).isNotNull();
+        }
+
+        @Test
+        void shouldPropagateOpsLeadIdentityToApproval() throws Exception {
+            given(transactionProjectionStore.findById(SOME_APPROVAL_TRANSACTION_ID))
+                    .willReturn(Optional.of(AWAITING_HUMAN_PROJECTION));
+
+            mockMvc.perform(authenticatedJson(
+                            post(APPROVE_PATH.formatted(SOME_APPROVAL_TRANSACTION_ID)),
+                            objectMapper.writeValueAsString(SOME_APPROVE_REQUEST)))
+                    .andExpect(status().isOk());
+
+            var txIdCaptor = ArgumentCaptor.forClass(String.class);
+            var approvalCaptor = ArgumentCaptor.forClass(HumanApproval.class);
+            then(transactionWorkflowSignaler)
+                    .should()
+                    .signalApproveRecovery(txIdCaptor.capture(), approvalCaptor.capture());
+
+            assertThat(approvalCaptor.getValue().approvedBy()).isEqualTo("ops-lead");
+        }
+
+        @Test
+        void shouldPropagateComplianceOfficerIdentityToApproval() throws Exception {
+            given(transactionProjectionStore.findById(SOME_APPROVAL_TRANSACTION_ID))
+                    .willReturn(Optional.of(AWAITING_HUMAN_PROJECTION));
+
+            mockMvc.perform(authenticatedAsJson(
+                            post(APPROVE_PATH.formatted(SOME_APPROVAL_TRANSACTION_ID)),
+                            complianceOfficerKey,
+                            objectMapper.writeValueAsString(SOME_APPROVE_REQUEST)))
+                    .andExpect(status().isOk());
+
+            var txIdCaptor = ArgumentCaptor.forClass(String.class);
+            var approvalCaptor = ArgumentCaptor.forClass(HumanApproval.class);
+            then(transactionWorkflowSignaler)
+                    .should()
+                    .signalApproveRecovery(txIdCaptor.capture(), approvalCaptor.capture());
+
+            assertThat(approvalCaptor.getValue().approvedBy()).isEqualTo("compliance-officer");
         }
 
         @Test
@@ -140,6 +187,26 @@ class ApprovalControllerIntegrationTest extends ControllerIntegrationTestBase {
             assertThat(response)
                     .usingRecursiveComparison()
                     .isEqualTo(expected);
+        }
+
+        @Test
+        void shouldPropagateComplianceOfficerIdentityToCancel() throws Exception {
+            given(transactionProjectionStore.findById(SOME_APPROVAL_TRANSACTION_ID))
+                    .willReturn(Optional.of(PENDING_PROJECTION));
+
+            mockMvc.perform(authenticatedAsJson(
+                            post(CANCEL_PATH.formatted(SOME_APPROVAL_TRANSACTION_ID)),
+                            complianceOfficerKey,
+                            objectMapper.writeValueAsString(SOME_CANCEL_REQUEST)))
+                    .andExpect(status().isOk());
+
+            var txIdCaptor = ArgumentCaptor.forClass(String.class);
+            var cancelCaptor = ArgumentCaptor.forClass(CancelRequest.class);
+            then(transactionWorkflowSignaler)
+                    .should()
+                    .signalCancelTransaction(txIdCaptor.capture(), cancelCaptor.capture());
+
+            assertThat(cancelCaptor.getValue().requestedBy()).isEqualTo("compliance-officer");
         }
 
         @Test

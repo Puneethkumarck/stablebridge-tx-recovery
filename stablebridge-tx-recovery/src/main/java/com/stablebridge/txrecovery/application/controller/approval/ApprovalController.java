@@ -1,5 +1,8 @@
 package com.stablebridge.txrecovery.application.controller.approval;
 
+import java.util.Optional;
+
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
@@ -27,7 +30,8 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class ApprovalController {
 
-    private static final String SYSTEM_USER = "system";
+    static final String OPERATOR_IDENTITY_ATTR = "str.operator.identity";
+    private static final String DEFAULT_OPERATOR = "system";
 
     private final TransactionApprovalService transactionApprovalService;
     private final ApprovalControllerMapper approvalControllerMapper;
@@ -35,10 +39,12 @@ public class ApprovalController {
     @PostMapping("/approve")
     public ResponseEntity<ApproveTransactionResponse> approveTransaction(
             @PathVariable String transactionId,
-            @Valid @RequestBody ApproveTransactionRequest request) {
+            @Valid @RequestBody ApproveTransactionRequest request,
+            HttpServletRequest httpRequest) {
+        var operatorIdentity = extractOperatorIdentity(httpRequest);
         var action = approvalControllerMapper.toDomain(request.action());
         var result = transactionApprovalService.approveTransaction(
-                transactionId, action, request.reason(), SYSTEM_USER);
+                transactionId, action, request.reason(), operatorIdentity);
         var response = approvalControllerMapper.toApproveResponse(result);
         return ResponseEntity.ok(response);
     }
@@ -46,10 +52,17 @@ public class ApprovalController {
     @PostMapping("/cancel")
     public ResponseEntity<CancelTransactionResponse> cancelTransaction(
             @PathVariable String transactionId,
-            @Valid @RequestBody CancelTransactionRequest request) {
+            @Valid @RequestBody CancelTransactionRequest request,
+            HttpServletRequest httpRequest) {
+        var operatorIdentity = extractOperatorIdentity(httpRequest);
         var result = transactionApprovalService.cancelTransaction(
-                transactionId, request.reason(), SYSTEM_USER);
+                transactionId, request.reason(), operatorIdentity);
         var response = approvalControllerMapper.toCancelResponse(result);
         return ResponseEntity.ok(response);
+    }
+
+    private String extractOperatorIdentity(HttpServletRequest request) {
+        return Optional.ofNullable((String) request.getAttribute(OPERATOR_IDENTITY_ATTR))
+                .orElse(DEFAULT_OPERATOR);
     }
 }
