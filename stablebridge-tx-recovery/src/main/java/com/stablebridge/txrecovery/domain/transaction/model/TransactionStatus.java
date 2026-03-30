@@ -9,6 +9,7 @@ public enum TransactionStatus {
     STUCK,
     RECOVERING,
     AWAITING_HUMAN,
+    CANCELLING,
     CONFIRMED,
     FINALIZED,
     DROPPED,

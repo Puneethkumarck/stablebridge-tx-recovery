@@ -30,8 +30,8 @@ class DomainEnumsTest {
         return Stream.of(
                 Arguments.of(TransactionStatus.class, new String[] {
                         "RECEIVED", "BUILDING", "SIGNING", "SUBMITTED", "PENDING",
-                        "STUCK", "RECOVERING", "AWAITING_HUMAN", "CONFIRMED",
-                        "FINALIZED", "DROPPED", "FAILED", "CANCELLED"
+                        "STUCK", "RECOVERING", "AWAITING_HUMAN", "CANCELLING",
+                        "CONFIRMED", "FINALIZED", "DROPPED", "FAILED", "CANCELLED"
                 }),
                 Arguments.of(StuckReason.class, new String[] {
                         "UNDERPRICED", "NONCE_GAP", "NONCE_CONSUMED", "EXPIRED",
