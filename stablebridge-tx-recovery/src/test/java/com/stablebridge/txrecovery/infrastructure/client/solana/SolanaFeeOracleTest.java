@@ -29,7 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.stablebridge.txrecovery.domain.recovery.model.FeeEstimate;
 import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
-import com.stablebridge.txrecovery.infrastructure.redis.RedisFeeCache;
+import com.stablebridge.txrecovery.domain.recovery.port.FeeCache;
 
 @ExtendWith(MockitoExtension.class)
 class SolanaFeeOracleTest {
@@ -43,7 +43,7 @@ class SolanaFeeOracleTest {
     private SolanaRpcClient rpcClient;
 
     @Mock
-    private RedisFeeCache feeCache;
+    private FeeCache feeCache;
 
     private SolanaFeeOracle oracle;
 

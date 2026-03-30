@@ -8,8 +8,8 @@ import java.util.Map;
 
 import com.stablebridge.txrecovery.domain.recovery.model.FeeEstimate;
 import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
+import com.stablebridge.txrecovery.domain.recovery.port.FeeCache;
 import com.stablebridge.txrecovery.domain.recovery.port.FeeOracle;
-import com.stablebridge.txrecovery.infrastructure.redis.RedisFeeCache;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +28,7 @@ class EvmFeeOracle implements FeeOracle {
 
     private final EvmRpcClient rpcClient;
     private final EvmChainProperties chainProperties;
-    private final RedisFeeCache feeCache;
+    private final FeeCache feeCache;
 
     @Override
     public FeeEstimate estimate(String chain, FeeUrgency urgency) {

@@ -23,7 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class GasOracleQueryService {
 
-    private final Map<String, FeeOracle> evmFeeOracles;
+    private final Map<String, FeeOracle> chainFeeOracles;
     private final ChainConfigProvider chainConfigProvider;
     private final Clock clock;
 
@@ -61,7 +61,7 @@ public class GasOracleQueryService {
     }
 
     private FeeOracle resolveOracle(String chain) {
-        var oracle = evmFeeOracles.get(chain);
+        var oracle = chainFeeOracles.get(chain);
         if (oracle == null) {
             throw new ChainNotFoundException(chain);
         }

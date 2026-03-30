@@ -28,7 +28,8 @@ class TemporalPropertiesTest {
             assertThat(properties.activityOptions()).isNotNull();
             assertThat(properties.nonRetryableExceptions()).containsExactly(
                     "com.stablebridge.txrecovery.domain.exception.NonRetryableException",
-                    "com.stablebridge.txrecovery.domain.exception.NonceTooLowException");
+                    "com.stablebridge.txrecovery.domain.exception.NonceTooLowException",
+                    "com.stablebridge.txrecovery.domain.exception.UnknownChainException");
         }
     }
 
@@ -111,7 +112,8 @@ class TemporalPropertiesTest {
             // then
             var expectedExceptions = List.of(
                     "com.stablebridge.txrecovery.domain.exception.NonRetryableException",
-                    "com.stablebridge.txrecovery.domain.exception.NonceTooLowException");
+                    "com.stablebridge.txrecovery.domain.exception.NonceTooLowException",
+                    "com.stablebridge.txrecovery.domain.exception.UnknownChainException");
 
             assertThat(properties.nonRetryableExceptions())
                     .containsExactlyElementsOf(expectedExceptions);
