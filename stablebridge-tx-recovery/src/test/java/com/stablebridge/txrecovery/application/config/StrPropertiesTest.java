@@ -27,8 +27,7 @@ import com.stablebridge.txrecovery.application.config.StrProperties.SignerProper
 import com.stablebridge.txrecovery.application.config.StrProperties.SignerProperties.CallbackProperties.TlsProperties;
 import com.stablebridge.txrecovery.application.config.StrProperties.SubmissionProperties;
 import com.stablebridge.txrecovery.application.config.StrProperties.TemporalConfigProperties;
-import com.stablebridge.txrecovery.application.config.StrProperties.TemporalConfigProperties.ActivityProperties;
-import com.stablebridge.txrecovery.application.config.StrProperties.TemporalConfigProperties.WorkflowProperties;
+import com.stablebridge.txrecovery.application.config.StrProperties.TemporalConfigProperties.ActivityOptionsProperties;
 
 class StrPropertiesTest {
 
@@ -45,7 +44,7 @@ class StrPropertiesTest {
                     .escalation(EscalationProperties.builder().build())
                     .submission(new SubmissionProperties(null, null))
                     .temporal(TemporalConfigProperties.builder().build())
-                    .redis(null)
+                    .redis(new RedisConfigProperties(null, 0))
                     .chains(Map.of())
                     .build();
 
@@ -252,22 +251,29 @@ class StrPropertiesTest {
             assertThat(temporal.target()).isEqualTo("localhost:7233");
             assertThat(temporal.namespace()).isEqualTo("stablebridge-tx-recovery");
             assertThat(temporal.taskQueue()).isEqualTo("str-transaction-lifecycle");
+            assertThat(temporal.workflowExecutionTimeout()).isEqualTo(Duration.ofHours(24));
+            assertThat(temporal.workflowRunTimeout()).isEqualTo(Duration.ofHours(2));
+            assertThat(temporal.nonRetryableExceptions()).containsExactly(
+                    "com.stablebridge.txrecovery.domain.exception.NonRetryableException",
+                    "com.stablebridge.txrecovery.domain.exception.NonceTooLowException");
         }
 
         @Test
-        void shouldApplyDefaultWorkflowValues() {
-            var workflow = WorkflowProperties.builder().build();
+        void shouldApplyDefaultActivityOptionsValues() {
+            var activityOptions = ActivityOptionsProperties.builder().build();
 
-            assertThat(workflow.executionTimeout()).isEqualTo(Duration.ofHours(24));
-            assertThat(workflow.runTimeout()).isEqualTo(Duration.ofHours(2));
-        }
-
-        @Test
-        void shouldApplyDefaultActivityValues() {
-            var activity = ActivityProperties.builder().build();
-
-            assertThat(activity.startToCloseTimeout()).isEqualTo(Duration.ofSeconds(30));
-            assertThat(activity.retryMaxAttempts()).isEqualTo(3);
+            assertThat(activityOptions.defaultOptions().startToCloseTimeout())
+                    .isEqualTo(Duration.ofSeconds(30));
+            assertThat(activityOptions.defaultOptions().maxAttempts()).isEqualTo(3);
+            assertThat(activityOptions.signing().startToCloseTimeout())
+                    .isEqualTo(Duration.ofSeconds(10));
+            assertThat(activityOptions.signing().maxAttempts()).isEqualTo(2);
+            assertThat(activityOptions.confirmation().startToCloseTimeout())
+                    .isEqualTo(Duration.ofMinutes(5));
+            assertThat(activityOptions.confirmation().maxAttempts()).isEqualTo(1);
+            assertThat(activityOptions.recoveryExecution().startToCloseTimeout())
+                    .isEqualTo(Duration.ofSeconds(60));
+            assertThat(activityOptions.recoveryExecution().maxAttempts()).isEqualTo(3);
         }
     }
 
@@ -275,14 +281,15 @@ class StrPropertiesTest {
     class RedisConfigPropertiesTests {
 
         @Test
-        void shouldApplyDefaultPort() {
-            var redis = new RedisConfigProperties("localhost", 0);
+        void shouldApplyDefaultHostAndPort() {
+            var redis = new RedisConfigProperties(null, 0);
 
+            assertThat(redis.host()).isEqualTo("localhost");
             assertThat(redis.port()).isEqualTo(6379);
         }
 
         @Test
-        void shouldPreserveCustomPort() {
+        void shouldPreserveCustomValues() {
             var redis = new RedisConfigProperties("redis.prod", 6380);
 
             assertThat(redis.host()).isEqualTo("redis.prod");
@@ -324,10 +331,25 @@ class StrPropertiesTest {
                             "str.temporal.target=temporal-test:7233",
                             "str.temporal.namespace=test-ns",
                             "str.temporal.task-queue=test-queue",
-                            "str.temporal.workflow.execution-timeout=PT48H",
-                            "str.temporal.workflow.run-timeout=PT4H",
-                            "str.temporal.activity.start-to-close-timeout=PT60S",
-                            "str.temporal.activity.retry-max-attempts=5",
+                            "str.temporal.workflow-execution-timeout=PT48H",
+                            "str.temporal.workflow-run-timeout=PT4H",
+                            "str.temporal.non-retryable-exceptions[0]=com.example.TestException",
+                            "str.temporal.activity-options.default-options.start-to-close-timeout=PT60S",
+                            "str.temporal.activity-options.default-options.max-attempts=5",
+                            "str.temporal.activity-options.default-options.initial-interval=PT2S",
+                            "str.temporal.activity-options.default-options.backoff-coefficient=3.0",
+                            "str.temporal.activity-options.signing.start-to-close-timeout=PT15S",
+                            "str.temporal.activity-options.signing.max-attempts=3",
+                            "str.temporal.activity-options.signing.initial-interval=PT1S",
+                            "str.temporal.activity-options.signing.backoff-coefficient=2.0",
+                            "str.temporal.activity-options.confirmation.start-to-close-timeout=PT300S",
+                            "str.temporal.activity-options.confirmation.max-attempts=1",
+                            "str.temporal.activity-options.confirmation.initial-interval=PT1S",
+                            "str.temporal.activity-options.confirmation.backoff-coefficient=2.0",
+                            "str.temporal.activity-options.recovery-execution.start-to-close-timeout=PT60S",
+                            "str.temporal.activity-options.recovery-execution.max-attempts=3",
+                            "str.temporal.activity-options.recovery-execution.initial-interval=PT1S",
+                            "str.temporal.activity-options.recovery-execution.backoff-coefficient=2.0",
                             "str.redis.host=redis-test",
                             "str.redis.port=6380",
                             "str.chains.ethereum_mainnet.enabled=true",
@@ -368,9 +390,16 @@ class StrPropertiesTest {
 
                 assertThat(props.temporal().target()).isEqualTo("temporal-test:7233");
                 assertThat(props.temporal().namespace()).isEqualTo("test-ns");
-                assertThat(props.temporal().workflow().executionTimeout())
+                assertThat(props.temporal().workflowExecutionTimeout())
                         .isEqualTo(Duration.ofHours(48));
-                assertThat(props.temporal().activity().retryMaxAttempts()).isEqualTo(5);
+                assertThat(props.temporal().workflowRunTimeout())
+                        .isEqualTo(Duration.ofHours(4));
+                assertThat(props.temporal().nonRetryableExceptions())
+                        .containsExactly("com.example.TestException");
+                assertThat(props.temporal().activityOptions().defaultOptions().maxAttempts())
+                        .isEqualTo(5);
+                assertThat(props.temporal().activityOptions().signing().startToCloseTimeout())
+                        .isEqualTo(Duration.ofSeconds(15));
 
                 assertThat(props.redis().host()).isEqualTo("redis-test");
                 assertThat(props.redis().port()).isEqualTo(6380);

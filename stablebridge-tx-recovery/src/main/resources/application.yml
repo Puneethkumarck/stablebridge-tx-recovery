@@ -210,7 +210,7 @@ str:
       chain-id: 0
       finality-blocks: 31
       stuck-threshold-blocks: 150
-      poll-interval: PT400MS
+      poll-interval: 400ms
       token-mints:
         - "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
       rpc:

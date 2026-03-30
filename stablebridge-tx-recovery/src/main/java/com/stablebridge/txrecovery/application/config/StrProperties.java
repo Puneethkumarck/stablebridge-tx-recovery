@@ -27,7 +27,7 @@ public record StrProperties(
         @Valid EscalationProperties escalation,
         @Valid SubmissionProperties submission,
         @Valid TemporalConfigProperties temporal,
-        @Valid RedisConfigProperties redis,
+        @NotNull @Valid RedisConfigProperties redis,
         @NotEmpty Map<String, @Valid ChainProperties> chains) {
 
     public StrProperties {
@@ -36,6 +36,7 @@ public record StrProperties(
         escalation = Objects.requireNonNullElse(escalation, EscalationProperties.builder().build());
         submission = Objects.requireNonNullElse(submission, new SubmissionProperties(null, null));
         temporal = Objects.requireNonNullElse(temporal, TemporalConfigProperties.builder().build());
+        redis = Objects.requireNonNullElse(redis, new RedisConfigProperties(null, 0));
         chains = Objects.requireNonNullElse(chains, Map.of());
     }
 
@@ -90,8 +91,8 @@ public record StrProperties(
 
     @Builder(toBuilder = true)
     public record SubmissionProperties(
-            BigDecimal sequentialThresholdUsd,
-            Integer maxPipelineDepth) {
+            @NotNull @DecimalMin("0") BigDecimal sequentialThresholdUsd,
+            @NotNull @Min(1) Integer maxPipelineDepth) {
 
         public SubmissionProperties {
             sequentialThresholdUsd = Objects.requireNonNullElse(
@@ -188,51 +189,86 @@ public record StrProperties(
             @NotBlank String target,
             @NotBlank String namespace,
             @NotBlank String taskQueue,
-            @NotNull @Valid WorkflowProperties workflow,
-            @NotNull @Valid ActivityProperties activity) {
+            @NotNull Duration workflowExecutionTimeout,
+            @NotNull Duration workflowRunTimeout,
+            List<String> nonRetryableExceptions,
+            @NotNull @Valid ActivityOptionsProperties activityOptions) {
 
         public TemporalConfigProperties {
             target = Objects.requireNonNullElse(target, "localhost:7233");
             namespace = Objects.requireNonNullElse(namespace, "stablebridge-tx-recovery");
             taskQueue = Objects.requireNonNullElse(taskQueue, "str-transaction-lifecycle");
-            workflow = Objects.requireNonNullElse(
-                    workflow, WorkflowProperties.builder().build());
-            activity = Objects.requireNonNullElse(
-                    activity, ActivityProperties.builder().build());
+            workflowExecutionTimeout = Objects.requireNonNullElse(
+                    workflowExecutionTimeout, Duration.ofHours(24));
+            workflowRunTimeout = Objects.requireNonNullElse(
+                    workflowRunTimeout, Duration.ofHours(2));
+            nonRetryableExceptions = Objects.requireNonNullElse(nonRetryableExceptions, List.of(
+                    "com.stablebridge.txrecovery.domain.exception.NonRetryableException",
+                    "com.stablebridge.txrecovery.domain.exception.NonceTooLowException"));
+            activityOptions = Objects.requireNonNullElse(
+                    activityOptions, ActivityOptionsProperties.builder().build());
         }
 
         @Builder(toBuilder = true)
-        public record WorkflowProperties(
-                @NotNull Duration executionTimeout,
-                @NotNull Duration runTimeout) {
+        public record ActivityOptionsProperties(
+                @NotNull @Valid ActivityConfig defaultOptions,
+                @NotNull @Valid ActivityConfig signing,
+                @NotNull @Valid ActivityConfig confirmation,
+                @NotNull @Valid ActivityConfig recoveryExecution) {
 
-            public WorkflowProperties {
-                executionTimeout = Objects.requireNonNullElse(
-                        executionTimeout, Duration.ofHours(24));
-                runTimeout = Objects.requireNonNullElse(
-                        runTimeout, Duration.ofHours(2));
+            public ActivityOptionsProperties {
+                defaultOptions = Objects.requireNonNullElse(defaultOptions, ActivityConfig.builder()
+                        .startToCloseTimeout(Duration.ofSeconds(30))
+                        .maxAttempts(3)
+                        .initialInterval(Duration.ofSeconds(1))
+                        .backoffCoefficient(2.0)
+                        .build());
+                signing = Objects.requireNonNullElse(signing, ActivityConfig.builder()
+                        .startToCloseTimeout(Duration.ofSeconds(10))
+                        .maxAttempts(2)
+                        .initialInterval(Duration.ofSeconds(1))
+                        .backoffCoefficient(2.0)
+                        .build());
+                confirmation = Objects.requireNonNullElse(confirmation, ActivityConfig.builder()
+                        .startToCloseTimeout(Duration.ofMinutes(5))
+                        .maxAttempts(1)
+                        .initialInterval(Duration.ofSeconds(1))
+                        .backoffCoefficient(2.0)
+                        .build());
+                recoveryExecution = Objects.requireNonNullElse(recoveryExecution, ActivityConfig.builder()
+                        .startToCloseTimeout(Duration.ofSeconds(60))
+                        .maxAttempts(3)
+                        .initialInterval(Duration.ofSeconds(1))
+                        .backoffCoefficient(2.0)
+                        .build());
             }
         }
 
         @Builder(toBuilder = true)
-        public record ActivityProperties(
+        public record ActivityConfig(
                 @NotNull Duration startToCloseTimeout,
-                @Min(1) int retryMaxAttempts) {
+                @NotNull @Min(1) Integer maxAttempts,
+                @NotNull Duration initialInterval,
+                @NotNull Double backoffCoefficient) {
 
-            public ActivityProperties {
+            public ActivityConfig {
                 startToCloseTimeout = Objects.requireNonNullElse(
                         startToCloseTimeout, Duration.ofSeconds(30));
-                retryMaxAttempts = retryMaxAttempts <= 0 ? 3 : retryMaxAttempts;
+                maxAttempts = Objects.requireNonNullElse(maxAttempts, 3);
+                initialInterval = Objects.requireNonNullElse(
+                        initialInterval, Duration.ofSeconds(1));
+                backoffCoefficient = Objects.requireNonNullElse(backoffCoefficient, 2.0);
             }
         }
     }
 
     @Builder(toBuilder = true)
     public record RedisConfigProperties(
-            String host,
+            @NotBlank String host,
             int port) {
 
         public RedisConfigProperties {
+            host = Objects.requireNonNullElse(host, "localhost");
             if (port <= 0) {
                 port = 6379;
             }
