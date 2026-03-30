@@ -102,6 +102,14 @@ public class ChainAutoConfiguration {
     }
 
     @Bean
+    Map<String, Duration> rpcTimeouts() {
+        var timeouts = new HashMap<String, Duration>();
+        enabledChainConfigs().forEach(config ->
+                timeouts.put(config.chainName(), config.rpcTimeout()));
+        return Map.copyOf(timeouts);
+    }
+
+    @Bean
     ChainAdapterRegistry chainAdapterRegistry(
             Map<String, ChainTransactionManager> chainTransactionManagers,
             Map<String, SubmissionResourceManager> chainResourceManagers,

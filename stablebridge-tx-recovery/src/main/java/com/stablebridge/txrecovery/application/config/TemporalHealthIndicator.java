@@ -3,6 +3,7 @@ package com.stablebridge.txrecovery.application.config;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
+import org.springframework.boot.health.contributor.Status;
 import org.springframework.stereotype.Component;
 
 import io.temporal.serviceclient.WorkflowServiceStubs;
@@ -29,7 +30,7 @@ public class TemporalHealthIndicator implements HealthIndicator {
                     .build();
         } catch (Exception e) {
             log.warn("Temporal health check failed", e);
-            return Health.down()
+            return Health.status(new Status("DEGRADED"))
                     .withDetail("target", temporalProperties.target())
                     .withException(e)
                     .build();

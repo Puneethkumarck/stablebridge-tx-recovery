@@ -224,3 +224,14 @@ str:
           failure-rate-threshold: 50
           wait-duration-in-open-state: PT30S
           sliding-window-size: 10
+
+management:
+  server:
+    port: 8081
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+  endpoint:
+    health:
+      show-details: always
