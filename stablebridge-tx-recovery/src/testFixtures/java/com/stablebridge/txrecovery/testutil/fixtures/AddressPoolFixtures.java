@@ -4,11 +4,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.stablebridge.txrecovery.api.model.AddressResponse;
+import com.stablebridge.txrecovery.api.model.DrainResponse;
 import com.stablebridge.txrecovery.api.model.NonceSyncResponse;
 import com.stablebridge.txrecovery.api.model.RegisterAddressRequest;
 import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
 import com.stablebridge.txrecovery.domain.address.model.AddressTier;
 import com.stablebridge.txrecovery.domain.address.model.ChainFamily;
+import com.stablebridge.txrecovery.domain.address.model.DrainResult;
 import com.stablebridge.txrecovery.domain.address.model.NonceSyncResult;
 import com.stablebridge.txrecovery.domain.address.model.PooledAddress;
 
@@ -56,7 +58,6 @@ public final class AddressPoolFixtures {
             .status("ACTIVE")
             .currentNonce(42)
             .inFlightCount(0)
-            .signerEndpoint(SOME_SIGNER_ENDPOINT)
             .registeredAt(SOME_REGISTERED_AT)
             .build();
 
@@ -69,8 +70,19 @@ public final class AddressPoolFixtures {
             .status("DRAINING")
             .currentNonce(42)
             .inFlightCount(2)
-            .signerEndpoint(SOME_SIGNER_ENDPOINT)
             .registeredAt(SOME_REGISTERED_AT)
+            .build();
+
+    public static final DrainResult SOME_DRAIN_RESULT = DrainResult.builder()
+            .previousStatus(AddressStatus.ACTIVE)
+            .address(SOME_DRAINING_ADDRESS)
+            .build();
+
+    public static final DrainResponse SOME_DRAIN_RESPONSE = DrainResponse.builder()
+            .address(SOME_EVM_ADDRESS)
+            .chain(SOME_CHAIN)
+            .previousStatus("ACTIVE")
+            .newStatus("DRAINING")
             .build();
 
     public static final PooledAddress SOME_SYNCED_ADDRESS = SOME_REGISTERED_ADDRESS.toBuilder()

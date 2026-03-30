@@ -18,10 +18,10 @@ class ChainFamilyResolverAdapter implements ChainFamilyResolver {
 
     @Override
     public ChainFamily resolve(String chain) {
-        return strProperties.chains().entrySet().stream()
-                .filter(entry -> entry.getKey().startsWith(chain))
-                .map(entry -> ChainFamily.valueOf(entry.getValue().chainFamily()))
-                .findFirst()
-                .orElseThrow(() -> new UnknownChainException(chain));
+        var chainProperties = strProperties.chains().get(chain);
+        if (chainProperties == null) {
+            throw new UnknownChainException(chain);
+        }
+        return ChainFamily.valueOf(chainProperties.chainFamily());
     }
 }

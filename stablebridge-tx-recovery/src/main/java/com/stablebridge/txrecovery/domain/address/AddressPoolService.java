@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
 import com.stablebridge.txrecovery.domain.address.model.AddressTier;
 import com.stablebridge.txrecovery.domain.address.model.ChainFamily;
+import com.stablebridge.txrecovery.domain.address.model.DrainResult;
 import com.stablebridge.txrecovery.domain.address.model.NonceSyncResult;
 import com.stablebridge.txrecovery.domain.address.model.PooledAddress;
 import com.stablebridge.txrecovery.domain.address.port.AddressPoolRepository;
@@ -65,7 +66,7 @@ public class AddressPoolService {
     }
 
     @Transactional
-    public PooledAddress drain(String address, String chain) {
+    public DrainResult drain(String address, String chain) {
         var pooledAddress = addressPoolRepository.findByAddressAndChain(address, chain)
                 .orElseThrow(() -> new AddressNotFoundException(address, chain));
 
@@ -73,13 +74,13 @@ public class AddressPoolService {
             throw new InvalidAddressStateException(address, chain, pooledAddress.status(), AddressStatus.DRAINING);
         }
 
-        var newStatus = pooledAddress.inFlightCount() == 0 ? AddressStatus.RETIRED : AddressStatus.DRAINING;
+        var previousStatus = pooledAddress.status();
         var draining = pooledAddress.toBuilder()
-                .status(newStatus)
-                .retiredAt(newStatus == AddressStatus.RETIRED ? Instant.now(clock) : null)
+                .status(AddressStatus.DRAINING)
                 .build();
 
-        return addressPoolRepository.save(draining);
+        var saved = addressPoolRepository.save(draining);
+        return new DrainResult(previousStatus, saved);
     }
 
     @Transactional

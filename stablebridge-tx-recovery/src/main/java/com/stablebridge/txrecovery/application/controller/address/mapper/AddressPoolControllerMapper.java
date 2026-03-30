@@ -7,6 +7,8 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import com.stablebridge.txrecovery.api.model.AddressResponse;
+import com.stablebridge.txrecovery.api.model.DrainResponse;
+import com.stablebridge.txrecovery.domain.address.model.DrainResult;
 import com.stablebridge.txrecovery.domain.address.model.PooledAddress;
 
 @Mapper(componentModel = "spring", injectionStrategy = InjectionStrategy.CONSTRUCTOR)
@@ -19,4 +21,10 @@ public interface AddressPoolControllerMapper {
     AddressResponse toResponse(PooledAddress pooledAddress);
 
     List<AddressResponse> toResponseList(List<PooledAddress> addresses);
+
+    @Mapping(target = "address", source = "address.address")
+    @Mapping(target = "chain", source = "address.chain")
+    @Mapping(target = "previousStatus", expression = "java(drainResult.previousStatus().name())")
+    @Mapping(target = "newStatus", expression = "java(drainResult.address().status().name())")
+    DrainResponse toDrainResponse(DrainResult drainResult);
 }

@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.stablebridge.txrecovery.api.model.AddressResponse;
+import com.stablebridge.txrecovery.api.model.DrainResponse;
 import com.stablebridge.txrecovery.api.model.NonceSyncResponse;
 import com.stablebridge.txrecovery.domain.address.AddressPoolService;
 import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
@@ -162,7 +163,7 @@ class AddressPoolControllerIntegrationTest extends ControllerIntegrationTestBase
         void shouldDrainAddressAndReturn200() throws Exception {
             // given
             given(addressPoolService.drain(SOME_EVM_ADDRESS, SOME_CHAIN))
-                    .willReturn(SOME_DRAINING_ADDRESS);
+                    .willReturn(SOME_DRAIN_RESULT);
 
             // when
             var result = mockMvc.perform(authenticated(
@@ -173,10 +174,10 @@ class AddressPoolControllerIntegrationTest extends ControllerIntegrationTestBase
 
             // then
             var response = objectMapper.readValue(
-                    result.getResponse().getContentAsString(), AddressResponse.class);
+                    result.getResponse().getContentAsString(), DrainResponse.class);
             assertThat(response)
                     .usingRecursiveComparison()
-                    .isEqualTo(SOME_DRAINING_ADDRESS_RESPONSE);
+                    .isEqualTo(SOME_DRAIN_RESPONSE);
         }
 
         @Test

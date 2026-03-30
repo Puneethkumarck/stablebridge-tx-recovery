@@ -45,4 +45,15 @@ class AddressPoolControllerMapperTest {
                 .usingRecursiveComparison()
                 .isEqualTo(SOME_DRAINING_ADDRESS_RESPONSE);
     }
+
+    @Test
+    void shouldMapDrainResultToDrainResponse() {
+        // when
+        var result = mapper.toDrainResponse(SOME_DRAIN_RESULT);
+
+        // then
+        assertThat(result)
+                .usingRecursiveComparison()
+                .isEqualTo(SOME_DRAIN_RESPONSE);
+    }
 }

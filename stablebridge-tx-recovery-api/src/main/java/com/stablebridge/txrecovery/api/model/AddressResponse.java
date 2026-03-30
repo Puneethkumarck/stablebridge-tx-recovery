@@ -14,7 +14,6 @@ public record AddressResponse(
         String status,
         long currentNonce,
         int inFlightCount,
-        String signerEndpoint,
         Instant registeredAt,
         Instant retiredAt,
         Instant lastUsedAt) {}

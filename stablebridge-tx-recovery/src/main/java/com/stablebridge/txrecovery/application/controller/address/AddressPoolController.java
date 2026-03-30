@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.stablebridge.txrecovery.api.model.AddressResponse;
+import com.stablebridge.txrecovery.api.model.DrainResponse;
 import com.stablebridge.txrecovery.api.model.NonceSyncResponse;
 import com.stablebridge.txrecovery.api.model.RegisterAddressRequest;
 import com.stablebridge.txrecovery.application.controller.address.mapper.AddressPoolControllerMapper;
@@ -60,11 +61,11 @@ public class AddressPoolController {
     }
 
     @DeleteMapping("/{address}")
-    public ResponseEntity<AddressResponse> drain(
+    public ResponseEntity<DrainResponse> drain(
             @PathVariable String address,
             @RequestParam String chain) {
-        var pooledAddress = addressPoolService.drain(address, chain);
-        var response = mapper.toResponse(pooledAddress);
+        var result = addressPoolService.drain(address, chain);
+        var response = mapper.toDrainResponse(result);
         return ResponseEntity.ok(response);
     }
 

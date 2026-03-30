@@ -23,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
 import com.stablebridge.txrecovery.domain.address.model.AddressTier;
 import com.stablebridge.txrecovery.domain.address.model.ChainFamily;
+import com.stablebridge.txrecovery.domain.address.model.DrainResult;
 import com.stablebridge.txrecovery.domain.address.model.PooledAddress;
 import com.stablebridge.txrecovery.domain.address.port.AddressPoolRepository;
 import com.stablebridge.txrecovery.domain.address.port.ChainFamilyResolver;
@@ -176,44 +177,44 @@ class AddressPoolServiceTest {
             given(addressPoolRepository.findByAddressAndChain(SOME_EVM_ADDRESS, SOME_CHAIN))
                     .willReturn(Optional.of(activeWithInFlight));
 
-            var expected = activeWithInFlight.toBuilder()
+            var expectedAddress = activeWithInFlight.toBuilder()
                     .status(AddressStatus.DRAINING)
                     .build();
 
-            given(addressPoolRepository.save(eqIgnoring(expected)))
+            given(addressPoolRepository.save(eqIgnoring(expectedAddress)))
                     .willAnswer(inv -> inv.getArgument(0));
 
             // when
             var result = addressPoolService.drain(SOME_EVM_ADDRESS, SOME_CHAIN);
 
             // then
+            var expectedResult = new DrainResult(AddressStatus.ACTIVE, expectedAddress);
             assertThat(result)
                     .usingRecursiveComparison()
-                    .isEqualTo(expected);
+                    .isEqualTo(expectedResult);
         }
 
         @Test
-        void shouldTransitionDirectlyToRetiredWhenNoInFlight() {
+        void shouldTransitionToDrainingWhenNoInFlight() {
             // given
             given(addressPoolRepository.findByAddressAndChain(SOME_EVM_ADDRESS, SOME_CHAIN))
                     .willReturn(Optional.of(SOME_REGISTERED_ADDRESS));
 
-            var expected = SOME_REGISTERED_ADDRESS.toBuilder()
-                    .status(AddressStatus.RETIRED)
-                    .retiredAt(SOME_REGISTERED_AT)
+            var expectedAddress = SOME_REGISTERED_ADDRESS.toBuilder()
+                    .status(AddressStatus.DRAINING)
                     .build();
 
-            given(addressPoolRepository.save(eqIgnoring(expected)))
+            given(addressPoolRepository.save(eqIgnoring(expectedAddress)))
                     .willAnswer(inv -> inv.getArgument(0));
 
             // when
             var result = addressPoolService.drain(SOME_EVM_ADDRESS, SOME_CHAIN);
 
             // then
+            var expectedResult = new DrainResult(AddressStatus.ACTIVE, expectedAddress);
             assertThat(result)
                     .usingRecursiveComparison()
-                    .ignoringFields("retiredAt")
-                    .isEqualTo(expected);
+                    .isEqualTo(expectedResult);
         }
 
         @Test
