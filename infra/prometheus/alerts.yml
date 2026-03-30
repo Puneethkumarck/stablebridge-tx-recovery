@@ -4,7 +4,7 @@ groups:
       - alert: StrTransactionStuckCritical
         expr: >
           histogram_quantile(0.99,
-            rate(str_transaction_stuck_duration_seconds_bucket[5m])
+            sum(rate(str_transaction_stuck_duration_seconds_bucket[5m])) by (le, chain)
           ) > 1800
         for: 5m
         labels:
@@ -50,7 +50,7 @@ groups:
           absent_over_time(str_gas_base_fee_gwei[2m])
           or (changes(str_gas_base_fee_gwei[2m]) == 0
               and str_gas_base_fee_gwei > 0)
-        for: 2m
+        for: 1m
         labels:
           severity: critical
           routing: pagerduty
@@ -67,9 +67,11 @@ groups:
       - alert: StrHighStuckRate
         expr: >
           (
-            rate(str_transactions_stuck_total[5m])
-            / on(chain) rate(str_transactions_submitted_total[5m])
+            sum by (chain) (rate(str_transactions_stuck_total[5m]))
+            /
+            sum by (chain) (rate(str_transactions_submitted_total[5m]))
           ) > 0.2
+          and sum by (chain) (rate(str_transactions_submitted_total[5m])) > 0
         for: 5m
         labels:
           severity: warning
@@ -83,8 +85,11 @@ groups:
 
       - alert: StrGasSpike
         expr: >
-          str_gas_base_fee_gwei
-          / avg_over_time(str_gas_base_fee_gwei[1h]) > 5
+          (
+            str_gas_base_fee_gwei
+            / avg_over_time(str_gas_base_fee_gwei[1h])
+          ) > 5
+          and avg_over_time(str_gas_base_fee_gwei[1h]) > 0
         for: 5m
         labels:
           severity: warning
