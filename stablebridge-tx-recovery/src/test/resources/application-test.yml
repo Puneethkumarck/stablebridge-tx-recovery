@@ -9,6 +9,8 @@ spring:
     enabled: true
 
 str:
+  api:
+    key: test-api-key
   signer:
     backend: local-keystore
     keystore-path: test-keystore.p12
