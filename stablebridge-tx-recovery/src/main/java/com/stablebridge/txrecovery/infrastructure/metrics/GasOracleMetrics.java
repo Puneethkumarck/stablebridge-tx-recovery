@@ -14,6 +14,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class GasOracleMetrics {
 
+    private static final String BASE_FEE_METRIC = "str.gas.base.fee.gwei";
+    private static final String ESTIMATE_METRIC = "str.gas.estimate.gwei";
+
     private final MeterRegistry registry;
     private final ConcurrentHashMap<Tags, AtomicReference<Double>> baseFeeGauges =
             new ConcurrentHashMap<>();
@@ -24,7 +27,7 @@ public class GasOracleMetrics {
         var tags = Tags.of("chain", chain);
         var holder = baseFeeGauges.computeIfAbsent(tags, t -> {
             var val = new AtomicReference<>(0.0);
-            Gauge.builder("str.gas.base.fee.gwei", val, AtomicReference::get)
+            Gauge.builder(BASE_FEE_METRIC, val, AtomicReference::get)
                     .tags(t)
                     .register(registry);
             return val;
@@ -36,7 +39,7 @@ public class GasOracleMetrics {
         var tags = Tags.of("chain", chain, "urgency", urgency);
         var holder = estimateGauges.computeIfAbsent(tags, t -> {
             var val = new AtomicReference<>(0.0);
-            Gauge.builder("str.gas.estimate.gwei", val, AtomicReference::get)
+            Gauge.builder(ESTIMATE_METRIC, val, AtomicReference::get)
                     .tags(t)
                     .register(registry);
             return val;

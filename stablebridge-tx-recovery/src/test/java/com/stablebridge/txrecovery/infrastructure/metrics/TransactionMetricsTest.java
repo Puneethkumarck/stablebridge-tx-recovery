@@ -1,6 +1,7 @@
 package com.stablebridge.txrecovery.infrastructure.metrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
@@ -28,12 +29,8 @@ class TransactionMetricsTest {
 
         @Test
         void shouldRecordSubmittedTransaction() {
-            // given
-            var chain = "ethereum";
-            var strategy = "SEQUENTIAL";
-
             // when
-            transactionMetrics.recordSubmitted(chain, strategy);
+            transactionMetrics.recordSubmitted("ethereum", TransactionMetrics.SubmissionStrategy.SEQUENTIAL);
 
             // then
             var count = registry.get("str.transactions.submitted.total")
@@ -45,11 +42,8 @@ class TransactionMetricsTest {
 
         @Test
         void shouldRecordConfirmedTransaction() {
-            // given
-            var chain = "ethereum";
-
             // when
-            transactionMetrics.recordConfirmed(chain);
+            transactionMetrics.recordConfirmed("ethereum");
 
             // then
             var count = registry.get("str.transactions.confirmed.total")
@@ -61,11 +55,8 @@ class TransactionMetricsTest {
 
         @Test
         void shouldRecordStuckTransaction() {
-            // given
-            var chain = "ethereum";
-
             // when
-            transactionMetrics.recordStuck(chain);
+            transactionMetrics.recordStuck("ethereum");
 
             // then
             var count = registry.get("str.transactions.stuck.total")
@@ -77,12 +68,8 @@ class TransactionMetricsTest {
 
         @Test
         void shouldRecordRecoveredTransaction() {
-            // given
-            var chain = "ethereum";
-            var action = "SPEEDUP";
-
             // when
-            transactionMetrics.recordRecovered(chain, action);
+            transactionMetrics.recordRecovered("ethereum", TransactionMetrics.RecoveryAction.SPEEDUP);
 
             // then
             var count = registry.get("str.transactions.recovered.total")
@@ -94,12 +81,8 @@ class TransactionMetricsTest {
 
         @Test
         void shouldRecordFailedTransaction() {
-            // given
-            var chain = "ethereum";
-            var reason = "INSUFFICIENT_GAS";
-
             // when
-            transactionMetrics.recordFailed(chain, reason);
+            transactionMetrics.recordFailed("ethereum", TransactionMetrics.FailureReason.INSUFFICIENT_GAS);
 
             // then
             var count = registry.get("str.transactions.failed.total")
@@ -111,11 +94,8 @@ class TransactionMetricsTest {
 
         @Test
         void shouldRecordCancelledTransaction() {
-            // given
-            var chain = "ethereum";
-
             // when
-            transactionMetrics.recordCancelled(chain);
+            transactionMetrics.recordCancelled("ethereum");
 
             // then
             var count = registry.get("str.transactions.cancelled.total")
@@ -127,13 +107,9 @@ class TransactionMetricsTest {
 
         @Test
         void shouldIncrementSubmittedCounterMultipleTimes() {
-            // given
-            var chain = "ethereum";
-            var strategy = "SEQUENTIAL";
-
             // when
-            transactionMetrics.recordSubmitted(chain, strategy);
-            transactionMetrics.recordSubmitted(chain, strategy);
+            transactionMetrics.recordSubmitted("ethereum", TransactionMetrics.SubmissionStrategy.SEQUENTIAL);
+            transactionMetrics.recordSubmitted("ethereum", TransactionMetrics.SubmissionStrategy.SEQUENTIAL);
 
             // then
             var count = registry.get("str.transactions.submitted.total")
@@ -150,35 +126,75 @@ class TransactionMetricsTest {
         @Test
         void shouldRecordConfirmationDuration() {
             // given
-            var chain = "ethereum";
             var duration = Duration.ofSeconds(30);
 
             // when
-            transactionMetrics.recordConfirmationDuration(chain, duration);
+            transactionMetrics.recordConfirmationDuration("ethereum", duration);
 
             // then
             var timer = registry.get("str.transaction.confirmation.duration.seconds")
                     .tags("chain", "ethereum")
                     .timer();
             assertThat(timer.count()).isEqualTo(1);
-            assertThat(timer.totalTime(TimeUnit.SECONDS)).isGreaterThan(0);
+            assertThat(timer.totalTime(TimeUnit.SECONDS)).isEqualTo(30.0);
         }
 
         @Test
         void shouldRecordStuckDuration() {
             // given
-            var chain = "ethereum";
             var duration = Duration.ofMinutes(5);
 
             // when
-            transactionMetrics.recordStuckDuration(chain, duration);
+            transactionMetrics.recordStuckDuration("ethereum", duration);
 
             // then
             var timer = registry.get("str.transaction.stuck.duration.seconds")
                     .tags("chain", "ethereum")
                     .timer();
             assertThat(timer.count()).isEqualTo(1);
-            assertThat(timer.totalTime(TimeUnit.SECONDS)).isGreaterThan(0);
+            assertThat(timer.totalTime(TimeUnit.SECONDS)).isEqualTo(300.0);
+        }
+    }
+
+    @Nested
+    class TagSanitization {
+
+        @Test
+        void shouldSanitizeNullChainToUnknown() {
+            // when
+            transactionMetrics.recordConfirmed(null);
+
+            // then
+            var count = registry.get("str.transactions.confirmed.total")
+                    .tags("chain", "unknown")
+                    .counter()
+                    .count();
+            assertThat(count).isEqualTo(1.0);
+        }
+
+        @Test
+        void shouldSanitizeBlankChainToUnknown() {
+            // when
+            transactionMetrics.recordConfirmed("  ");
+
+            // then
+            var count = registry.get("str.transactions.confirmed.total")
+                    .tags("chain", "unknown")
+                    .counter()
+                    .count();
+            assertThat(count).isEqualTo(1.0);
+        }
+
+        @Test
+        void shouldRejectNullStrategy() {
+            assertThatThrownBy(() -> transactionMetrics.recordSubmitted("ethereum", null))
+                    .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        void shouldRejectNullDuration() {
+            assertThatThrownBy(() -> transactionMetrics.recordConfirmationDuration("ethereum", null))
+                    .isInstanceOf(NullPointerException.class);
         }
     }
 }

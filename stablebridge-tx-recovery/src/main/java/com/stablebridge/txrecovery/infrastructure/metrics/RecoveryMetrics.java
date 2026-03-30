@@ -10,10 +10,13 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class RecoveryMetrics {
 
+    private static final String ATTEMPTS_TOTAL_METRIC = "str.recovery.attempts.total";
+    private static final String GAS_SPENT_TOTAL_METRIC = "str.recovery.gas.spent.total";
+
     private final MeterRegistry registry;
 
     public void recordAttempt(String chain, String action, String outcome) {
-        Counter.builder("str.recovery.attempts.total")
+        Counter.builder(ATTEMPTS_TOTAL_METRIC)
                 .tag("chain", chain)
                 .tag("action", action)
                 .tag("outcome", outcome)
@@ -22,7 +25,7 @@ public class RecoveryMetrics {
     }
 
     public void recordGasSpent(String chain, String denomination, double amount) {
-        Counter.builder("str.recovery.gas.spent.total")
+        Counter.builder(GAS_SPENT_TOTAL_METRIC)
                 .tag("chain", chain)
                 .tag("denomination", denomination)
                 .register(registry)

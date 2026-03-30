@@ -3,6 +3,7 @@ package com.stablebridge.txrecovery.infrastructure.metrics;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -109,6 +110,7 @@ class EscalationMetricsTest {
                     .tags("chain", "ethereum")
                     .timer();
             assertThat(timer.count()).isEqualTo(1);
+            assertThat(timer.totalTime(TimeUnit.SECONDS)).isEqualTo(30.0);
         }
     }
 }

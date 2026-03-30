@@ -1,6 +1,7 @@
 package com.stablebridge.txrecovery.infrastructure.metrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -57,6 +58,13 @@ class AddressPoolMetricsTest {
                     .gauge();
             assertThat(gauge.value()).isEqualTo(25.0);
         }
+
+        @Test
+        void shouldRejectNegativePoolSize() {
+            assertThatThrownBy(() -> addressPoolMetrics.setPoolSize("ethereum", "HOT", "ACTIVE", -1))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Pool size must be >= 0");
+        }
     }
 
     @Nested
@@ -98,6 +106,28 @@ class AddressPoolMetricsTest {
                     .gauge();
             assertThat(gauge1.value()).isEqualTo(3.0);
             assertThat(gauge2.value()).isEqualTo(7.0);
+        }
+
+        @Test
+        void shouldRejectNegativeInFlightCount() {
+            assertThatThrownBy(() -> addressPoolMetrics.setInFlight("ethereum", "0xABC123", -1))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("In-flight count must be >= 0");
+        }
+
+        @Test
+        void shouldClearInFlightAndUnregisterMeter() {
+            // given
+            addressPoolMetrics.setInFlight("ethereum", "0xABC123", 5);
+
+            // when
+            addressPoolMetrics.clearInFlight("ethereum", "0xABC123");
+
+            // then
+            var meters = registry.find("str.address.pool.in.flight")
+                    .tags("chain", "ethereum", "address", "0xABC123")
+                    .meters();
+            assertThat(meters).isEmpty();
         }
     }
 }
