@@ -29,7 +29,7 @@ public class TransactionApprovalService {
     private final TransactionProjectionStore transactionProjectionStore;
     private final TransactionWorkflowSignaler transactionWorkflowSignaler;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public ApprovalResult approveTransaction(
             String transactionId, ApprovalAction action, String reason, String approvedBy) {
         var projection = findProjection(transactionId);
@@ -54,7 +54,7 @@ public class TransactionApprovalService {
                 .build();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public CancellationResult cancelTransaction(String transactionId, String reason, String requestedBy) {
         var projection = findProjection(transactionId);
         validateNotTerminal(projection);

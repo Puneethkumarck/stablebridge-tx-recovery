@@ -48,9 +48,15 @@ class ApprovalControllerIntegrationTest extends ControllerIntegrationTestBase {
 
             var response = objectMapper.readValue(
                     result.getResponse().getContentAsString(), ApproveTransactionResponse.class);
-            assertThat(response.transactionId()).isEqualTo(SOME_APPROVAL_TRANSACTION_ID);
-            assertThat(response.status()).isEqualTo("AWAITING_HUMAN");
-            assertThat(response.action()).isEqualTo("RETRY");
+            var expected = ApproveTransactionResponse.builder()
+                    .transactionId(SOME_APPROVAL_TRANSACTION_ID)
+                    .status("AWAITING_HUMAN")
+                    .action("RETRY")
+                    .build();
+            assertThat(response)
+                    .usingRecursiveComparison()
+                    .ignoringFields("approvedAt")
+                    .isEqualTo(expected);
             assertThat(response.approvedAt()).isNotNull();
         }
 

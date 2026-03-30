@@ -1,9 +1,10 @@
 package com.stablebridge.txrecovery.domain.transaction;
 
+import static com.stablebridge.txrecovery.testutil.TestUtils.eqIgnoring;
+import static com.stablebridge.txrecovery.testutil.TestUtils.eqIgnoringTimestamps;
 import static com.stablebridge.txrecovery.testutil.fixtures.ApprovalControllerFixtures.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
@@ -20,6 +21,10 @@ import com.stablebridge.txrecovery.domain.exception.InvalidTransactionStateExcep
 import com.stablebridge.txrecovery.domain.exception.TerminalTransactionException;
 import com.stablebridge.txrecovery.domain.exception.TransactionNotFoundException;
 import com.stablebridge.txrecovery.domain.recovery.model.ApprovalAction;
+import com.stablebridge.txrecovery.domain.recovery.model.CancelRequest;
+import com.stablebridge.txrecovery.domain.recovery.model.HumanApproval;
+import com.stablebridge.txrecovery.domain.transaction.model.ApprovalResult;
+import com.stablebridge.txrecovery.domain.transaction.model.CancellationResult;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionProjectionStore;
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionWorkflowSignaler;
@@ -41,41 +46,66 @@ class TransactionApprovalServiceTest {
 
         @Test
         void shouldApproveTransactionInAwaitingHumanStatus() {
+            // given
             given(transactionProjectionStore.findById(SOME_APPROVAL_TRANSACTION_ID))
                     .willReturn(Optional.of(AWAITING_HUMAN_PROJECTION));
 
+            // when
             var result = transactionApprovalService.approveTransaction(
                     SOME_APPROVAL_TRANSACTION_ID, ApprovalAction.RETRY, SOME_APPROVAL_REASON, "system");
 
-            assertThat(result.transactionId()).isEqualTo(SOME_APPROVAL_TRANSACTION_ID);
-            assertThat(result.status()).isEqualTo(TransactionStatus.AWAITING_HUMAN);
-            assertThat(result.action()).isEqualTo(ApprovalAction.RETRY);
+            // then
+            var expected = ApprovalResult.builder()
+                    .transactionId(SOME_APPROVAL_TRANSACTION_ID)
+                    .status(TransactionStatus.AWAITING_HUMAN)
+                    .action(ApprovalAction.RETRY)
+                    .build();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .ignoringFields("approvedAt")
+                    .isEqualTo(expected);
             assertThat(result.approvedAt()).isNotNull();
 
+            var expectedApproval = HumanApproval.builder()
+                    .action(ApprovalAction.RETRY)
+                    .approvedBy("system")
+                    .reason(SOME_APPROVAL_REASON)
+                    .build();
             then(transactionWorkflowSignaler).should()
                     .signalApproveRecovery(
-                            argThat(id -> id.equals(SOME_APPROVAL_TRANSACTION_ID)),
-                            argThat(approval -> approval.action() == ApprovalAction.RETRY
-                                    && approval.approvedBy().equals("system")
-                                    && approval.reason().equals(SOME_APPROVAL_REASON)));
+                            eqIgnoring(SOME_APPROVAL_TRANSACTION_ID),
+                            eqIgnoringTimestamps(expectedApproval));
         }
 
         @Test
         void shouldApproveWithAbortAction() {
+            // given
             given(transactionProjectionStore.findById(SOME_APPROVAL_TRANSACTION_ID))
                     .willReturn(Optional.of(AWAITING_HUMAN_PROJECTION));
 
+            // when
             var result = transactionApprovalService.approveTransaction(
                     SOME_APPROVAL_TRANSACTION_ID, ApprovalAction.ABORT, SOME_APPROVAL_REASON, "system");
 
-            assertThat(result.action()).isEqualTo(ApprovalAction.ABORT);
+            // then
+            var expected = ApprovalResult.builder()
+                    .transactionId(SOME_APPROVAL_TRANSACTION_ID)
+                    .status(TransactionStatus.AWAITING_HUMAN)
+                    .action(ApprovalAction.ABORT)
+                    .build();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .ignoringFields("approvedAt")
+                    .isEqualTo(expected);
         }
 
         @Test
         void shouldThrowWhenTransactionNotFound() {
+            // given
             given(transactionProjectionStore.findById("non-existent-tx"))
                     .willReturn(Optional.empty());
 
+            // when/then
             assertThatThrownBy(() -> transactionApprovalService.approveTransaction(
                     "non-existent-tx", ApprovalAction.RETRY, SOME_APPROVAL_REASON, "system"))
                     .isInstanceOf(TransactionNotFoundException.class)
@@ -84,9 +114,11 @@ class TransactionApprovalServiceTest {
 
         @Test
         void shouldThrowWhenTransactionNotInAwaitingHumanStatus() {
+            // given
             given(transactionProjectionStore.findById(SOME_APPROVAL_TRANSACTION_ID))
                     .willReturn(Optional.of(PENDING_PROJECTION));
 
+            // when/then
             assertThatThrownBy(() -> transactionApprovalService.approveTransaction(
                     SOME_APPROVAL_TRANSACTION_ID, ApprovalAction.RETRY, SOME_APPROVAL_REASON, "system"))
                     .isInstanceOf(InvalidTransactionStateException.class)
@@ -100,50 +132,83 @@ class TransactionApprovalServiceTest {
 
         @Test
         void shouldCancelTransactionInPendingStatus() {
+            // given
             given(transactionProjectionStore.findById(SOME_APPROVAL_TRANSACTION_ID))
                     .willReturn(Optional.of(PENDING_PROJECTION));
 
+            // when
             var result = transactionApprovalService.cancelTransaction(
                     SOME_APPROVAL_TRANSACTION_ID, SOME_CANCEL_REASON, "system");
 
-            assertThat(result.transactionId()).isEqualTo(SOME_APPROVAL_TRANSACTION_ID);
-            assertThat(result.status()).isEqualTo(TransactionStatus.CANCELLING);
-            assertThat(result.message()).contains(SOME_APPROVAL_TRANSACTION_ID);
+            // then
+            var expected = CancellationResult.builder()
+                    .transactionId(SOME_APPROVAL_TRANSACTION_ID)
+                    .status(TransactionStatus.CANCELLING)
+                    .message("Cancellation requested for transaction %s".formatted(SOME_APPROVAL_TRANSACTION_ID))
+                    .build();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .isEqualTo(expected);
 
+            var expectedRequest = CancelRequest.builder()
+                    .requestedBy("system")
+                    .reason(SOME_CANCEL_REASON)
+                    .build();
             then(transactionWorkflowSignaler).should()
                     .signalCancelTransaction(
-                            argThat(id -> id.equals(SOME_APPROVAL_TRANSACTION_ID)),
-                            argThat(req -> req.requestedBy().equals("system")
-                                    && req.reason().equals(SOME_CANCEL_REASON)));
+                            eqIgnoring(SOME_APPROVAL_TRANSACTION_ID),
+                            eqIgnoringTimestamps(expectedRequest));
         }
 
         @Test
         void shouldCancelTransactionInStuckStatus() {
+            // given
             given(transactionProjectionStore.findById(SOME_APPROVAL_TRANSACTION_ID))
                     .willReturn(Optional.of(STUCK_PROJECTION));
 
+            // when
             var result = transactionApprovalService.cancelTransaction(
                     SOME_APPROVAL_TRANSACTION_ID, SOME_CANCEL_REASON, "system");
 
-            assertThat(result.status()).isEqualTo(TransactionStatus.CANCELLING);
+            // then
+            var expected = CancellationResult.builder()
+                    .transactionId(SOME_APPROVAL_TRANSACTION_ID)
+                    .status(TransactionStatus.CANCELLING)
+                    .message("Cancellation requested for transaction %s".formatted(SOME_APPROVAL_TRANSACTION_ID))
+                    .build();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .isEqualTo(expected);
         }
 
         @Test
         void shouldCancelTransactionInAwaitingHumanStatus() {
+            // given
             given(transactionProjectionStore.findById(SOME_APPROVAL_TRANSACTION_ID))
                     .willReturn(Optional.of(AWAITING_HUMAN_PROJECTION));
 
+            // when
             var result = transactionApprovalService.cancelTransaction(
                     SOME_APPROVAL_TRANSACTION_ID, SOME_CANCEL_REASON, "system");
 
-            assertThat(result.status()).isEqualTo(TransactionStatus.CANCELLING);
+            // then
+            var expected = CancellationResult.builder()
+                    .transactionId(SOME_APPROVAL_TRANSACTION_ID)
+                    .status(TransactionStatus.CANCELLING)
+                    .message("Cancellation requested for transaction %s".formatted(SOME_APPROVAL_TRANSACTION_ID))
+                    .build();
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .isEqualTo(expected);
         }
 
         @Test
         void shouldThrowWhenTransactionNotFound() {
+            // given
             given(transactionProjectionStore.findById("non-existent-tx"))
                     .willReturn(Optional.empty());
 
+            // when/then
             assertThatThrownBy(() -> transactionApprovalService.cancelTransaction(
                     "non-existent-tx", SOME_CANCEL_REASON, "system"))
                     .isInstanceOf(TransactionNotFoundException.class)
@@ -152,9 +217,11 @@ class TransactionApprovalServiceTest {
 
         @Test
         void shouldThrowWhenTransactionIsFinalized() {
+            // given
             given(transactionProjectionStore.findById(SOME_APPROVAL_TRANSACTION_ID))
                     .willReturn(Optional.of(FINALIZED_PROJECTION));
 
+            // when/then
             assertThatThrownBy(() -> transactionApprovalService.cancelTransaction(
                     SOME_APPROVAL_TRANSACTION_ID, SOME_CANCEL_REASON, "system"))
                     .isInstanceOf(TerminalTransactionException.class)
@@ -163,9 +230,11 @@ class TransactionApprovalServiceTest {
 
         @Test
         void shouldThrowWhenTransactionIsFailed() {
+            // given
             given(transactionProjectionStore.findById(SOME_APPROVAL_TRANSACTION_ID))
                     .willReturn(Optional.of(FAILED_PROJECTION));
 
+            // when/then
             assertThatThrownBy(() -> transactionApprovalService.cancelTransaction(
                     SOME_APPROVAL_TRANSACTION_ID, SOME_CANCEL_REASON, "system"))
                     .isInstanceOf(TerminalTransactionException.class)
@@ -174,9 +243,11 @@ class TransactionApprovalServiceTest {
 
         @Test
         void shouldThrowWhenTransactionIsCancelled() {
+            // given
             given(transactionProjectionStore.findById(SOME_APPROVAL_TRANSACTION_ID))
                     .willReturn(Optional.of(CANCELLED_PROJECTION));
 
+            // when/then
             assertThatThrownBy(() -> transactionApprovalService.cancelTransaction(
                     SOME_APPROVAL_TRANSACTION_ID, SOME_CANCEL_REASON, "system"))
                     .isInstanceOf(TerminalTransactionException.class)

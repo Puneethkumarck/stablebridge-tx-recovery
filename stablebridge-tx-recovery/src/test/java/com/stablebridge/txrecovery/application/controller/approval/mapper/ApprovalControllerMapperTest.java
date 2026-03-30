@@ -17,29 +17,37 @@ class ApprovalControllerMapperTest {
 
     @Test
     void shouldMapRetryActionToDomain() {
+        // when
         var result = mapper.toDomain(ApprovalActionDto.RETRY);
 
+        // then
         assertThat(result).isEqualTo(ApprovalAction.RETRY);
     }
 
     @Test
     void shouldMapCancelActionToDomain() {
+        // when
         var result = mapper.toDomain(ApprovalActionDto.CANCEL);
 
+        // then
         assertThat(result).isEqualTo(ApprovalAction.CANCEL);
     }
 
     @Test
     void shouldMapAbortActionToDomain() {
+        // when
         var result = mapper.toDomain(ApprovalActionDto.ABORT);
 
+        // then
         assertThat(result).isEqualTo(ApprovalAction.ABORT);
     }
 
     @Test
     void shouldMapApprovalResultToResponse() {
+        // when
         var result = mapper.toApproveResponse(SOME_APPROVAL_RESULT);
 
+        // then
         var expected = ApproveTransactionResponse.builder()
                 .transactionId(SOME_APPROVAL_TRANSACTION_ID)
                 .status("AWAITING_HUMAN")
@@ -53,8 +61,10 @@ class ApprovalControllerMapperTest {
 
     @Test
     void shouldMapCancellationResultToResponse() {
+        // when
         var result = mapper.toCancelResponse(SOME_CANCELLATION_RESULT);
 
+        // then
         var expected = CancelTransactionResponse.builder()
                 .transactionId(SOME_APPROVAL_TRANSACTION_ID)
                 .status("CANCELLING")
