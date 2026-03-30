@@ -11,6 +11,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -52,14 +53,8 @@ class StatusServiceTest {
     @Mock
     private NonceManager nonceManager;
 
+    @InjectMocks
     private StatusService statusService;
-
-    @org.junit.jupiter.api.BeforeEach
-    void setUp() {
-        statusService = new StatusService(
-                chainConfigProvider, transactionCountProvider, rpcHealthProvider,
-                workflowHealthProvider, addressPoolRepository, java.util.Optional.of(nonceManager));
-    }
 
     @Nested
     class GetAllChainStatuses {

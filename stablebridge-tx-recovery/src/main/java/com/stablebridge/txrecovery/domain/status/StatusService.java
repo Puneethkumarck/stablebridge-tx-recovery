@@ -1,7 +1,6 @@
 package com.stablebridge.txrecovery.domain.status;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 import org.springframework.stereotype.Service;
@@ -32,7 +31,7 @@ public class StatusService {
     private final RpcHealthProvider rpcHealthProvider;
     private final WorkflowHealthProvider workflowHealthProvider;
     private final AddressPoolRepository addressPoolRepository;
-    private final Optional<NonceManager> nonceManager;
+    private final NonceManager nonceManager;
 
     public List<ChainStatusSummary> getAllChainStatuses() {
         var temporalHealthy = workflowHealthProvider.isHealthy();
@@ -110,14 +109,12 @@ public class StatusService {
     }
 
     private Set<Long> detectGapsSafely(PooledAddress address) {
-        return nonceManager.map(nm -> {
-            try {
-                return nm.detectGaps(address.address(), address.chain());
-            } catch (Exception e) {
-                log.warn("Failed to detect nonce gaps for {}: {}", address.address(), e.getMessage());
-                return Set.<Long>of();
-            }
-        }).orElse(Set.of());
+        try {
+            return nonceManager.detectGaps(address.address(), address.chain());
+        } catch (Exception e) {
+            log.warn("Failed to detect nonce gaps for {}: {}", address.address(), e.getMessage());
+            return Set.of();
+        }
     }
 
     private HealthStatus determineStatus(long rpcLatencyMs, boolean temporalHealthy) {
