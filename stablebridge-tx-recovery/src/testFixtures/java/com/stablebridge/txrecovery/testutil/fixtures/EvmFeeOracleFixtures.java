@@ -8,7 +8,6 @@ import java.util.List;
 
 import com.stablebridge.txrecovery.infrastructure.client.evm.EvmChainProperties;
 import com.stablebridge.txrecovery.infrastructure.client.evm.EvmFeeHistory;
-import com.stablebridge.txrecovery.infrastructure.client.evm.EvmFeeOracleFactory;
 import com.stablebridge.txrecovery.infrastructure.client.evm.EvmTransaction;
 
 import lombok.NoArgsConstructor;
@@ -119,36 +118,4 @@ public final class EvmFeeOracleFixtures {
             .type("0x0")
             .build();
 
-    public static final EvmFeeOracleFactory.ChainInput SOME_ETHEREUM_CHAIN_INPUT =
-            EvmFeeOracleFactory.ChainInput.builder()
-                    .name("ethereum")
-                    .rpcUrls(List.of("http://localhost:8545"))
-                    .maxFeeCapGwei(new BigDecimal("200"))
-                    .blockTime(Duration.ofSeconds(12))
-                    .rpcTimeout(Duration.ofSeconds(5))
-                    .rateLimitPerSecond(25)
-                    .rateLimitBurst(50)
-                    .build();
-
-    public static final EvmFeeOracleFactory.ChainInput SOME_BASE_CHAIN_INPUT =
-            EvmFeeOracleFactory.ChainInput.builder()
-                    .name("base")
-                    .rpcUrls(List.of("http://localhost:8546"))
-                    .maxFeeCapGwei(new BigDecimal("5"))
-                    .blockTime(Duration.ofSeconds(2))
-                    .rpcTimeout(Duration.ofSeconds(5))
-                    .rateLimitPerSecond(25)
-                    .rateLimitBurst(50)
-                    .build();
-
-    public static final EvmFeeOracleFactory.ChainInput SOME_POLYGON_CHAIN_INPUT =
-            EvmFeeOracleFactory.ChainInput.builder()
-                    .name("polygon")
-                    .rpcUrls(List.of("http://localhost:8547"))
-                    .maxFeeCapGwei(new BigDecimal("500"))
-                    .blockTime(Duration.ofSeconds(2))
-                    .rpcTimeout(Duration.ofSeconds(5))
-                    .rateLimitPerSecond(25)
-                    .rateLimitBurst(50)
-                    .build();
 }

@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import com.stablebridge.txrecovery.application.config.ChainAdapterRegistry;
 import com.stablebridge.txrecovery.domain.address.model.ChainFamily;
 import com.stablebridge.txrecovery.domain.recovery.model.EscalationPolicy;
 import com.stablebridge.txrecovery.domain.recovery.model.EscalationTier;
@@ -84,19 +85,20 @@ class TransactionLifecycleActivitiesImplTest {
         transactionSigner = mock(TransactionSigner.class);
         eventPublisher = mock(TransactionEventPublisher.class);
 
-        given(evmRecoveryStrategy.appliesTo(ChainFamily.EVM)).willReturn(true);
-        given(evmRecoveryStrategy.appliesTo(ChainFamily.SOLANA)).willReturn(false);
+        var registry = new ChainAdapterRegistry(
+                Map.of(SOME_CHAIN, evmChainTransactionManager),
+                Map.of(SOME_CHAIN, evmSubmissionResourceManager),
+                Map.of(SOME_CHAIN, mock(com.stablebridge.txrecovery.domain.recovery.port.FeeOracle.class)),
+                Map.of(SOME_CHAIN, evmRecoveryStrategy),
+                Map.of(SOME_CHAIN, ChainFamily.EVM));
 
         var impl = new TransactionLifecycleActivitiesImpl(
-                Map.of(ChainFamily.EVM, evmChainTransactionManager),
-                Map.of(ChainFamily.EVM, evmSubmissionResourceManager),
-                List.of(evmRecoveryStrategy),
+                registry,
                 transactionSigner,
                 eventPublisher,
                 GAS_BUDGET_POLICY,
                 ESCALATION_POLICY,
-                CHAIN_FAMILY_MAPPING,
-                DEFAULT_POLL_INTERVAL);
+                Map.of(SOME_CHAIN, DEFAULT_POLL_INTERVAL));
 
         testActivityEnv = TestActivityEnvironment.newInstance();
         testActivityEnv.registerActivitiesImplementations(impl);
@@ -136,7 +138,7 @@ class TransactionLifecycleActivitiesImplTest {
 
             // when / then
             assertThatThrownBy(() -> activities.acquireResource(unknownChainIntent))
-                    .hasMessageContaining("No chain family mapping found for chain: unknown-chain");
+                    .hasMessageContaining("Unknown chain: unknown-chain");
         }
     }
 
@@ -464,7 +466,7 @@ class TransactionLifecycleActivitiesImplTest {
 
             // when / then
             assertThatThrownBy(() -> activities.executeRecovery(plan, "unknown-chain"))
-                    .hasMessageContaining("No chain family mapping found for chain: unknown-chain");
+                    .hasMessageContaining("Unknown chain: unknown-chain");
         }
     }
 
