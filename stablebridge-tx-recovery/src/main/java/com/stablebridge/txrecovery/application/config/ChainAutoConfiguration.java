@@ -90,14 +90,6 @@ public class ChainAutoConfiguration {
     }
 
     @Bean
-    Map<String, ChainFamily> chainFamilyMapping() {
-        var mapping = new HashMap<String, ChainFamily>();
-        enabledChainConfigs().forEach(config ->
-                mapping.put(config.chainName(), config.chainFamily()));
-        return Map.copyOf(mapping);
-    }
-
-    @Bean
     Map<String, Duration> chainPollIntervals() {
         var intervals = new HashMap<String, Duration>();
         enabledChainConfigs().forEach(config ->
@@ -109,15 +101,11 @@ public class ChainAutoConfiguration {
     ChainAdapterRegistry chainAdapterRegistry(
             Map<String, ChainTransactionManager> chainTransactionManagers,
             Map<String, SubmissionResourceManager> chainResourceManagers,
-            Map<String, FeeOracle> chainFeeOracles,
-            Map<String, RecoveryStrategy> chainRecoveryStrategies,
-            Map<String, ChainFamily> chainFamilyMapping) {
+            Map<String, RecoveryStrategy> chainRecoveryStrategies) {
         return new ChainAdapterRegistry(
                 chainTransactionManagers,
                 chainResourceManagers,
-                chainFeeOracles,
-                chainRecoveryStrategies,
-                chainFamilyMapping);
+                chainRecoveryStrategies);
     }
 
     private List<ChainConfig> enabledChainConfigs() {

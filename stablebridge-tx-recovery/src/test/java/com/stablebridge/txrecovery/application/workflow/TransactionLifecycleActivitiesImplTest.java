@@ -88,9 +88,7 @@ class TransactionLifecycleActivitiesImplTest {
         var registry = new ChainAdapterRegistry(
                 Map.of(SOME_CHAIN, evmChainTransactionManager),
                 Map.of(SOME_CHAIN, evmSubmissionResourceManager),
-                Map.of(SOME_CHAIN, mock(com.stablebridge.txrecovery.domain.recovery.port.FeeOracle.class)),
-                Map.of(SOME_CHAIN, evmRecoveryStrategy),
-                Map.of(SOME_CHAIN, ChainFamily.EVM));
+                Map.of(SOME_CHAIN, evmRecoveryStrategy));
 
         var impl = new TransactionLifecycleActivitiesImpl(
                 registry,
