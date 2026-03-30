@@ -13,6 +13,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.Status;
 
+import com.stablebridge.txrecovery.application.config.StrProperties.TemporalConfigProperties;
+
 import io.grpc.health.v1.HealthCheckResponse;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 
@@ -27,7 +29,7 @@ class TemporalHealthIndicatorTest {
     private WorkflowServiceStubs workflowServiceStubs;
 
     @Mock
-    private TemporalProperties temporalProperties;
+    private StrProperties strProperties;
 
     @InjectMocks
     private TemporalHealthIndicator healthIndicator;
@@ -38,13 +40,16 @@ class TemporalHealthIndicatorTest {
         @Test
         void shouldReturnUpWithConnectionDetails() {
             // given
+            var temporal = TemporalConfigProperties.builder()
+                    .target(TARGET)
+                    .namespace(NAMESPACE)
+                    .taskQueue(TASK_QUEUE)
+                    .build();
+            given(strProperties.temporal()).willReturn(temporal);
             var response = HealthCheckResponse.newBuilder()
                     .setStatus(HealthCheckResponse.ServingStatus.SERVING)
                     .build();
             given(workflowServiceStubs.healthCheck()).willReturn(response);
-            given(temporalProperties.target()).willReturn(TARGET);
-            given(temporalProperties.namespace()).willReturn(NAMESPACE);
-            given(temporalProperties.taskQueue()).willReturn(TASK_QUEUE);
 
             // when
             var health = healthIndicator.health();
@@ -68,9 +73,12 @@ class TemporalHealthIndicatorTest {
         @Test
         void shouldReturnDegradedWithException() {
             // given
+            var temporal = TemporalConfigProperties.builder()
+                    .target(TARGET)
+                    .build();
+            given(strProperties.temporal()).willReturn(temporal);
             var connectionException = new RuntimeException("Connection refused");
             willThrow(connectionException).given(workflowServiceStubs).healthCheck();
-            given(temporalProperties.target()).willReturn(TARGET);
 
             // when
             var health = healthIndicator.health();

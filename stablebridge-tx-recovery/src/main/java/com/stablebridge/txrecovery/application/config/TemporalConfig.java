@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.stablebridge.txrecovery.application.config.StrProperties.TemporalConfigProperties.ActivityConfig;
 import com.stablebridge.txrecovery.application.workflow.TransactionLifecycleActivities;
 import com.stablebridge.txrecovery.application.workflow.TransactionLifecycleWorkflowImpl;
 
@@ -31,16 +32,17 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Configuration
-@EnableConfigurationProperties(TemporalProperties.class)
+@EnableConfigurationProperties(StrProperties.class)
 @ConditionalOnProperty(prefix = "str.temporal", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class TemporalConfig {
 
     @Bean
-    WorkflowServiceStubs workflowServiceStubs(TemporalProperties properties) {
+    WorkflowServiceStubs workflowServiceStubs(StrProperties strProperties) {
+        var temporal = strProperties.temporal();
         var options = WorkflowServiceStubsOptions.newBuilder()
-                .setTarget(properties.target())
+                .setTarget(temporal.target())
                 .build();
-        log.info("Connecting to Temporal server at {}", properties.target());
+        log.info("Connecting to Temporal server at {}", temporal.target());
         return WorkflowServiceStubs.newServiceStubs(options);
     }
 
@@ -56,13 +58,14 @@ public class TemporalConfig {
     @Bean
     WorkflowClient workflowClient(
             WorkflowServiceStubs serviceStubs,
-            TemporalProperties properties,
+            StrProperties strProperties,
             DataConverter dataConverter) {
+        var temporal = strProperties.temporal();
         var options = WorkflowClientOptions.newBuilder()
-                .setNamespace(properties.namespace())
+                .setNamespace(temporal.namespace())
                 .setDataConverter(dataConverter)
                 .build();
-        log.info("Creating Temporal WorkflowClient for namespace {}", properties.namespace());
+        log.info("Creating Temporal WorkflowClient for namespace {}", temporal.namespace());
         return WorkflowClient.newInstance(serviceStubs, options);
     }
 
@@ -72,9 +75,10 @@ public class TemporalConfig {
     }
 
     @Bean
-    WorkflowImplementationOptions workflowImplementationOptions(TemporalProperties properties) {
-        var nonRetryable = properties.nonRetryableExceptions().toArray(String[]::new);
-        var activityOptions = properties.activityOptions();
+    WorkflowImplementationOptions workflowImplementationOptions(StrProperties strProperties) {
+        var temporal = strProperties.temporal();
+        var nonRetryable = temporal.nonRetryableExceptions().toArray(String[]::new);
+        var activityOptions = temporal.activityOptions();
 
         var activityMethodOptions = Map.of(
                 "sign", buildActivityOptions(activityOptions.signing(), nonRetryable),
@@ -91,29 +95,30 @@ public class TemporalConfig {
     @Bean
     Worker worker(
             WorkerFactory workerFactory,
-            TemporalProperties properties,
+            StrProperties strProperties,
             WorkflowImplementationOptions workflowImplOptions,
             ObjectProvider<TransactionLifecycleActivities> activitiesProvider) {
-        log.info("Creating Temporal worker for task queue {}", properties.taskQueue());
-        var worker = workerFactory.newWorker(properties.taskQueue());
+        var temporal = strProperties.temporal();
+        log.info("Creating Temporal worker for task queue {}", temporal.taskQueue());
+        var worker = workerFactory.newWorker(temporal.taskQueue());
         worker.registerWorkflowImplementationTypes(workflowImplOptions, TransactionLifecycleWorkflowImpl.class);
         activitiesProvider.ifAvailable(worker::registerActivitiesImplementations);
         return worker;
     }
 
     @Bean
-    WorkflowOptions workflowOptions(TemporalProperties properties) {
+    WorkflowOptions workflowOptions(StrProperties strProperties) {
+        var temporal = strProperties.temporal();
         return WorkflowOptions.newBuilder()
-                .setTaskQueue(properties.taskQueue())
-                .setWorkflowExecutionTimeout(properties.workflowExecutionTimeout())
-                .setWorkflowRunTimeout(properties.workflowRunTimeout())
+                .setTaskQueue(temporal.taskQueue())
+                .setWorkflowExecutionTimeout(temporal.workflowExecutionTimeout())
+                .setWorkflowRunTimeout(temporal.workflowRunTimeout())
                 .setWorkflowIdReusePolicy(
                         WorkflowIdReusePolicy.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE_FAILED_ONLY)
                 .build();
     }
 
-    private ActivityOptions buildActivityOptions(
-            TemporalProperties.ActivityConfig config, String[] nonRetryable) {
+    private ActivityOptions buildActivityOptions(ActivityConfig config, String[] nonRetryable) {
         var retryOptions = RetryOptions.newBuilder()
                 .setMaximumAttempts(config.maxAttempts())
                 .setInitialInterval(config.initialInterval())

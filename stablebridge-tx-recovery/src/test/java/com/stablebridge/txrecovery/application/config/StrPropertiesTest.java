@@ -255,7 +255,8 @@ class StrPropertiesTest {
             assertThat(temporal.workflowRunTimeout()).isEqualTo(Duration.ofHours(2));
             assertThat(temporal.nonRetryableExceptions()).containsExactly(
                     "com.stablebridge.txrecovery.domain.exception.NonRetryableException",
-                    "com.stablebridge.txrecovery.domain.exception.NonceTooLowException");
+                    "com.stablebridge.txrecovery.domain.exception.NonceTooLowException",
+                    "com.stablebridge.txrecovery.domain.exception.UnknownChainException");
         }
 
         @Test

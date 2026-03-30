@@ -204,7 +204,8 @@ public record StrProperties(
                     workflowRunTimeout, Duration.ofHours(2));
             nonRetryableExceptions = Objects.requireNonNullElse(nonRetryableExceptions, List.of(
                     "com.stablebridge.txrecovery.domain.exception.NonRetryableException",
-                    "com.stablebridge.txrecovery.domain.exception.NonceTooLowException"));
+                    "com.stablebridge.txrecovery.domain.exception.NonceTooLowException",
+                    "com.stablebridge.txrecovery.domain.exception.UnknownChainException"));
             activityOptions = Objects.requireNonNullElse(
                     activityOptions, ActivityOptionsProperties.builder().build());
         }
