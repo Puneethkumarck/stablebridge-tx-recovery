@@ -47,6 +47,7 @@ public class SolanaChainBeanFactory implements ChainBeanFactory {
     private final Clock clock;
 
     private final Map<String, SolanaRpcClient> rpcClientCache = new ConcurrentHashMap<>();
+    private final Map<String, FeeOracle> feeOracleCache = new ConcurrentHashMap<>();
 
     @Override
     public ChainFamily supportedFamily() {
@@ -67,14 +68,16 @@ public class SolanaChainBeanFactory implements ChainBeanFactory {
 
     @Override
     public FeeOracle createFeeOracle(ChainConfig config) {
-        var rpcClient = createRpcClient(config);
-        var chainProperties = SolanaChainProperties.builder()
-                .chain(config.chainName())
-                .maxPriorityFeeMicroLamports(DEFAULT_MAX_PRIORITY_FEE_MICRO_LAMPORTS)
-                .blockTime(config.pollInterval())
-                .programAddresses(config.tokenMints())
-                .build();
-        return new SolanaFeeOracle(rpcClient, chainProperties, feeCache);
+        return feeOracleCache.computeIfAbsent(config.chainName(), _ -> {
+            var rpcClient = createRpcClient(config);
+            var chainProperties = SolanaChainProperties.builder()
+                    .chain(config.chainName())
+                    .maxPriorityFeeMicroLamports(DEFAULT_MAX_PRIORITY_FEE_MICRO_LAMPORTS)
+                    .blockTime(config.pollInterval())
+                    .programAddresses(config.tokenMints())
+                    .build();
+            return new SolanaFeeOracle(rpcClient, chainProperties, feeCache);
+        });
     }
 
     @Override

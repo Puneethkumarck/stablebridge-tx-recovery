@@ -30,6 +30,7 @@ public class EvmChainBeanFactory implements ChainBeanFactory {
     private final SubmissionResourceManager evmSubmissionResourceManager;
 
     private final Map<String, EvmRpcClient> rpcClientCache = new ConcurrentHashMap<>();
+    private final Map<String, FeeOracle> feeOracleCache = new ConcurrentHashMap<>();
 
     @Override
     public ChainFamily supportedFamily() {
@@ -51,13 +52,15 @@ public class EvmChainBeanFactory implements ChainBeanFactory {
 
     @Override
     public FeeOracle createFeeOracle(ChainConfig config) {
-        var rpcClient = createRpcClient(config);
-        var chainProperties = EvmChainProperties.builder()
-                .chain(config.chainName())
-                .maxFeeCapGwei(config.maxFeeCapGwei())
-                .blockTime(config.pollInterval())
-                .build();
-        return new EvmFeeOracle(rpcClient, chainProperties, feeCache);
+        return feeOracleCache.computeIfAbsent(config.chainName(), _ -> {
+            var rpcClient = createRpcClient(config);
+            var chainProperties = EvmChainProperties.builder()
+                    .chain(config.chainName())
+                    .maxFeeCapGwei(config.maxFeeCapGwei())
+                    .blockTime(config.pollInterval())
+                    .build();
+            return new EvmFeeOracle(rpcClient, chainProperties, feeCache);
+        });
     }
 
     @Override

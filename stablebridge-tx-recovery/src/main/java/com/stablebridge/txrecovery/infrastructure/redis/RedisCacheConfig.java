@@ -15,6 +15,7 @@ class RedisCacheConfig {
 
     @Bean
     @ConditionalOnBean(StringRedisTemplate.class)
+    @ConditionalOnMissingBean(FeeCache.class)
     FeeCache redisFeeCache(StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
         return new RedisFeeCache(redisTemplate, objectMapper);
     }
