@@ -4,18 +4,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.health.contributor.Health;
+import org.springframework.boot.health.contributor.Status;
 
 import io.grpc.health.v1.HealthCheckResponse;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 
 @ExtendWith(MockitoExtension.class)
 class TemporalHealthIndicatorTest {
+
+    private static final String TARGET = "localhost:7233";
+    private static final String NAMESPACE = "stablebridge-tx-recovery";
+    private static final String TASK_QUEUE = "str-transaction-lifecycle";
 
     @Mock
     private WorkflowServiceStubs workflowServiceStubs;
@@ -26,50 +32,58 @@ class TemporalHealthIndicatorTest {
     @InjectMocks
     private TemporalHealthIndicator healthIndicator;
 
-    @Test
-    void shouldReturnUpWhenTemporalIsHealthy() {
-        // given
-        var response = HealthCheckResponse.newBuilder()
-                .setStatus(HealthCheckResponse.ServingStatus.SERVING)
-                .build();
-        given(workflowServiceStubs.healthCheck()).willReturn(response);
-        given(temporalProperties.target()).willReturn("localhost:7233");
-        given(temporalProperties.namespace()).willReturn("stablebridge-tx-recovery");
-        given(temporalProperties.taskQueue()).willReturn("str-transaction-lifecycle");
+    @Nested
+    class WhenTemporalIsHealthy {
 
-        // when
-        var health = healthIndicator.health();
+        @Test
+        void shouldReturnUpWithConnectionDetails() {
+            // given
+            var response = HealthCheckResponse.newBuilder()
+                    .setStatus(HealthCheckResponse.ServingStatus.SERVING)
+                    .build();
+            given(workflowServiceStubs.healthCheck()).willReturn(response);
+            given(temporalProperties.target()).willReturn(TARGET);
+            given(temporalProperties.namespace()).willReturn(NAMESPACE);
+            given(temporalProperties.taskQueue()).willReturn(TASK_QUEUE);
 
-        // then
-        var expected = Health.up()
-                .withDetail("target", "localhost:7233")
-                .withDetail("namespace", "stablebridge-tx-recovery")
-                .withDetail("taskQueue", "str-transaction-lifecycle")
-                .build();
+            // when
+            var health = healthIndicator.health();
 
-        assertThat(health)
-                .usingRecursiveComparison()
-                .isEqualTo(expected);
+            // then
+            var expected = Health.up()
+                    .withDetail("target", TARGET)
+                    .withDetail("namespace", NAMESPACE)
+                    .withDetail("taskQueue", TASK_QUEUE)
+                    .build();
+
+            assertThat(health)
+                    .usingRecursiveComparison()
+                    .isEqualTo(expected);
+        }
     }
 
-    @Test
-    void shouldReturnDownWhenTemporalIsUnhealthy() {
-        // given
-        var connectionException = new RuntimeException("Connection refused");
-        willThrow(connectionException).given(workflowServiceStubs).healthCheck();
-        given(temporalProperties.target()).willReturn("localhost:7233");
+    @Nested
+    class WhenTemporalIsUnhealthy {
 
-        // when
-        var health = healthIndicator.health();
+        @Test
+        void shouldReturnDegradedWithException() {
+            // given
+            var connectionException = new RuntimeException("Connection refused");
+            willThrow(connectionException).given(workflowServiceStubs).healthCheck();
+            given(temporalProperties.target()).willReturn(TARGET);
 
-        // then
-        var expected = Health.down()
-                .withDetail("target", "localhost:7233")
-                .withException(connectionException)
-                .build();
+            // when
+            var health = healthIndicator.health();
 
-        assertThat(health)
-                .usingRecursiveComparison()
-                .isEqualTo(expected);
+            // then
+            var expected = Health.status(new Status("DEGRADED"))
+                    .withDetail("target", TARGET)
+                    .withException(connectionException)
+                    .build();
+
+            assertThat(health)
+                    .usingRecursiveComparison()
+                    .isEqualTo(expected);
+        }
     }
 }
