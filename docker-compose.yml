@@ -36,7 +36,7 @@ services:
       retries: 5
 
   redis:
-    image: redis/redis-stack:latest
+    image: redis/redis-stack:7.4.0-v8
     container_name: str-redis
     ports:
       - "6379:6379"
@@ -79,7 +79,7 @@ services:
       retries: 5
 
   temporal:
-    image: temporalio/auto-setup:latest
+    image: temporalio/auto-setup:1.29.4.1
     container_name: str-temporal
     ports:
       - "7233:7233"
@@ -90,6 +90,7 @@ services:
       POSTGRES_PWD: temporal
       POSTGRES_SEEDS: postgres-temporal
       DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+      PROMETHEUS_ENDPOINT: 0.0.0.0:8000
     depends_on:
       postgres-temporal:
         condition: service_healthy
@@ -101,7 +102,7 @@ services:
       start_period: 30s
 
   temporal-ui:
-    image: temporalio/ui:latest
+    image: temporalio/ui:2.48.1
     container_name: str-temporal-ui
     ports:
       - "8088:8080"
@@ -111,6 +112,11 @@ services:
     depends_on:
       temporal:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/v1/settings || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   prometheus:
     image: prom/prometheus:v3.4.0
