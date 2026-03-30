@@ -1,0 +1,749 @@
+{
+  "info": {
+    "name": "StableBridge Transaction Recovery",
+    "_postman_id": "str-tx-recovery-collection",
+    "description": "API collection for StableBridge Transaction Recovery service.\n\nSet the `baseUrl` and `apiKey` collection variables before running requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Transactions",
+      "description": "Submit and query recovery transactions.",
+      "item": [
+        {
+          "name": "Submit Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"intentId\": \"{{$randomUUID}}\",\n  \"chain\": \"ethereum\",\n  \"toAddress\": \"0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18\",\n  \"amount\": 1500.50,\n  \"token\": \"USDC\",\n  \"tokenDecimals\": 6,\n  \"tokenContractAddress\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n  \"metadata\": {\n    \"source\": \"manual-recovery\",\n    \"ticket\": \"OPS-12345\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transactions"
+              ]
+            },
+            "description": "Submit a single transaction for recovery. Returns 201 on success or 200 if the intentId already exists (idempotent)."
+          }
+        },
+        {
+          "name": "Submit Batch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transactions\": [\n    {\n      \"intentId\": \"{{$randomUUID}}\",\n      \"chain\": \"ethereum\",\n      \"toAddress\": \"0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18\",\n      \"amount\": 500.00,\n      \"token\": \"USDC\",\n      \"tokenDecimals\": 6,\n      \"tokenContractAddress\": \"0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48\",\n      \"metadata\": {\n        \"source\": \"batch-recovery\",\n        \"ticket\": \"OPS-12346\"\n      }\n    },\n    {\n      \"intentId\": \"{{$randomUUID}}\",\n      \"chain\": \"polygon\",\n      \"toAddress\": \"0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199\",\n      \"amount\": 250.75,\n      \"token\": \"USDT\",\n      \"tokenDecimals\": 6,\n      \"tokenContractAddress\": \"0xc2132D05D31c914a87C6611C10748AEb04B58e8F\",\n      \"metadata\": {\n        \"source\": \"batch-recovery\"\n      }\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions/batch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transactions",
+                "batch"
+              ]
+            },
+            "description": "Submit multiple transactions in a single batch. Returns 201 with a batchId and individual transaction responses."
+          }
+        },
+        {
+          "name": "Get Transaction by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions/:transactionId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transactions",
+                ":transactionId"
+              ],
+              "variable": [
+                {
+                  "key": "transactionId",
+                  "value": "01961f3e-7b6d-7cf0-a123-456789abcdef",
+                  "description": "UUID of the transaction"
+                }
+              ]
+            },
+            "description": "Retrieve a single transaction by its ID."
+          }
+        },
+        {
+          "name": "List Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions?page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "chain",
+                  "value": "ethereum",
+                  "description": "Filter by blockchain (e.g. ethereum, polygon, solana)",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "PENDING",
+                  "description": "Filter by transaction status",
+                  "disabled": true
+                },
+                {
+                  "key": "fromAddress",
+                  "value": "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD18",
+                  "description": "Filter by sender address",
+                  "disabled": true
+                },
+                {
+                  "key": "toAddress",
+                  "value": "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199",
+                  "description": "Filter by recipient address",
+                  "disabled": true
+                },
+                {
+                  "key": "token",
+                  "value": "USDC",
+                  "description": "Filter by token symbol",
+                  "disabled": true
+                },
+                {
+                  "key": "fromDate",
+                  "value": "2026-03-01T00:00:00Z",
+                  "description": "Filter by submission date (ISO-8601)",
+                  "disabled": true
+                },
+                {
+                  "key": "toDate",
+                  "value": "2026-03-31T23:59:59Z",
+                  "description": "Filter by submission date (ISO-8601)",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "0",
+                  "description": "Page number (zero-based)"
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "description": "Page size (default 20)"
+                }
+              ]
+            },
+            "description": "List transactions with optional filters and pagination. Disabled query params are available for filtering."
+          }
+        },
+        {
+          "name": "List Transactions - Filtered by Chain and Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions?chain=ethereum&status=STUCK&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "chain",
+                  "value": "ethereum"
+                },
+                {
+                  "key": "status",
+                  "value": "STUCK"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Example: list stuck Ethereum transactions."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Approvals",
+      "description": "Approve or cancel transactions requiring operator intervention.",
+      "item": [
+        {
+          "name": "Approve Transaction - RETRY",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"RETRY\",\n  \"reason\": \"Gas price has stabilized, retrying the stuck transaction\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions/:transactionId/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transactions",
+                ":transactionId",
+                "approve"
+              ],
+              "variable": [
+                {
+                  "key": "transactionId",
+                  "value": "01961f3e-7b6d-7cf0-a123-456789abcdef",
+                  "description": "UUID of the transaction to approve"
+                }
+              ]
+            },
+            "description": "Approve a transaction with RETRY action. The transaction will be resubmitted with updated gas parameters."
+          }
+        },
+        {
+          "name": "Approve Transaction - CANCEL",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"CANCEL\",\n  \"reason\": \"Recipient address flagged by compliance, cancelling on-chain transaction\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions/:transactionId/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transactions",
+                ":transactionId",
+                "approve"
+              ],
+              "variable": [
+                {
+                  "key": "transactionId",
+                  "value": "01961f3e-7b6d-7cf0-a123-456789abcdef",
+                  "description": "UUID of the transaction to approve"
+                }
+              ]
+            },
+            "description": "Approve a transaction with CANCEL action. Sends a zero-value replacement transaction to cancel the stuck one."
+          }
+        },
+        {
+          "name": "Approve Transaction - ABORT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"ABORT\",\n  \"reason\": \"Transaction is unrecoverable, marking as permanently failed\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions/:transactionId/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transactions",
+                ":transactionId",
+                "approve"
+              ],
+              "variable": [
+                {
+                  "key": "transactionId",
+                  "value": "01961f3e-7b6d-7cf0-a123-456789abcdef",
+                  "description": "UUID of the transaction to approve"
+                }
+              ]
+            },
+            "description": "Approve a transaction with ABORT action. Marks the transaction as permanently failed with no on-chain action."
+          }
+        },
+        {
+          "name": "Cancel Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Duplicate submission detected, cancelling before on-chain submission\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transactions/:transactionId/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transactions",
+                ":transactionId",
+                "cancel"
+              ],
+              "variable": [
+                {
+                  "key": "transactionId",
+                  "value": "01961f3e-7b6d-7cf0-a123-456789abcdef",
+                  "description": "UUID of the transaction to cancel"
+                }
+              ]
+            },
+            "description": "Cancel a transaction before it completes. Requires a reason for audit trail."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Address Pool",
+      "description": "Manage recovery addresses used for on-chain transaction submission.",
+      "item": [
+        {
+          "name": "Register Address - EVM",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"0x1234567890abcdef1234567890abcdef12345678\",\n  \"chain\": \"ethereum\",\n  \"tier\": \"HOT\",\n  \"signerEndpoint\": \"http://vault:8200/v1/transit/sign/eth-recovery-1\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/addresses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "addresses"
+              ]
+            },
+            "description": "Register an EVM-compatible address in the recovery address pool."
+          }
+        },
+        {
+          "name": "Register Address - Solana",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV\",\n  \"chain\": \"solana\",\n  \"tier\": \"HOT\",\n  \"signerEndpoint\": \"http://vault:8200/v1/transit/sign/sol-recovery-1\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/addresses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "addresses"
+              ]
+            },
+            "description": "Register a Solana address in the recovery address pool."
+          }
+        },
+        {
+          "name": "List Addresses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/addresses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "addresses"
+              ],
+              "query": [
+                {
+                  "key": "chain",
+                  "value": "ethereum",
+                  "description": "Filter by chain",
+                  "disabled": true
+                },
+                {
+                  "key": "tier",
+                  "value": "HOT",
+                  "description": "Filter by address tier (HOT, WARM, COLD)",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "ACTIVE",
+                  "description": "Filter by address status (ACTIVE, DRAINING, RETIRED)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List all registered addresses with optional chain, tier, and status filters."
+          }
+        },
+        {
+          "name": "Drain Address",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/addresses/:address?chain=ethereum",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "addresses",
+                ":address"
+              ],
+              "query": [
+                {
+                  "key": "chain",
+                  "value": "ethereum",
+                  "description": "Chain the address belongs to (required)"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "address",
+                  "value": "0x1234567890abcdef1234567890abcdef12345678",
+                  "description": "The address to drain"
+                }
+              ]
+            },
+            "description": "Mark an address as draining. It will stop receiving new transactions and be retired once in-flight transactions complete."
+          }
+        },
+        {
+          "name": "Sync Nonce",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/addresses/:address/nonces/sync?chain=ethereum",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "addresses",
+                ":address",
+                "nonces",
+                "sync"
+              ],
+              "query": [
+                {
+                  "key": "chain",
+                  "value": "ethereum",
+                  "description": "Chain to sync nonce for (required)"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "address",
+                  "value": "0x1234567890abcdef1234567890abcdef12345678",
+                  "description": "The address to sync nonce for"
+                }
+              ]
+            },
+            "description": "Synchronize the local nonce counter with the on-chain nonce for the given address and chain."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Gas Oracle",
+      "description": "Query gas price estimates and historical data per chain.",
+      "item": [
+        {
+          "name": "Get Gas Estimates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/gas/:chain",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "gas",
+                ":chain"
+              ],
+              "variable": [
+                {
+                  "key": "chain",
+                  "value": "ethereum",
+                  "description": "Blockchain name (e.g. ethereum, polygon, arbitrum)"
+                }
+              ]
+            },
+            "description": "Get current gas price estimates for all urgency tiers (low, medium, high, urgent) on the specified chain."
+          }
+        },
+        {
+          "name": "Get Gas History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/gas/:chain/history?hours=24",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "gas",
+                ":chain",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "hours",
+                  "value": "24",
+                  "description": "Number of hours of history (1-168, default 24)"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "chain",
+                  "value": "ethereum",
+                  "description": "Blockchain name"
+                }
+              ]
+            },
+            "description": "Get historical gas price data for the specified chain. Supports 1 to 168 hours (7 days) of history."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Status",
+      "description": "Monitor chain health and recovery pipeline status.",
+      "item": [
+        {
+          "name": "Get All Chain Statuses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "status"
+              ]
+            },
+            "description": "Get summary status for all configured chains including health, pending/stuck counts, and RPC latency."
+          }
+        },
+        {
+          "name": "Get Chain Status Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/status/:chain",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "status",
+                ":chain"
+              ],
+              "variable": [
+                {
+                  "key": "chain",
+                  "value": "ethereum",
+                  "description": "Blockchain name"
+                }
+              ]
+            },
+            "description": "Get detailed status for a specific chain including address pool stats and nonce health."
+          }
+        }
+      ]
+    }
+  ]
+}
