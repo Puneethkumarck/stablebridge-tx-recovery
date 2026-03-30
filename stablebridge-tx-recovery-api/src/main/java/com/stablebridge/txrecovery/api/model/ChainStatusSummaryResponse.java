@@ -8,5 +8,7 @@ public record ChainStatusSummaryResponse(
         boolean healthy,
         long pendingCount,
         long stuckCount,
-        long rpcLatencyMs,
+        long avgConfirmationMs,
+        long lastBlockSeen,
+        Long rpcLatencyMs,
         String status) {}

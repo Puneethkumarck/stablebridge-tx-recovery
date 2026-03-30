@@ -66,6 +66,8 @@ class StatusServiceTest {
             given(workflowHealthProvider.isHealthy()).willReturn(true);
             given(transactionCountProvider.countPendingByChain(SOME_CHAIN)).willReturn(5L);
             given(transactionCountProvider.countStuckByChain(SOME_CHAIN)).willReturn(1L);
+            given(transactionCountProvider.averageConfirmationTimeMs(SOME_CHAIN)).willReturn(0L);
+            given(rpcHealthProvider.getLastBlockNumber(SOME_CHAIN)).willReturn(19_000_000L);
             given(rpcHealthProvider.measureRpcLatencyMs(SOME_CHAIN)).willReturn(42L);
 
             // when
@@ -77,6 +79,8 @@ class StatusServiceTest {
                     .healthy(true)
                     .pendingCount(5)
                     .stuckCount(1)
+                    .avgConfirmationMs(0)
+                    .lastBlockSeen(19_000_000)
                     .rpcLatencyMs(42)
                     .status(HealthStatus.UP)
                     .build());
@@ -92,6 +96,8 @@ class StatusServiceTest {
             given(workflowHealthProvider.isHealthy()).willReturn(false);
             given(transactionCountProvider.countPendingByChain(SOME_CHAIN)).willReturn(0L);
             given(transactionCountProvider.countStuckByChain(SOME_CHAIN)).willReturn(0L);
+            given(transactionCountProvider.averageConfirmationTimeMs(SOME_CHAIN)).willReturn(0L);
+            given(rpcHealthProvider.getLastBlockNumber(SOME_CHAIN)).willReturn(19_000_000L);
             given(rpcHealthProvider.measureRpcLatencyMs(SOME_CHAIN)).willReturn(50L);
 
             // when
@@ -110,6 +116,8 @@ class StatusServiceTest {
             given(workflowHealthProvider.isHealthy()).willReturn(true);
             given(transactionCountProvider.countPendingByChain(SOME_CHAIN)).willReturn(0L);
             given(transactionCountProvider.countStuckByChain(SOME_CHAIN)).willReturn(0L);
+            given(transactionCountProvider.averageConfirmationTimeMs(SOME_CHAIN)).willReturn(0L);
+            given(rpcHealthProvider.getLastBlockNumber(SOME_CHAIN)).willReturn(19_000_000L);
             given(rpcHealthProvider.measureRpcLatencyMs(SOME_CHAIN))
                     .willThrow(new RuntimeException("RPC timeout"));
 
@@ -132,6 +140,8 @@ class StatusServiceTest {
             given(workflowHealthProvider.isHealthy()).willReturn(true);
             given(transactionCountProvider.countPendingByChain(SOME_CHAIN)).willReturn(5L);
             given(transactionCountProvider.countStuckByChain(SOME_CHAIN)).willReturn(1L);
+            given(transactionCountProvider.averageConfirmationTimeMs(SOME_CHAIN)).willReturn(0L);
+            given(rpcHealthProvider.getLastBlockNumber(SOME_CHAIN)).willReturn(19_000_000L);
             given(rpcHealthProvider.measureRpcLatencyMs(SOME_CHAIN)).willReturn(42L);
 
             var activeAddress = PooledAddress.builder()
@@ -168,6 +178,8 @@ class StatusServiceTest {
                     .healthy(true)
                     .pendingCount(5)
                     .stuckCount(1)
+                    .avgConfirmationMs(0)
+                    .lastBlockSeen(19_000_000)
                     .rpcLatencyMs(42)
                     .status(HealthStatus.UP)
                     .addressPoolTotal(2)

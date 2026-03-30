@@ -2,6 +2,8 @@ package com.stablebridge.txrecovery.application.controller.status;
 
 import java.util.List;
 
+import jakarta.validation.constraints.NotBlank;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,9 +17,7 @@ import com.stablebridge.txrecovery.application.controller.status.mapper.StatusCo
 import com.stablebridge.txrecovery.domain.status.StatusService;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @Validated
 @RestController
 @RequestMapping("/api/v1/status")
@@ -35,7 +35,7 @@ public class StatusController {
     }
 
     @GetMapping("/{chain}")
-    public ResponseEntity<ChainStatusDetailResponse> getChainStatus(@PathVariable String chain) {
+    public ResponseEntity<ChainStatusDetailResponse> getChainStatus(@PathVariable @NotBlank String chain) {
         var status = statusService.getChainStatus(chain);
         var response = mapper.toDetailResponse(status);
         return ResponseEntity.ok(response);

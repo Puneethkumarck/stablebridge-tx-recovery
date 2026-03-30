@@ -23,8 +23,28 @@ public class RpcHealthProviderAdapter implements RpcHealthProvider {
         if (client == null) {
             return -1;
         }
-        var start = System.nanoTime();
-        client.getBlockByNumber("latest", false);
-        return (System.nanoTime() - start) / 1_000_000;
+        try {
+            var start = System.nanoTime();
+            client.getBlockByNumber("latest", false);
+            return (System.nanoTime() - start) / 1_000_000;
+        } catch (Exception e) {
+            log.warn("RPC latency measurement failed for chain {}: {}", chain, e.getMessage());
+            return -1;
+        }
+    }
+
+    @Override
+    public long getLastBlockNumber(String chain) {
+        var client = evmRpcClients.get(chain);
+        if (client == null) {
+            return -1;
+        }
+        try {
+            var block = client.getBlockByNumber("latest", false);
+            return Long.decode(block.number());
+        } catch (Exception e) {
+            log.warn("Failed to fetch last block for chain {}: {}", chain, e.getMessage());
+            return -1;
+        }
     }
 }

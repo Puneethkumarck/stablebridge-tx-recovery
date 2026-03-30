@@ -34,4 +34,9 @@ class TransactionCountProviderAdapter implements TransactionCountProvider {
     public long countStuckByChain(String chain) {
         return jpaRepository.countByChainAndStatus(chain, TransactionStatus.STUCK.name());
     }
+
+    @Override
+    public long averageConfirmationTimeMs(String chain) {
+        return 0;
+    }
 }

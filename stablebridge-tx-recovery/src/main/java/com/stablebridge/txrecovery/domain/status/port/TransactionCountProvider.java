@@ -5,4 +5,6 @@ public interface TransactionCountProvider {
     long countPendingByChain(String chain);
 
     long countStuckByChain(String chain);
+
+    long averageConfirmationTimeMs(String chain);
 }

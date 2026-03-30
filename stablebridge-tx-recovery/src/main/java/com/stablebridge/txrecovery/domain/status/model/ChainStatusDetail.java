@@ -8,6 +8,8 @@ public record ChainStatusDetail(
         boolean healthy,
         long pendingCount,
         long stuckCount,
+        long avgConfirmationMs,
+        long lastBlockSeen,
         long rpcLatencyMs,
         HealthStatus status,
         long addressPoolTotal,

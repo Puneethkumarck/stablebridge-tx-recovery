@@ -52,6 +52,8 @@ public class StatusService {
     private ChainStatusSummary buildSummary(String chain, boolean temporalHealthy) {
         var pendingCount = transactionCountProvider.countPendingByChain(chain);
         var stuckCount = transactionCountProvider.countStuckByChain(chain);
+        var avgConfirmationMs = transactionCountProvider.averageConfirmationTimeMs(chain);
+        var lastBlockSeen = getLastBlockSafely(chain);
         var rpcLatencyMs = measureLatencySafely(chain);
         var status = determineStatus(rpcLatencyMs, temporalHealthy);
 
@@ -60,6 +62,8 @@ public class StatusService {
                 .healthy(status == HealthStatus.UP)
                 .pendingCount(pendingCount)
                 .stuckCount(stuckCount)
+                .avgConfirmationMs(avgConfirmationMs)
+                .lastBlockSeen(lastBlockSeen)
                 .rpcLatencyMs(rpcLatencyMs)
                 .status(status)
                 .build();
@@ -68,6 +72,8 @@ public class StatusService {
     private ChainStatusDetail buildDetail(String chain, boolean temporalHealthy) {
         var pendingCount = transactionCountProvider.countPendingByChain(chain);
         var stuckCount = transactionCountProvider.countStuckByChain(chain);
+        var avgConfirmationMs = transactionCountProvider.averageConfirmationTimeMs(chain);
+        var lastBlockSeen = getLastBlockSafely(chain);
         var rpcLatencyMs = measureLatencySafely(chain);
         var status = determineStatus(rpcLatencyMs, temporalHealthy);
 
@@ -89,6 +95,8 @@ public class StatusService {
                 .healthy(status == HealthStatus.UP)
                 .pendingCount(pendingCount)
                 .stuckCount(stuckCount)
+                .avgConfirmationMs(avgConfirmationMs)
+                .lastBlockSeen(lastBlockSeen)
                 .rpcLatencyMs(rpcLatencyMs)
                 .status(status)
                 .addressPoolTotal(addresses.size())
@@ -97,6 +105,15 @@ public class StatusService {
                 .nonceGapCount(gapCount)
                 .nonceInFlightTotal(inFlightTotal)
                 .build();
+    }
+
+    private long getLastBlockSafely(String chain) {
+        try {
+            return rpcHealthProvider.getLastBlockNumber(chain);
+        } catch (Exception e) {
+            log.warn("Failed to get last block for chain {}: {}", chain, e.getMessage());
+            return -1;
+        }
     }
 
     private long measureLatencySafely(String chain) {

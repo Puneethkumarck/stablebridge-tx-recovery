@@ -1,5 +1,6 @@
 package com.stablebridge.txrecovery.application.config;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -18,7 +19,12 @@ class ChainConfigProviderAdapter implements ChainConfigProvider {
 
     @Override
     public boolean isChainEnabled(String chain) {
-        var chainProps = strProperties.chains().get(chain);
+        var normalized = normalize(chain);
+        var chainProps = strProperties.chains().entrySet().stream()
+                .filter(e -> normalize(e.getKey()).equals(normalized))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse(null);
         return chainProps != null && chainProps.enabled();
     }
 
@@ -28,5 +34,9 @@ class ChainConfigProviderAdapter implements ChainConfigProvider {
                 .filter(e -> e.getValue().enabled())
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private static String normalize(String chain) {
+        return chain.strip().toLowerCase(Locale.ROOT);
     }
 }

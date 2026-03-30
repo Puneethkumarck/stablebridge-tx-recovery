@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 
 import com.stablebridge.txrecovery.domain.address.model.NonceAllocation;
 import com.stablebridge.txrecovery.domain.address.port.NonceManager;
+import com.stablebridge.txrecovery.domain.exception.NonceManagementDisabledException;
 
 @Configuration
 class NoOpNonceManagerConfig {
@@ -19,7 +20,7 @@ class NoOpNonceManagerConfig {
 
             @Override
             public NonceAllocation allocate(String address, String chain) {
-                throw new UnsupportedOperationException("Nonce management is not enabled");
+                throw new NonceManagementDisabledException();
             }
 
             @Override
