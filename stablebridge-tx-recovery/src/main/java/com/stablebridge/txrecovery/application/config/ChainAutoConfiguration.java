@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import jakarta.annotation.PostConstruct;
+
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,6 +32,13 @@ public class ChainAutoConfiguration {
 
     private final StrProperties strProperties;
     private final List<ChainBeanFactory> chainBeanFactories;
+    private Map<ChainFamily, ChainBeanFactory> factoryByFamilyCache;
+
+    @PostConstruct
+    void initFactoryCache() {
+        factoryByFamilyCache = chainBeanFactories.stream()
+                .collect(Collectors.toMap(ChainBeanFactory::supportedFamily, Function.identity()));
+    }
 
     @Bean
     Map<String, ChainConfig> chainConfigs() {
@@ -61,16 +70,11 @@ public class ChainAutoConfiguration {
     }
 
     @Bean
-    Map<String, SubmissionResourceManager> chainResourceManagers(
-            SubmissionResourceManager evmSubmissionResourceManager) {
+    Map<String, SubmissionResourceManager> chainResourceManagers() {
         var managers = new HashMap<String, SubmissionResourceManager>();
         enabledChainConfigs().forEach(config -> {
-            if (config.chainFamily() == ChainFamily.EVM) {
-                managers.put(config.chainName(), evmSubmissionResourceManager);
-            } else {
-                var factory = resolveFactory(config.chainFamily());
-                managers.put(config.chainName(), factory.createResourceManager(config));
-            }
+            var factory = resolveFactory(config.chainFamily());
+            managers.put(config.chainName(), factory.createResourceManager(config));
         });
         log.info("Registered SubmissionResourceManagers for chains: {}", managers.keySet());
         return Map.copyOf(managers);
@@ -116,19 +120,20 @@ public class ChainAutoConfiguration {
     }
 
     private ChainBeanFactory resolveFactory(ChainFamily family) {
-        return factoryByFamily().get(family);
-    }
-
-    private Map<ChainFamily, ChainBeanFactory> factoryByFamily() {
-        return chainBeanFactories.stream()
-                .collect(Collectors.toMap(ChainBeanFactory::supportedFamily, Function.identity()));
+        var factory = factoryByFamilyCache.get(family);
+        if (factory == null) {
+            throw new IllegalStateException(
+                    "No ChainBeanFactory registered for chain family '%s'".formatted(family));
+        }
+        return factory;
     }
 
     private static ChainConfig toChainConfig(String name, StrProperties.ChainProperties props) {
         var rpc = props.rpc();
+        var chainFamily = parseChainFamily(name, props.chainFamily());
         return ChainConfig.builder()
                 .chainName(name)
-                .chainFamily(ChainFamily.valueOf(props.chainFamily()))
+                .chainFamily(chainFamily)
                 .chainId(props.chainId())
                 .finalityBlocks(props.finalityBlocks())
                 .stuckThresholdBlocks(props.stuckThresholdBlocks())
@@ -144,5 +149,14 @@ public class ChainAutoConfiguration {
                 .cbWaitDurationInOpenState(rpc.circuitBreaker().waitDurationInOpenState())
                 .cbSlidingWindowSize(rpc.circuitBreaker().slidingWindowSize())
                 .build();
+    }
+
+    private static ChainFamily parseChainFamily(String chainName, String chainFamilyValue) {
+        try {
+            return ChainFamily.valueOf(chainFamilyValue);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(
+                    "Invalid chainFamily '%s' for chain '%s'".formatted(chainFamilyValue, chainName), e);
+        }
     }
 }

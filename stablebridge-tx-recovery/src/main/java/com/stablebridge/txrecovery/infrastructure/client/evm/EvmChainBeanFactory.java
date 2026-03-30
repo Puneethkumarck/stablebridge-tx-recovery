@@ -8,11 +8,11 @@ import org.springframework.stereotype.Component;
 import com.stablebridge.txrecovery.domain.address.model.ChainFamily;
 import com.stablebridge.txrecovery.domain.common.model.ChainConfig;
 import com.stablebridge.txrecovery.domain.common.port.ChainBeanFactory;
+import com.stablebridge.txrecovery.domain.recovery.port.FeeCache;
 import com.stablebridge.txrecovery.domain.recovery.port.FeeOracle;
 import com.stablebridge.txrecovery.domain.recovery.port.RecoveryStrategy;
 import com.stablebridge.txrecovery.domain.transaction.port.ChainTransactionManager;
 import com.stablebridge.txrecovery.domain.transaction.port.SubmissionResourceManager;
-import com.stablebridge.txrecovery.infrastructure.redis.RedisFeeCache;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
@@ -23,10 +23,11 @@ import tools.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class EvmChainBeanFactory implements ChainBeanFactory {
 
-    private final RedisFeeCache feeCache;
+    private final FeeCache feeCache;
     private final ObjectMapper objectMapper;
     private final CircuitBreakerRegistry circuitBreakerRegistry;
     private final RateLimiterRegistry rateLimiterRegistry;
+    private final SubmissionResourceManager evmSubmissionResourceManager;
 
     private final Map<String, EvmRpcClient> rpcClientCache = new ConcurrentHashMap<>();
 
@@ -77,6 +78,6 @@ public class EvmChainBeanFactory implements ChainBeanFactory {
 
     @Override
     public SubmissionResourceManager createResourceManager(ChainConfig config) {
-        throw new UnsupportedOperationException("EVM uses a shared SubmissionResourceManager");
+        return evmSubmissionResourceManager;
     }
 }

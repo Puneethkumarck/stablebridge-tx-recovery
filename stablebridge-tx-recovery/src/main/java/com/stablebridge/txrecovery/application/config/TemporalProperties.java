@@ -28,7 +28,8 @@ public record TemporalProperties(
         activityOptions = Objects.requireNonNullElse(activityOptions, ActivityOptionsConfig.builder().build());
         nonRetryableExceptions = Objects.requireNonNullElse(nonRetryableExceptions, List.of(
                 "com.stablebridge.txrecovery.domain.exception.NonRetryableException",
-                "com.stablebridge.txrecovery.domain.exception.NonceTooLowException"));
+                "com.stablebridge.txrecovery.domain.exception.NonceTooLowException",
+                "com.stablebridge.txrecovery.domain.exception.UnknownChainException"));
     }
 
     @Builder(toBuilder = true)

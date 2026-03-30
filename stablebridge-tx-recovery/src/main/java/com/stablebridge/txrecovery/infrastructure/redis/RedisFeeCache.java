@@ -7,6 +7,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import com.stablebridge.txrecovery.domain.recovery.model.FeeEstimate;
 import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
+import com.stablebridge.txrecovery.domain.recovery.port.FeeCache;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,11 +15,12 @@ import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
 @RequiredArgsConstructor
-public class RedisFeeCache {
+public class RedisFeeCache implements FeeCache {
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
+    @Override
     public Optional<FeeEstimate> read(String chain, FeeUrgency urgency) {
         try {
             var key = RedisKeyNamespace.gasCacheHash(chain);
@@ -33,6 +35,7 @@ public class RedisFeeCache {
         }
     }
 
+    @Override
     public void write(String chain, FeeUrgency urgency, FeeEstimate estimate, long ttlMillis) {
         try {
             var key = RedisKeyNamespace.gasCacheHash(chain);

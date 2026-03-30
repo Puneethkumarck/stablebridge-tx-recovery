@@ -25,4 +25,11 @@ public record ChainConfig(
         int rateLimitBurst,
         int cbFailureRateThreshold,
         Duration cbWaitDurationInOpenState,
-        int cbSlidingWindowSize) {}
+        int cbSlidingWindowSize) {
+
+    public ChainConfig {
+        tokenContracts = tokenContracts == null ? List.of() : List.copyOf(tokenContracts);
+        tokenMints = tokenMints == null ? List.of() : List.copyOf(tokenMints);
+        rpcUrls = rpcUrls == null ? List.of() : List.copyOf(rpcUrls);
+    }
+}

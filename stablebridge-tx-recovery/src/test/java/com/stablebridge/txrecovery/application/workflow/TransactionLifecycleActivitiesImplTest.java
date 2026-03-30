@@ -295,12 +295,19 @@ class TransactionLifecycleActivitiesImplTest {
     class GetPollInterval {
 
         @Test
-        void shouldReturnDefaultPollInterval() {
+        void shouldReturnConfiguredPollInterval() {
             // when
             var result = activities.getPollInterval(SOME_CHAIN);
 
             // then
             assertThat(result).isEqualTo(DEFAULT_POLL_INTERVAL);
+        }
+
+        @Test
+        void shouldThrowForUnmappedChain() {
+            // when / then
+            assertThatThrownBy(() -> activities.getPollInterval("unknown-chain"))
+                    .hasMessageContaining("Unknown chain: unknown-chain");
         }
     }
 

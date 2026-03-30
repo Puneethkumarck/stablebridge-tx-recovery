@@ -14,12 +14,12 @@ import com.stablebridge.txrecovery.domain.address.port.NonceAccountPoolRepositor
 import com.stablebridge.txrecovery.domain.address.port.PoolExhaustedAlertPublisher;
 import com.stablebridge.txrecovery.domain.common.model.ChainConfig;
 import com.stablebridge.txrecovery.domain.common.port.ChainBeanFactory;
+import com.stablebridge.txrecovery.domain.recovery.port.FeeCache;
 import com.stablebridge.txrecovery.domain.recovery.port.FeeOracle;
 import com.stablebridge.txrecovery.domain.recovery.port.RecoveryStrategy;
 import com.stablebridge.txrecovery.domain.transaction.port.ChainTransactionManager;
 import com.stablebridge.txrecovery.domain.transaction.port.SubmissionResourceManager;
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionIntentStore;
-import com.stablebridge.txrecovery.infrastructure.redis.RedisFeeCache;
 import com.stablebridge.txrecovery.infrastructure.solana.SolanaSubmissionResourceManager;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
@@ -35,11 +35,10 @@ public class SolanaChainBeanFactory implements ChainBeanFactory {
 
     private static final int DEFAULT_MIN_AVAILABLE = 3;
     private static final long DEFAULT_MAX_PRIORITY_FEE_MICRO_LAMPORTS = 10_000_000L;
-    private static final Duration DEFAULT_BLOCK_TIME = Duration.ofMillis(400);
     private static final int DEFAULT_COMPUTE_UNIT_LIMIT = 200_000;
 
     private final ObjectMapper objectMapper;
-    private final RedisFeeCache feeCache;
+    private final FeeCache feeCache;
     private final CircuitBreakerRegistry circuitBreakerRegistry;
     private final RateLimiterRegistry rateLimiterRegistry;
     private final NonceAccountPoolRepository nonceAccountPoolRepository;
@@ -72,7 +71,7 @@ public class SolanaChainBeanFactory implements ChainBeanFactory {
         var chainProperties = SolanaChainProperties.builder()
                 .chain(config.chainName())
                 .maxPriorityFeeMicroLamports(DEFAULT_MAX_PRIORITY_FEE_MICRO_LAMPORTS)
-                .blockTime(DEFAULT_BLOCK_TIME)
+                .blockTime(config.pollInterval())
                 .programAddresses(config.tokenMints())
                 .build();
         return new SolanaFeeOracle(rpcClient, chainProperties, feeCache);
@@ -81,8 +80,7 @@ public class SolanaChainBeanFactory implements ChainBeanFactory {
     @Override
     public ChainTransactionManager createTransactionManager(ChainConfig config) {
         var rpcClient = createRpcClient(config);
-        var feeOracle = createFeeOracle(config);
-        var txBuilder = new SolanaTransactionBuilder(rpcClient, feeOracle, DEFAULT_COMPUTE_UNIT_LIMIT);
+        var txBuilder = createTransactionBuilder(config, rpcClient);
         var stuckThresholdSeconds = (long) config.stuckThresholdBlocks() * config.pollInterval().toSeconds();
         return new SolanaChainTransactionManager(rpcClient, txBuilder, config.chainName(),
                 stuckThresholdSeconds, clock);
@@ -91,9 +89,13 @@ public class SolanaChainBeanFactory implements ChainBeanFactory {
     @Override
     public RecoveryStrategy createRecoveryStrategy(ChainConfig config, SubmissionResourceManager resourceManager) {
         var rpcClient = createRpcClient(config);
-        var feeOracle = createFeeOracle(config);
-        var txBuilder = new SolanaTransactionBuilder(rpcClient, feeOracle, DEFAULT_COMPUTE_UNIT_LIMIT);
+        var txBuilder = createTransactionBuilder(config, rpcClient);
         return new SolanaRecoveryStrategy(rpcClient, txBuilder, resourceManager, transactionIntentStore);
+    }
+
+    private SolanaTransactionBuilder createTransactionBuilder(ChainConfig config, SolanaRpcClient rpcClient) {
+        var feeOracle = createFeeOracle(config);
+        return new SolanaTransactionBuilder(rpcClient, feeOracle, DEFAULT_COMPUTE_UNIT_LIMIT);
     }
 
     @Override

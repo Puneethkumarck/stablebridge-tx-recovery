@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.Map;
 
 import com.stablebridge.txrecovery.application.config.ChainAdapterRegistry;
+import com.stablebridge.txrecovery.domain.exception.UnknownChainException;
 import com.stablebridge.txrecovery.domain.recovery.model.EscalationPolicy;
 import com.stablebridge.txrecovery.domain.recovery.model.EscalationTier;
 import com.stablebridge.txrecovery.domain.recovery.model.GasBudgetPolicy;
@@ -88,7 +89,11 @@ public class TransactionLifecycleActivitiesImpl implements TransactionLifecycleA
 
     @Override
     public Duration getPollInterval(String chain) {
-        return chainPollIntervals.getOrDefault(chain, Duration.ofSeconds(12));
+        var interval = chainPollIntervals.get(chain);
+        if (interval == null) {
+            throw new UnknownChainException(chain);
+        }
+        return interval;
     }
 
     @Override
