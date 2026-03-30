@@ -31,7 +31,7 @@ spotless {
 
 jib {
     from {
-        image = "eclipse-temurin:25-jre-noble"
+        image = "eclipse-temurin:25-jre-alpine"
     }
     to {
         image = "stablebridge/tx-recovery"
