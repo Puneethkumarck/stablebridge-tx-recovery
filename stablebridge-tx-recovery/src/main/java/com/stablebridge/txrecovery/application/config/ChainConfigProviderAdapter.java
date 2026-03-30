@@ -1,5 +1,6 @@
 package com.stablebridge.txrecovery.application.config;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -25,7 +26,7 @@ class ChainConfigProviderAdapter implements ChainConfigProvider {
     public Set<String> enabledChains() {
         return strProperties.chains().entrySet().stream()
                 .filter(e -> e.getValue().enabled())
-                .map(java.util.Map.Entry::getKey)
+                .map(Map.Entry::getKey)
                 .collect(Collectors.toUnmodifiableSet());
     }
 }

@@ -1,6 +1,7 @@
 package com.stablebridge.txrecovery.infrastructure.db.transaction;
 
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,4 +12,8 @@ interface TransactionProjectionJpaRepository
                 JpaSpecificationExecutor<TransactionProjectionEntity> {
 
     Optional<TransactionProjectionEntity> findByIntentId(UUID intentId);
+
+    long countByChainAndStatus(String chain, String status);
+
+    long countByChainAndStatusIn(String chain, Set<String> statuses);
 }
