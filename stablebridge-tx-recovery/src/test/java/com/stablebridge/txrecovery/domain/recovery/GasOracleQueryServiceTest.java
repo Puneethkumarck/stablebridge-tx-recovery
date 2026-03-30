@@ -25,7 +25,7 @@ import com.stablebridge.txrecovery.domain.recovery.port.FeeOracle;
 class GasOracleQueryServiceTest {
 
     @Mock
-    private Map<String, FeeOracle> evmFeeOracles;
+    private Map<String, FeeOracle> chainFeeOracles;
 
     @Mock
     private ChainConfigProvider chainConfigProvider;
@@ -46,7 +46,7 @@ class GasOracleQueryServiceTest {
         void shouldReturnEstimatesForAllUrgencyTiers() {
             // given
             given(chainConfigProvider.isChainEnabled(SOME_CHAIN)).willReturn(true);
-            given(evmFeeOracles.get(SOME_CHAIN)).willReturn(feeOracle);
+            given(chainFeeOracles.get(SOME_CHAIN)).willReturn(feeOracle);
             given(clock.instant()).willReturn(SOME_UPDATED_AT);
             given(feeOracle.estimate(SOME_CHAIN, FeeUrgency.SLOW)).willReturn(SOME_SLOW_ESTIMATE);
             given(feeOracle.estimate(SOME_CHAIN, FeeUrgency.MEDIUM)).willReturn(SOME_MEDIUM_ESTIMATE);
@@ -93,7 +93,7 @@ class GasOracleQueryServiceTest {
         void shouldThrowChainNotFoundWhenNoOracleRegistered() {
             // given
             given(chainConfigProvider.isChainEnabled(SOME_CHAIN)).willReturn(true);
-            given(evmFeeOracles.get(SOME_CHAIN)).willReturn(null);
+            given(chainFeeOracles.get(SOME_CHAIN)).willReturn(null);
 
             // when/then
             assertThatThrownBy(() -> gasOracleQueryService.getCurrentEstimates(SOME_CHAIN))
@@ -109,7 +109,7 @@ class GasOracleQueryServiceTest {
         void shouldReturnEmptyListForHistory() {
             // given
             given(chainConfigProvider.isChainEnabled(SOME_CHAIN)).willReturn(true);
-            given(evmFeeOracles.get(SOME_CHAIN)).willReturn(feeOracle);
+            given(chainFeeOracles.get(SOME_CHAIN)).willReturn(feeOracle);
 
             // when
             var result = gasOracleQueryService.getHistoricalEstimates(SOME_CHAIN, 24);
