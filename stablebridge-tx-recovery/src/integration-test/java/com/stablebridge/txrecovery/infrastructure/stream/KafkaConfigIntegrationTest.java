@@ -23,14 +23,11 @@ import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionEventPublisher;
-import com.stablebridge.txrecovery.testutil.KafkaTest;
-import com.stablebridge.txrecovery.testutil.PostgresContainerExtension;
+import com.stablebridge.txrecovery.testutil.IntegrationTestBase;
+import com.stablebridge.txrecovery.testutil.KafkaContainerExtension;
 
-import tools.jackson.databind.ObjectMapper;
-
-@KafkaTest
-@ExtendWith(PostgresContainerExtension.class)
-class KafkaConfigIntegrationTest {
+@ExtendWith(KafkaContainerExtension.class)
+class KafkaConfigIntegrationTest extends IntegrationTestBase {
 
     @Autowired
     private KafkaTemplate<String, String> kafkaTemplate;
@@ -40,9 +37,6 @@ class KafkaConfigIntegrationTest {
 
     @Autowired
     private TransactionEventPublisher transactionEventPublisher;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @Test
     void shouldInjectKafkaTemplate() {

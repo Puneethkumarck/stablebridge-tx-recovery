@@ -13,26 +13,17 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.IntStream;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.http.HttpStatus;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.f4b6a3.uuid.UuidCreator;
 import com.stablebridge.txrecovery.api.model.BatchTransactionResponse;
-import com.stablebridge.txrecovery.api.model.ErrorResponse;
 import com.stablebridge.txrecovery.api.model.PagedResponse;
 import com.stablebridge.txrecovery.api.model.SubmitBatchRequest;
 import com.stablebridge.txrecovery.api.model.TransactionResponse;
-import com.stablebridge.txrecovery.application.controller.GlobalExceptionHandler;
 import com.stablebridge.txrecovery.application.controller.transaction.mapper.TransactionControllerMapper;
 import com.stablebridge.txrecovery.domain.exception.DuplicateIntentException;
 import com.stablebridge.txrecovery.domain.exception.TransactionNotFoundException;
@@ -41,30 +32,41 @@ import com.stablebridge.txrecovery.domain.transaction.model.PagedResult;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionFilters;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionProjection;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
+import com.stablebridge.txrecovery.testutil.ControllerIntegrationTestBase;
 
-@ExtendWith(MockitoExtension.class)
-class TransactionControllerTest {
+import tools.jackson.core.type.TypeReference;
 
-    @Mock
+class TransactionControllerIntegrationTest extends ControllerIntegrationTestBase {
+
+    private static final String BASE_PATH = "/api/v1/transactions";
+
+    @MockitoBean
     private TransactionSubmissionService transactionSubmissionService;
 
-    @Mock
+    @MockitoSpyBean
     private TransactionControllerMapper transactionControllerMapper;
 
-    @InjectMocks
-    private TransactionController transactionController;
+    @Nested
+    class Authentication {
 
-    private MockMvc mockMvc;
-    private ObjectMapper objectMapper;
+        @Test
+        void shouldReturn401WhenApiKeyIsMissing() throws Exception {
+            // when / then
+            mockMvc.perform(post(BASE_PATH)
+                            .contentType("application/json")
+                            .content(objectMapper.writeValueAsString(SOME_SUBMIT_REQUEST)))
+                    .andExpect(status().isUnauthorized());
+        }
 
-    @BeforeEach
-    void setUp() {
-        objectMapper = new ObjectMapper();
-        objectMapper.findAndRegisterModules();
-
-        mockMvc = MockMvcBuilders.standaloneSetup(transactionController)
-                .setControllerAdvice(new GlobalExceptionHandler())
-                .build();
+        @Test
+        void shouldReturn401WhenApiKeyIsInvalid() throws Exception {
+            // when / then
+            mockMvc.perform(post(BASE_PATH)
+                            .header(API_KEY_HEADER, "wrong-key")
+                            .contentType("application/json")
+                            .content(objectMapper.writeValueAsString(SOME_SUBMIT_REQUEST)))
+                    .andExpect(status().isUnauthorized());
+        }
     }
 
     @Nested
@@ -73,17 +75,13 @@ class TransactionControllerTest {
         @Test
         void shouldSubmitTransactionAndReturn201() throws Exception {
             // given
-            given(transactionControllerMapper.toDomain(eqIgnoring(SOME_SUBMIT_REQUEST)))
-                    .willReturn(SOME_TRANSACTION_INTENT);
-            given(transactionSubmissionService.submitTransaction(SOME_TRANSACTION_INTENT))
+            given(transactionSubmissionService.submitTransaction(eqIgnoring(SOME_TRANSACTION_INTENT)))
                     .willReturn(SOME_TRANSACTION_PROJECTION);
-            given(transactionControllerMapper.toResponse(SOME_TRANSACTION_PROJECTION))
-                    .willReturn(SOME_TRANSACTION_RESPONSE);
 
             // when
-            var result = mockMvc.perform(post("/api/v1/transactions")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(SOME_SUBMIT_REQUEST)))
+            var result = mockMvc.perform(authenticatedJson(
+                            post(BASE_PATH),
+                            objectMapper.writeValueAsString(SOME_SUBMIT_REQUEST)))
                     .andExpect(status().isCreated())
                     .andReturn();
 
@@ -92,6 +90,7 @@ class TransactionControllerTest {
                     result.getResponse().getContentAsString(), TransactionResponse.class);
             assertThat(response)
                     .usingRecursiveComparison()
+                    .ignoringFields("estimatedGasBudget", "submissionStrategy")
                     .isEqualTo(SOME_TRANSACTION_RESPONSE);
         }
 
@@ -101,32 +100,29 @@ class TransactionControllerTest {
             var existingProjection = SOME_TRANSACTION_PROJECTION.toBuilder()
                     .transactionId("existing-tx-001")
                     .build();
-            var existingResponse = SOME_TRANSACTION_RESPONSE.toBuilder()
-                    .transactionId("existing-tx-001")
-                    .build();
 
-            given(transactionControllerMapper.toDomain(eqIgnoring(SOME_SUBMIT_REQUEST)))
-                    .willReturn(SOME_TRANSACTION_INTENT);
-            given(transactionSubmissionService.submitTransaction(SOME_TRANSACTION_INTENT))
+            given(transactionSubmissionService.submitTransaction(eqIgnoring(SOME_TRANSACTION_INTENT)))
                     .willThrow(new DuplicateIntentException("existing-tx-001"));
             given(transactionSubmissionService.findById("existing-tx-001"))
                     .willReturn(existingProjection);
-            given(transactionControllerMapper.toResponse(existingProjection))
-                    .willReturn(existingResponse);
 
             // when
-            var result = mockMvc.perform(post("/api/v1/transactions")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(SOME_SUBMIT_REQUEST)))
+            var result = mockMvc.perform(authenticatedJson(
+                            post(BASE_PATH),
+                            objectMapper.writeValueAsString(SOME_SUBMIT_REQUEST)))
                     .andExpect(status().isOk())
                     .andReturn();
 
             // then
             var response = objectMapper.readValue(
                     result.getResponse().getContentAsString(), TransactionResponse.class);
+            var expected = SOME_TRANSACTION_RESPONSE.toBuilder()
+                    .transactionId("existing-tx-001")
+                    .build();
             assertThat(response)
                     .usingRecursiveComparison()
-                    .isEqualTo(existingResponse);
+                    .ignoringFields("estimatedGasBudget", "submissionStrategy")
+                    .isEqualTo(expected);
         }
 
         @Test
@@ -137,25 +133,14 @@ class TransactionControllerTest {
                     .build();
 
             // when
-            var result = mockMvc.perform(post("/api/v1/transactions")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(invalidRequest)))
+            var result = mockMvc.perform(authenticatedJson(
+                            post(BASE_PATH),
+                            objectMapper.writeValueAsString(invalidRequest)))
                     .andExpect(status().isBadRequest())
                     .andReturn();
 
             // then
-            var response = objectMapper.readValue(
-                    result.getResponse().getContentAsString(), ErrorResponse.class);
-            var expected = ErrorResponse.builder()
-                    .errorCode("STR-4000")
-                    .message("Validation failed")
-                    .details(response.details())
-                    .build();
-            assertThat(response)
-                    .usingRecursiveComparison()
-                    .ignoringFields("timestamp", "path")
-                    .isEqualTo(expected);
-            assertThat(response.details()).containsKey("chain");
+            assertValidationError(result, "chain");
         }
 
         @Test
@@ -166,25 +151,14 @@ class TransactionControllerTest {
                     .build();
 
             // when
-            var result = mockMvc.perform(post("/api/v1/transactions")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(invalidRequest)))
+            var result = mockMvc.perform(authenticatedJson(
+                            post(BASE_PATH),
+                            objectMapper.writeValueAsString(invalidRequest)))
                     .andExpect(status().isBadRequest())
                     .andReturn();
 
             // then
-            var response = objectMapper.readValue(
-                    result.getResponse().getContentAsString(), ErrorResponse.class);
-            var expected = ErrorResponse.builder()
-                    .errorCode("STR-4000")
-                    .message("Validation failed")
-                    .details(response.details())
-                    .build();
-            assertThat(response)
-                    .usingRecursiveComparison()
-                    .ignoringFields("timestamp", "path")
-                    .isEqualTo(expected);
-            assertThat(response.details()).containsKey("amount");
+            assertValidationError(result, "amount");
         }
 
         @Test
@@ -195,25 +169,27 @@ class TransactionControllerTest {
                     .build();
 
             // when
-            var result = mockMvc.perform(post("/api/v1/transactions")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(invalidRequest)))
+            var result = mockMvc.perform(authenticatedJson(
+                            post(BASE_PATH),
+                            objectMapper.writeValueAsString(invalidRequest)))
                     .andExpect(status().isBadRequest())
                     .andReturn();
 
             // then
-            var response = objectMapper.readValue(
-                    result.getResponse().getContentAsString(), ErrorResponse.class);
-            var expected = ErrorResponse.builder()
-                    .errorCode("STR-4000")
-                    .message("Validation failed")
-                    .details(response.details())
-                    .build();
-            assertThat(response)
-                    .usingRecursiveComparison()
-                    .ignoringFields("timestamp", "path")
-                    .isEqualTo(expected);
-            assertThat(response.details()).containsKey("toAddress");
+            assertValidationError(result, "toAddress");
+        }
+
+        @Test
+        void shouldReturn400WhenRequestBodyIsMissing() throws Exception {
+            // when
+            var result = mockMvc.perform(authenticated(
+                            post(BASE_PATH))
+                            .contentType("application/json"))
+                    .andExpect(status().isBadRequest())
+                    .andReturn();
+
+            // then
+            assertErrorResponse(result, HttpStatus.BAD_REQUEST, "STR-4000", "Malformed request body");
         }
     }
 
@@ -230,35 +206,36 @@ class TransactionControllerTest {
                     .transactionId("tx-67890")
                     .intentId(SOME_SECOND_INTENT_ID)
                     .build();
-            var secondResponse = SOME_TRANSACTION_RESPONSE.toBuilder()
-                    .transactionId("tx-67890")
-                    .intentId(SOME_SECOND_INTENT_ID)
-                    .build();
 
-            given(transactionControllerMapper.toDomain(eqIgnoring(SOME_SUBMIT_REQUEST)))
-                    .willReturn(SOME_TRANSACTION_INTENT);
-            given(transactionControllerMapper.toDomain(eqIgnoring(SOME_SUBMIT_REQUEST.toBuilder()
-                    .intentId(SOME_SECOND_INTENT_ID).build())))
-                    .willReturn(secondIntent);
             given(transactionSubmissionService.submitBatch(
                     eqIgnoring(List.of(SOME_TRANSACTION_INTENT, secondIntent)),
                     argThat(batchId -> batchId != null && !batchId.isBlank())))
                     .willReturn(List.of(SOME_TRANSACTION_PROJECTION, secondProjection));
-            given(transactionControllerMapper.toResponseList(
-                    List.of(SOME_TRANSACTION_PROJECTION, secondProjection)))
-                    .willReturn(List.of(SOME_TRANSACTION_RESPONSE, secondResponse));
 
             // when
-            var result = mockMvc.perform(post("/api/v1/transactions/batch")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(SOME_BATCH_REQUEST)))
+            var result = mockMvc.perform(authenticatedJson(
+                            post(BASE_PATH + "/batch"),
+                            objectMapper.writeValueAsString(SOME_BATCH_REQUEST)))
                     .andExpect(status().isCreated())
                     .andReturn();
 
             // then
             var response = objectMapper.readValue(
                     result.getResponse().getContentAsString(), BatchTransactionResponse.class);
-            assertThat(response.transactions()).hasSize(2);
+            var secondResponse = SOME_TRANSACTION_RESPONSE.toBuilder()
+                    .transactionId("tx-67890")
+                    .intentId(SOME_SECOND_INTENT_ID)
+                    .build();
+            var expected = BatchTransactionResponse.builder()
+                    .batchId(response.batchId())
+                    .transactions(List.of(SOME_TRANSACTION_RESPONSE, secondResponse))
+                    .createdAt(response.createdAt())
+                    .build();
+            assertThat(response)
+                    .usingRecursiveComparison()
+                    .ignoringFields("batchId", "createdAt",
+                            "transactions.estimatedGasBudget", "transactions.submissionStrategy")
+                    .isEqualTo(expected);
             assertThat(response.batchId()).isNotBlank();
         }
 
@@ -274,11 +251,15 @@ class TransactionControllerTest {
                     .transactions(tooManyTransactions)
                     .build();
 
-            // when / then
-            mockMvc.perform(post("/api/v1/transactions/batch")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(oversizedBatch)))
-                    .andExpect(status().isBadRequest());
+            // when
+            var result = mockMvc.perform(authenticatedJson(
+                            post(BASE_PATH + "/batch"),
+                            objectMapper.writeValueAsString(oversizedBatch)))
+                    .andExpect(status().isBadRequest())
+                    .andReturn();
+
+            // then
+            assertValidationError(result, "transactions");
         }
 
         @Test
@@ -288,11 +269,15 @@ class TransactionControllerTest {
                     .transactions(List.of())
                     .build();
 
-            // when / then
-            mockMvc.perform(post("/api/v1/transactions/batch")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(emptyBatch)))
-                    .andExpect(status().isBadRequest());
+            // when
+            var result = mockMvc.perform(authenticatedJson(
+                            post(BASE_PATH + "/batch"),
+                            objectMapper.writeValueAsString(emptyBatch)))
+                    .andExpect(status().isBadRequest())
+                    .andReturn();
+
+            // then
+            assertValidationError(result, "transactions");
         }
     }
 
@@ -304,11 +289,10 @@ class TransactionControllerTest {
             // given
             given(transactionSubmissionService.findById(SOME_TRANSACTION_ID))
                     .willReturn(SOME_TRANSACTION_PROJECTION);
-            given(transactionControllerMapper.toResponse(SOME_TRANSACTION_PROJECTION))
-                    .willReturn(SOME_TRANSACTION_RESPONSE);
 
             // when
-            var result = mockMvc.perform(get("/api/v1/transactions/{transactionId}", SOME_TRANSACTION_ID))
+            var result = mockMvc.perform(authenticated(
+                            get(BASE_PATH + "/{transactionId}", SOME_TRANSACTION_ID)))
                     .andExpect(status().isOk())
                     .andReturn();
 
@@ -317,6 +301,7 @@ class TransactionControllerTest {
                     result.getResponse().getContentAsString(), TransactionResponse.class);
             assertThat(response)
                     .usingRecursiveComparison()
+                    .ignoringFields("estimatedGasBudget", "submissionStrategy")
                     .isEqualTo(SOME_TRANSACTION_RESPONSE);
         }
 
@@ -327,21 +312,14 @@ class TransactionControllerTest {
                     .willThrow(new TransactionNotFoundException("non-existent-tx"));
 
             // when
-            var result = mockMvc.perform(get("/api/v1/transactions/{transactionId}", "non-existent-tx"))
+            var result = mockMvc.perform(authenticated(
+                            get(BASE_PATH + "/{transactionId}", "non-existent-tx")))
                     .andExpect(status().isNotFound())
                     .andReturn();
 
             // then
-            var response = objectMapper.readValue(
-                    result.getResponse().getContentAsString(), ErrorResponse.class);
-            var expected = ErrorResponse.builder()
-                    .errorCode("STR-4041")
-                    .message("Transaction not found: non-existent-tx")
-                    .build();
-            assertThat(response)
-                    .usingRecursiveComparison()
-                    .ignoringFields("timestamp", "path")
-                    .isEqualTo(expected);
+            assertErrorResponse(result, HttpStatus.NOT_FOUND, "STR-4041",
+                    "Transaction not found: non-existent-tx");
         }
     }
 
@@ -365,11 +343,9 @@ class TransactionControllerTest {
 
             given(transactionSubmissionService.findByFilters(expectedFilters, 0, 10))
                     .willReturn(pagedResult);
-            given(transactionControllerMapper.toResponseList(List.of(SOME_TRANSACTION_PROJECTION)))
-                    .willReturn(List.of(SOME_TRANSACTION_RESPONSE));
 
             // when
-            var result = mockMvc.perform(get("/api/v1/transactions")
+            var result = mockMvc.perform(authenticated(get(BASE_PATH))
                             .param("chain", SOME_CHAIN)
                             .param("status", "RECEIVED")
                             .param("fromAddress", "0xsender001")
@@ -380,7 +356,7 @@ class TransactionControllerTest {
                     .andReturn();
 
             // then
-            var pagedResponse = objectMapper.readValue(
+            var response = objectMapper.readValue(
                     result.getResponse().getContentAsString(),
                     new TypeReference<PagedResponse<TransactionResponse>>() {});
             var expected = PagedResponse.<TransactionResponse>builder()
@@ -390,8 +366,9 @@ class TransactionControllerTest {
                     .totalElements(1)
                     .totalPages(1)
                     .build();
-            assertThat(pagedResponse)
+            assertThat(response)
                     .usingRecursiveComparison()
+                    .ignoringFields("content.estimatedGasBudget", "content.submissionStrategy")
                     .isEqualTo(expected);
         }
 
@@ -407,16 +384,14 @@ class TransactionControllerTest {
 
             given(transactionSubmissionService.findByFilters(defaultFilters, 0, 20))
                     .willReturn(pagedResult);
-            given(transactionControllerMapper.toResponseList(List.of(SOME_TRANSACTION_PROJECTION)))
-                    .willReturn(List.of(SOME_TRANSACTION_RESPONSE));
 
             // when
-            var result = mockMvc.perform(get("/api/v1/transactions"))
+            var result = mockMvc.perform(authenticated(get(BASE_PATH)))
                     .andExpect(status().isOk())
                     .andReturn();
 
             // then
-            var pagedResponse = objectMapper.readValue(
+            var response = objectMapper.readValue(
                     result.getResponse().getContentAsString(),
                     new TypeReference<PagedResponse<TransactionResponse>>() {});
             var expected = PagedResponse.<TransactionResponse>builder()
@@ -426,9 +401,23 @@ class TransactionControllerTest {
                     .totalElements(1)
                     .totalPages(1)
                     .build();
-            assertThat(pagedResponse)
+            assertThat(response)
                     .usingRecursiveComparison()
+                    .ignoringFields("content.estimatedGasBudget", "content.submissionStrategy")
                     .isEqualTo(expected);
+        }
+
+        @Test
+        void shouldReturn400WhenStatusFilterIsInvalid() throws Exception {
+            // when
+            var result = mockMvc.perform(authenticated(get(BASE_PATH))
+                            .param("status", "INVALID_STATUS"))
+                    .andExpect(status().isBadRequest())
+                    .andReturn();
+
+            // then
+            assertErrorResponse(result, HttpStatus.BAD_REQUEST, "STR-4000",
+                    "Invalid status filter: INVALID_STATUS");
         }
     }
 }

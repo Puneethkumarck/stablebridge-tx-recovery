@@ -4,13 +4,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.test.context.TestPropertySource;
 
-import com.stablebridge.txrecovery.testutil.RedisTest;
+import com.stablebridge.txrecovery.testutil.IntegrationTestBase;
+import com.stablebridge.txrecovery.testutil.RedisContainerExtension;
 
-@RedisTest
-class RedisConfigIntegrationTest {
+@ExtendWith(RedisContainerExtension.class)
+@TestPropertySource(properties = "str.redis.enabled=true")
+class RedisConfigIntegrationTest extends IntegrationTestBase {
 
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
