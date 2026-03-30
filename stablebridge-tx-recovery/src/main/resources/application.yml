@@ -132,3 +132,95 @@ str:
         gas-multiplier: 1.25
         requires-human-approval: true
         description: Human escalation for high-value
+  submission:
+    sequential-threshold-usd: 100000
+    max-pipeline-depth: 20
+  redis:
+    host: ${STR_REDIS_HOST:localhost}
+    port: ${STR_REDIS_PORT:6379}
+  chains:
+    ethereum_mainnet:
+      enabled: true
+      chain-family: EVM
+      chain-id: 1
+      finality-blocks: 12
+      stuck-threshold-blocks: 50
+      poll-interval: PT12S
+      max-fee-cap-gwei: 200
+      token-contracts:
+        - "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+        - "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+      rpc:
+        urls:
+          - ${EVM_ETHEREUM_RPC_URL:http://localhost:8545}
+        timeout: PT5S
+        max-retries: 3
+        rate-limit-rps: 25
+        rate-limit-burst: 50
+        circuit-breaker:
+          failure-rate-threshold: 50
+          wait-duration-in-open-state: PT30S
+          sliding-window-size: 10
+    base_mainnet:
+      enabled: true
+      chain-family: EVM
+      chain-id: 8453
+      finality-blocks: 1
+      stuck-threshold-blocks: 100
+      poll-interval: PT2S
+      max-fee-cap-gwei: 5
+      token-contracts:
+        - "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      rpc:
+        urls:
+          - ${EVM_BASE_RPC_URL:http://localhost:8546}
+        timeout: PT5S
+        max-retries: 3
+        rate-limit-rps: 25
+        rate-limit-burst: 50
+        circuit-breaker:
+          failure-rate-threshold: 50
+          wait-duration-in-open-state: PT30S
+          sliding-window-size: 10
+    polygon_mainnet:
+      enabled: true
+      chain-family: EVM
+      chain-id: 137
+      finality-blocks: 128
+      stuck-threshold-blocks: 200
+      poll-interval: PT2S
+      max-fee-cap-gwei: 500
+      token-contracts:
+        - "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
+        - "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
+      rpc:
+        urls:
+          - ${EVM_POLYGON_RPC_URL:http://localhost:8547}
+        timeout: PT5S
+        max-retries: 3
+        rate-limit-rps: 25
+        rate-limit-burst: 50
+        circuit-breaker:
+          failure-rate-threshold: 50
+          wait-duration-in-open-state: PT30S
+          sliding-window-size: 10
+    solana_mainnet:
+      enabled: true
+      chain-family: SOLANA
+      chain-id: 0
+      finality-blocks: 31
+      stuck-threshold-blocks: 150
+      poll-interval: PT400MS
+      token-mints:
+        - "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      rpc:
+        urls:
+          - ${SOLANA_RPC_URL:http://localhost:8899}
+        timeout: PT5S
+        max-retries: 3
+        rate-limit-rps: 25
+        rate-limit-burst: 50
+        circuit-breaker:
+          failure-rate-threshold: 50
+          wait-duration-in-open-state: PT30S
+          sliding-window-size: 10
