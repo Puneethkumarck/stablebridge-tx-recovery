@@ -17,21 +17,22 @@ import lombok.extern.slf4j.Slf4j;
 public class TemporalHealthIndicator implements HealthIndicator {
 
     private final WorkflowServiceStubs workflowServiceStubs;
-    private final TemporalProperties temporalProperties;
+    private final StrProperties strProperties;
 
     @Override
     public Health health() {
+        var temporal = strProperties.temporal();
         try {
             workflowServiceStubs.healthCheck();
             return Health.up()
-                    .withDetail("target", temporalProperties.target())
-                    .withDetail("namespace", temporalProperties.namespace())
-                    .withDetail("taskQueue", temporalProperties.taskQueue())
+                    .withDetail("target", temporal.target())
+                    .withDetail("namespace", temporal.namespace())
+                    .withDetail("taskQueue", temporal.taskQueue())
                     .build();
         } catch (Exception e) {
             log.warn("Temporal health check failed", e);
             return Health.status(new Status("DEGRADED"))
-                    .withDetail("target", temporalProperties.target())
+                    .withDetail("target", temporal.target())
                     .withException(e)
                     .build();
         }
