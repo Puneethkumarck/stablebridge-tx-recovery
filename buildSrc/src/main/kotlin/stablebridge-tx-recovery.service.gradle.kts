@@ -4,6 +4,7 @@ plugins {
     id("org.springframework.boot")
     id("io.spring.dependency-management")
     id("com.diffplug.spotless")
+    id("com.google.cloud.tools.jib")
 }
 
 group = "com.stablebridge"
@@ -25,6 +26,25 @@ spotless {
         importOrder("java|javax", "jakarta", "org", "com", "")
         trimTrailingWhitespace()
         endWithNewline()
+    }
+}
+
+jib {
+    from {
+        image = "eclipse-temurin:25-jre-noble"
+    }
+    to {
+        image = "stablebridge/tx-recovery"
+        tags = setOf(version.toString(), "latest")
+    }
+    container {
+        jvmFlags = listOf(
+            "-XX:+UseContainerSupport",
+            "-XX:MaxRAMPercentage=75.0"
+        )
+        ports = listOf("8080", "8081")
+        user = "1000:1000"
+        creationTime.set("USE_CURRENT_TIMESTAMP")
     }
 }
 
