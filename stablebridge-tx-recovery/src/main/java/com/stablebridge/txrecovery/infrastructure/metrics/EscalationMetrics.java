@@ -11,8 +11,10 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.Timer;
+import lombok.RequiredArgsConstructor;
 
 @Component
+@RequiredArgsConstructor
 public class EscalationMetrics {
 
     private static final String ESCALATION_TOTAL_METRIC = "str.human.escalation.total";
@@ -21,10 +23,6 @@ public class EscalationMetrics {
 
     private final MeterRegistry registry;
     private final ConcurrentHashMap<Tags, AtomicLong> pendingGauges = new ConcurrentHashMap<>();
-
-    public EscalationMetrics(MeterRegistry registry) {
-        this.registry = registry;
-    }
 
     public void recordEscalation(String chain) {
         Counter.builder(ESCALATION_TOTAL_METRIC)

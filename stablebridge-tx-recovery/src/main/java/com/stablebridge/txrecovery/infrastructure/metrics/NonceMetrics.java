@@ -9,16 +9,14 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
+import lombok.RequiredArgsConstructor;
 
 @Component
+@RequiredArgsConstructor
 public class NonceMetrics {
 
     private final MeterRegistry registry;
     private final ConcurrentHashMap<Tags, AtomicLong> inFlightGauges = new ConcurrentHashMap<>();
-
-    public NonceMetrics(MeterRegistry registry) {
-        this.registry = registry;
-    }
 
     public void recordNonceAllocated(String chain) {
         Counter.builder("str.nonce.allocated.total")

@@ -8,8 +8,10 @@ import org.springframework.stereotype.Component;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
+import lombok.RequiredArgsConstructor;
 
 @Component
+@RequiredArgsConstructor
 public class GasOracleMetrics {
 
     private final MeterRegistry registry;
@@ -17,10 +19,6 @@ public class GasOracleMetrics {
             new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Tags, AtomicReference<Double>> estimateGauges =
             new ConcurrentHashMap<>();
-
-    public GasOracleMetrics(MeterRegistry registry) {
-        this.registry = registry;
-    }
 
     public void setBaseFee(String chain, double gwei) {
         var tags = Tags.of("chain", chain);

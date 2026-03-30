@@ -8,8 +8,10 @@ import org.springframework.stereotype.Component;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
+import lombok.RequiredArgsConstructor;
 
 @Component
+@RequiredArgsConstructor
 public class AddressPoolMetrics {
 
     private static final String POOL_SIZE_METRIC = "str.address.pool.size";
@@ -18,10 +20,6 @@ public class AddressPoolMetrics {
     private final MeterRegistry registry;
     private final ConcurrentHashMap<Tags, AtomicLong> poolSizeGauges = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Tags, AtomicLong> inFlightGauges = new ConcurrentHashMap<>();
-
-    public AddressPoolMetrics(MeterRegistry registry) {
-        this.registry = registry;
-    }
 
     public void setPoolSize(String chain, String tier, String status, long size) {
         var tags = Tags.of("chain", chain, "tier", tier, "status", status);

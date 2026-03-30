@@ -3,6 +3,7 @@ package com.stablebridge.txrecovery.infrastructure.metrics;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -19,71 +20,79 @@ class NonceMetricsTest {
         nonceMetrics = new NonceMetrics(registry);
     }
 
-    @Test
-    void shouldRecordNonceAllocated() {
-        // given
-        var chain = "ethereum";
+    @Nested
+    class NonceAllocation {
 
-        // when
-        nonceMetrics.recordNonceAllocated(chain);
-        nonceMetrics.recordNonceAllocated(chain);
+        @Test
+        void shouldRecordNonceAllocated() {
+            // given
+            var chain = "ethereum";
 
-        // then
-        var count = registry.get("str.nonce.allocated.total")
-                .tags("chain", "ethereum")
-                .counter()
-                .count();
-        assertThat(count).isEqualTo(2.0);
+            // when
+            nonceMetrics.recordNonceAllocated(chain);
+            nonceMetrics.recordNonceAllocated(chain);
+
+            // then
+            var count = registry.get("str.nonce.allocated.total")
+                    .tags("chain", "ethereum")
+                    .counter()
+                    .count();
+            assertThat(count).isEqualTo(2.0);
+        }
+
+        @Test
+        void shouldRecordNonceGapDetected() {
+            // given
+            var chain = "polygon";
+
+            // when
+            nonceMetrics.recordNonceGapDetected(chain);
+
+            // then
+            var count = registry.get("str.nonce.gaps.detected.total")
+                    .tags("chain", "polygon")
+                    .counter()
+                    .count();
+            assertThat(count).isEqualTo(1.0);
+        }
     }
 
-    @Test
-    void shouldRecordNonceGapDetected() {
-        // given
-        var chain = "polygon";
+    @Nested
+    class NonceInFlight {
 
-        // when
-        nonceMetrics.recordNonceGapDetected(chain);
+        @Test
+        void shouldSetNonceInFlight() {
+            // given
+            var chain = "ethereum";
+            var address = "0xabc123";
 
-        // then
-        var count = registry.get("str.nonce.gaps.detected.total")
-                .tags("chain", "polygon")
-                .counter()
-                .count();
-        assertThat(count).isEqualTo(1.0);
-    }
+            // when
+            nonceMetrics.setNonceInFlight(chain, address, 5);
 
-    @Test
-    void shouldSetNonceInFlight() {
-        // given
-        var chain = "ethereum";
-        var address = "0xabc123";
+            // then
+            var value = registry.get("str.nonce.in.flight")
+                    .tags("chain", "ethereum", "address", "0xabc123")
+                    .gauge()
+                    .value();
+            assertThat(value).isEqualTo(5.0);
+        }
 
-        // when
-        nonceMetrics.setNonceInFlight(chain, address, 5);
+        @Test
+        void shouldUpdateNonceInFlight() {
+            // given
+            var chain = "ethereum";
+            var address = "0xabc123";
+            nonceMetrics.setNonceInFlight(chain, address, 5);
 
-        // then
-        var value = registry.get("str.nonce.in.flight")
-                .tags("chain", "ethereum", "address", "0xabc123")
-                .gauge()
-                .value();
-        assertThat(value).isEqualTo(5.0);
-    }
+            // when
+            nonceMetrics.setNonceInFlight(chain, address, 3);
 
-    @Test
-    void shouldUpdateNonceInFlight() {
-        // given
-        var chain = "ethereum";
-        var address = "0xabc123";
-        nonceMetrics.setNonceInFlight(chain, address, 5);
-
-        // when
-        nonceMetrics.setNonceInFlight(chain, address, 3);
-
-        // then
-        var value = registry.get("str.nonce.in.flight")
-                .tags("chain", "ethereum", "address", "0xabc123")
-                .gauge()
-                .value();
-        assertThat(value).isEqualTo(3.0);
+            // then
+            var value = registry.get("str.nonce.in.flight")
+                    .tags("chain", "ethereum", "address", "0xabc123")
+                    .gauge()
+                    .value();
+            assertThat(value).isEqualTo(3.0);
+        }
     }
 }
