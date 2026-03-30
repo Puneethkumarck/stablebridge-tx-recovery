@@ -1,5 +1,9 @@
 package com.stablebridge.txrecovery.domain.address;
 
+import static com.stablebridge.txrecovery.domain.address.model.AddressStatus.ACTIVE;
+import static com.stablebridge.txrecovery.domain.address.model.AddressStatus.DRAINING;
+import static com.stablebridge.txrecovery.domain.address.model.AddressStatus.RETIRED;
+
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -17,9 +21,10 @@ import com.stablebridge.txrecovery.domain.address.model.PooledAddress;
 import com.stablebridge.txrecovery.domain.address.port.AddressPoolRepository;
 import com.stablebridge.txrecovery.domain.address.port.ChainFamilyResolver;
 import com.stablebridge.txrecovery.domain.address.port.OnChainNonceProvider;
+import com.stablebridge.txrecovery.domain.common.model.StateMachine;
 import com.stablebridge.txrecovery.domain.exception.AddressNotFoundException;
+import com.stablebridge.txrecovery.domain.exception.AddressStateMachineException;
 import com.stablebridge.txrecovery.domain.exception.DuplicateAddressException;
-import com.stablebridge.txrecovery.domain.exception.InvalidAddressStateException;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +33,14 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 public class AddressPoolService {
+
+    private static final StateMachine<AddressStatus, PooledAddress> ADDRESS_STATE_MACHINE =
+            StateMachine.<AddressStatus, PooledAddress>builder()
+                    .withExceptionProvider(AddressStateMachineException::new)
+                    .withTransition(ACTIVE, DRAINING, StateMachine.noAction())
+                    .withTransition(ACTIVE, RETIRED, StateMachine.noAction())
+                    .withTransition(DRAINING, RETIRED, StateMachine.noAction())
+                    .build();
 
     private final AddressPoolRepository addressPoolRepository;
     private final OnChainNonceProvider onChainNonceProvider;
@@ -50,7 +63,7 @@ public class AddressPoolService {
                 .chain(chain)
                 .chainFamily(chainFamily)
                 .tier(tier)
-                .status(AddressStatus.ACTIVE)
+                .status(ACTIVE)
                 .currentNonce(initialNonce)
                 .inFlightCount(0)
                 .signerEndpoint(signerEndpoint)
@@ -70,17 +83,36 @@ public class AddressPoolService {
         var pooledAddress = addressPoolRepository.findByAddressAndChain(address, chain)
                 .orElseThrow(() -> new AddressNotFoundException(address, chain));
 
-        if (pooledAddress.status() != AddressStatus.ACTIVE) {
-            throw new InvalidAddressStateException(address, chain, pooledAddress.status(), AddressStatus.DRAINING);
-        }
+        var targetStatus = pooledAddress.inFlightCount() > 0 ? DRAINING : RETIRED;
+        ADDRESS_STATE_MACHINE.transition(pooledAddress, targetStatus);
 
         var previousStatus = pooledAddress.status();
-        var draining = pooledAddress.toBuilder()
-                .status(AddressStatus.DRAINING)
+        var updated = pooledAddress.toBuilder()
+                .status(targetStatus)
+                .retiredAt(targetStatus == RETIRED ? Instant.now(clock) : null)
                 .build();
 
-        var saved = addressPoolRepository.save(draining);
+        var saved = addressPoolRepository.save(updated);
         return new DrainResult(previousStatus, saved);
+    }
+
+    @Transactional
+    public PooledAddress decrementInFlightCount(String address, String chain) {
+        addressPoolRepository.decrementInFlightCount(address, chain);
+
+        var pooledAddress = addressPoolRepository.findByAddressAndChain(address, chain)
+                .orElseThrow(() -> new AddressNotFoundException(address, chain));
+
+        if (pooledAddress.status() == DRAINING && pooledAddress.inFlightCount() == 0) {
+            ADDRESS_STATE_MACHINE.transition(pooledAddress, RETIRED);
+            var retired = pooledAddress.toBuilder()
+                    .status(RETIRED)
+                    .retiredAt(Instant.now(clock))
+                    .build();
+            return addressPoolRepository.save(retired);
+        }
+
+        return pooledAddress;
     }
 
     @Transactional

@@ -5,6 +5,7 @@ import static com.stablebridge.txrecovery.testutil.fixtures.AddressPoolFixtures.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 import java.math.BigInteger;
 import java.time.Clock;
@@ -29,8 +30,8 @@ import com.stablebridge.txrecovery.domain.address.port.AddressPoolRepository;
 import com.stablebridge.txrecovery.domain.address.port.ChainFamilyResolver;
 import com.stablebridge.txrecovery.domain.address.port.OnChainNonceProvider;
 import com.stablebridge.txrecovery.domain.exception.AddressNotFoundException;
+import com.stablebridge.txrecovery.domain.exception.AddressStateMachineException;
 import com.stablebridge.txrecovery.domain.exception.DuplicateAddressException;
-import com.stablebridge.txrecovery.domain.exception.InvalidAddressStateException;
 
 @ExtendWith(MockitoExtension.class)
 class AddressPoolServiceTest {
@@ -195,13 +196,14 @@ class AddressPoolServiceTest {
         }
 
         @Test
-        void shouldTransitionToDrainingWhenNoInFlight() {
+        void shouldTransitionDirectlyToRetiredWhenNoInFlight() {
             // given
             given(addressPoolRepository.findByAddressAndChain(SOME_EVM_ADDRESS, SOME_CHAIN))
                     .willReturn(Optional.of(SOME_REGISTERED_ADDRESS));
 
             var expectedAddress = SOME_REGISTERED_ADDRESS.toBuilder()
-                    .status(AddressStatus.DRAINING)
+                    .status(AddressStatus.RETIRED)
+                    .retiredAt(SOME_REGISTERED_AT)
                     .build();
 
             given(addressPoolRepository.save(eqIgnoring(expectedAddress)))
@@ -230,15 +232,105 @@ class AddressPoolServiceTest {
         }
 
         @Test
-        void shouldThrowInvalidAddressStateExceptionWhenAlreadyDraining() {
+        void shouldThrowAddressStateMachineExceptionWhenAlreadyDraining() {
             // given
             given(addressPoolRepository.findByAddressAndChain(SOME_EVM_ADDRESS, SOME_CHAIN))
                     .willReturn(Optional.of(SOME_DRAINING_ADDRESS));
 
             // when/then
             assertThatThrownBy(() -> addressPoolService.drain(SOME_EVM_ADDRESS, SOME_CHAIN))
-                    .isInstanceOf(InvalidAddressStateException.class)
+                    .isInstanceOf(AddressStateMachineException.class)
                     .hasMessageContaining("DRAINING");
+        }
+
+        @Test
+        void shouldThrowAddressStateMachineExceptionWhenAlreadyRetired() {
+            // given
+            given(addressPoolRepository.findByAddressAndChain(SOME_EVM_ADDRESS, SOME_CHAIN))
+                    .willReturn(Optional.of(SOME_RETIRED_ADDRESS));
+
+            // when/then
+            assertThatThrownBy(() -> addressPoolService.drain(SOME_EVM_ADDRESS, SOME_CHAIN))
+                    .isInstanceOf(AddressStateMachineException.class)
+                    .hasMessageContaining("RETIRED");
+        }
+    }
+
+    @Nested
+    class DecrementInFlightCount {
+
+        @Test
+        void shouldAutoRetireWhenDrainingAndInFlightReachesZero() {
+            // given
+            var drainingWithOneInFlight = SOME_DRAINING_ADDRESS.toBuilder()
+                    .inFlightCount(0)
+                    .build();
+            given(addressPoolRepository.findByAddressAndChain(SOME_EVM_ADDRESS, SOME_CHAIN))
+                    .willReturn(Optional.of(drainingWithOneInFlight));
+
+            var expectedRetired = drainingWithOneInFlight.toBuilder()
+                    .status(AddressStatus.RETIRED)
+                    .retiredAt(SOME_REGISTERED_AT)
+                    .build();
+
+            given(addressPoolRepository.save(eqIgnoring(expectedRetired)))
+                    .willAnswer(inv -> inv.getArgument(0));
+
+            // when
+            var result = addressPoolService.decrementInFlightCount(SOME_EVM_ADDRESS, SOME_CHAIN);
+
+            // then
+            then(addressPoolRepository).should().decrementInFlightCount(SOME_EVM_ADDRESS, SOME_CHAIN);
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .isEqualTo(expectedRetired);
+        }
+
+        @Test
+        void shouldNotRetireWhenDrainingAndInFlightStillPositive() {
+            // given
+            var drainingWithInFlight = SOME_DRAINING_ADDRESS.toBuilder()
+                    .inFlightCount(1)
+                    .build();
+            given(addressPoolRepository.findByAddressAndChain(SOME_EVM_ADDRESS, SOME_CHAIN))
+                    .willReturn(Optional.of(drainingWithInFlight));
+
+            // when
+            var result = addressPoolService.decrementInFlightCount(SOME_EVM_ADDRESS, SOME_CHAIN);
+
+            // then
+            then(addressPoolRepository).should().decrementInFlightCount(SOME_EVM_ADDRESS, SOME_CHAIN);
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .isEqualTo(drainingWithInFlight);
+        }
+
+        @Test
+        void shouldNotRetireWhenActiveAndInFlightReachesZero() {
+            // given
+            given(addressPoolRepository.findByAddressAndChain(SOME_EVM_ADDRESS, SOME_CHAIN))
+                    .willReturn(Optional.of(SOME_REGISTERED_ADDRESS));
+
+            // when
+            var result = addressPoolService.decrementInFlightCount(SOME_EVM_ADDRESS, SOME_CHAIN);
+
+            // then
+            then(addressPoolRepository).should().decrementInFlightCount(SOME_EVM_ADDRESS, SOME_CHAIN);
+            assertThat(result)
+                    .usingRecursiveComparison()
+                    .isEqualTo(SOME_REGISTERED_ADDRESS);
+        }
+
+        @Test
+        void shouldThrowAddressNotFoundExceptionWhenAddressMissing() {
+            // given
+            given(addressPoolRepository.findByAddressAndChain(SOME_EVM_ADDRESS, SOME_CHAIN))
+                    .willReturn(Optional.empty());
+
+            // when/then
+            assertThatThrownBy(() -> addressPoolService.decrementInFlightCount(SOME_EVM_ADDRESS, SOME_CHAIN))
+                    .isInstanceOf(AddressNotFoundException.class)
+                    .hasMessageContaining(SOME_EVM_ADDRESS);
         }
     }
 
