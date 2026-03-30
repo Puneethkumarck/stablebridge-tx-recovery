@@ -37,6 +37,6 @@ class TransactionCountProviderAdapter implements TransactionCountProvider {
 
     @Override
     public long averageConfirmationTimeMs(String chain) {
-        return 0;
+        return jpaRepository.averageConfirmationTimeMsByChain(chain);
     }
 }
