@@ -10,7 +10,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -32,7 +31,6 @@ import com.stablebridge.txrecovery.api.model.BatchTransactionResponse;
 import com.stablebridge.txrecovery.api.model.ErrorResponse;
 import com.stablebridge.txrecovery.api.model.PagedResponse;
 import com.stablebridge.txrecovery.api.model.SubmitBatchRequest;
-import com.stablebridge.txrecovery.api.model.SubmitTransactionRequest;
 import com.stablebridge.txrecovery.api.model.TransactionResponse;
 import com.stablebridge.txrecovery.application.controller.GlobalExceptionHandler;
 import com.stablebridge.txrecovery.application.controller.transaction.mapper.TransactionControllerMapper;
@@ -46,36 +44,6 @@ import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
 
 @ExtendWith(MockitoExtension.class)
 class TransactionControllerTest {
-
-    private static final SubmitTransactionRequest SOME_SUBMIT_REQUEST = SubmitTransactionRequest.builder()
-            .intentId(SOME_INTENT_ID)
-            .chain(SOME_CHAIN)
-            .toAddress(SOME_TO_ADDRESS)
-            .amount(SOME_AMOUNT)
-            .token(SOME_TOKEN)
-            .tokenDecimals(6)
-            .tokenContractAddress(SOME_TOKEN_CONTRACT)
-            .build();
-
-    private static final TransactionResponse SOME_TRANSACTION_RESPONSE = TransactionResponse.builder()
-            .transactionId(SOME_TRANSACTION_ID)
-            .intentId(SOME_INTENT_ID)
-            .chain(SOME_CHAIN)
-            .status("RECEIVED")
-            .toAddress(SOME_TO_ADDRESS)
-            .amount(SOME_AMOUNT)
-            .token(SOME_TOKEN)
-            .retryCount(0)
-            .submittedAt(Instant.parse("2026-01-01T00:00:00Z"))
-            .build();
-
-    private static final SubmitBatchRequest SOME_BATCH_REQUEST = SubmitBatchRequest.builder()
-            .transactions(List.of(
-                    SOME_SUBMIT_REQUEST,
-                    SOME_SUBMIT_REQUEST.toBuilder()
-                            .intentId(SOME_SECOND_INTENT_ID)
-                            .build()))
-            .build();
 
     @Mock
     private TransactionSubmissionService transactionSubmissionService;

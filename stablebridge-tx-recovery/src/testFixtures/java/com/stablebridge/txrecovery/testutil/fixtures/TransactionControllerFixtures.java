@@ -2,7 +2,11 @@ package com.stablebridge.txrecovery.testutil.fixtures;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
+import com.stablebridge.txrecovery.api.model.SubmitBatchRequest;
+import com.stablebridge.txrecovery.api.model.SubmitTransactionRequest;
+import com.stablebridge.txrecovery.api.model.TransactionResponse;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionIntent;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionProjection;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
@@ -40,5 +44,36 @@ public final class TransactionControllerFixtures {
             .token(SOME_TOKEN)
             .retryCount(0)
             .submittedAt(Instant.parse("2026-01-01T00:00:00Z"))
+            .build();
+
+    public static final SubmitTransactionRequest SOME_SUBMIT_REQUEST = SubmitTransactionRequest.builder()
+            .intentId(SOME_INTENT_ID)
+            .chain(SOME_CHAIN)
+            .toAddress(SOME_TO_ADDRESS)
+            .amount(SOME_AMOUNT)
+            .token(SOME_TOKEN)
+            .tokenDecimals(6)
+            .tokenContractAddress(SOME_TOKEN_CONTRACT)
+            .build();
+
+    public static final TransactionResponse SOME_TRANSACTION_RESPONSE = TransactionResponse.builder()
+            .transactionId(SOME_TRANSACTION_ID)
+            .intentId(SOME_INTENT_ID)
+            .chain(SOME_CHAIN)
+            .status("RECEIVED")
+            .toAddress(SOME_TO_ADDRESS)
+            .amount(SOME_AMOUNT)
+            .token(SOME_TOKEN)
+            .retryCount(0)
+            .submittedAt(Instant.parse("2026-01-01T00:00:00Z"))
+            .createdAt(Instant.parse("2026-01-01T00:00:00Z"))
+            .build();
+
+    public static final SubmitBatchRequest SOME_BATCH_REQUEST = SubmitBatchRequest.builder()
+            .transactions(List.of(
+                    SOME_SUBMIT_REQUEST,
+                    SOME_SUBMIT_REQUEST.toBuilder()
+                            .intentId(SOME_SECOND_INTENT_ID)
+                            .build()))
             .build();
 }

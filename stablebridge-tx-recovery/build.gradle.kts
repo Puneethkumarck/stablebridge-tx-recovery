@@ -52,6 +52,7 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql")
 
     // Test fixtures (shared across unit + integration tests)
+    testFixturesImplementation(project(":stablebridge-tx-recovery-api"))
     testFixturesImplementation("org.assertj:assertj-core")
     testFixturesImplementation("org.mockito:mockito-core")
     testFixturesImplementation("org.springframework.boot:spring-boot-starter-test")
