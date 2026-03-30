@@ -15,7 +15,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthContributors;
 import org.springframework.boot.health.contributor.HealthIndicator;
-import org.springframework.boot.health.contributor.Status;
 
 import com.stablebridge.txrecovery.infrastructure.client.evm.EvmBlock;
 import com.stablebridge.txrecovery.infrastructure.client.evm.EvmRpcClient;
@@ -55,10 +54,14 @@ class RpcHealthIndicatorTest {
             var health = ((HealthIndicator) contributor).health();
 
             // then
-            assertThat(health.getStatus()).isEqualTo(Status.UP);
-            assertThat(health.getDetails())
-                    .containsEntry("blockNumber", BLOCK_NUMBER)
-                    .containsKey("latencyMs");
+            var expected = Health.up()
+                    .withDetail("latencyMs", 0L)
+                    .withDetail("blockNumber", BLOCK_NUMBER)
+                    .build();
+            assertThat(health)
+                    .usingRecursiveComparison()
+                    .ignoringFields("details.latencyMs")
+                    .isEqualTo(expected);
         }
     }
 

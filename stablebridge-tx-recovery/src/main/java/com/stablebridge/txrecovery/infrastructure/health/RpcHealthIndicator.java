@@ -26,13 +26,13 @@ public class RpcHealthIndicator implements CompositeHealthContributor {
 
     private final Map<String, HealthContributor> chainIndicators;
 
-    public RpcHealthIndicator(Map<String, EvmRpcClient> evmRpcClients, Map<String, Duration> rpcTimeouts) {
+    public RpcHealthIndicator(Map<String, EvmRpcClient> evmRpcClients, Map<String, Duration> chainRpcTimeouts) {
         this.chainIndicators = evmRpcClients.entrySet().stream()
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,
                         entry -> createChainIndicator(
                                 entry.getKey(), entry.getValue(),
-                                rpcTimeouts.getOrDefault(entry.getKey(), DEFAULT_TIMEOUT))));
+                                chainRpcTimeouts.getOrDefault(entry.getKey(), DEFAULT_TIMEOUT))));
     }
 
     @Override

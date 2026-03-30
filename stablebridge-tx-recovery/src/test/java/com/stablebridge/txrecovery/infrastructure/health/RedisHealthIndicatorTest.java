@@ -3,13 +3,14 @@ package com.stablebridge.txrecovery.infrastructure.health;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.health.contributor.Health;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -18,16 +19,20 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 class RedisHealthIndicatorTest {
 
     @Mock
-    private StringRedisTemplate stringRedisTemplate;
-
-    @Mock
     private RedisConnectionFactory connectionFactory;
 
     @Mock
     private RedisConnection connection;
 
-    @InjectMocks
     private RedisHealthIndicator healthIndicator;
+
+    @BeforeEach
+    void setUp() {
+        var stringRedisTemplate = new StringRedisTemplate();
+        stringRedisTemplate.setConnectionFactory(connectionFactory);
+        stringRedisTemplate.afterPropertiesSet();
+        healthIndicator = new RedisHealthIndicator(stringRedisTemplate);
+    }
 
     @Nested
     class WhenRedisIsUp {
@@ -35,7 +40,6 @@ class RedisHealthIndicatorTest {
         @Test
         void shouldReturnUpWithPongDetail() {
             // given
-            given(stringRedisTemplate.getConnectionFactory()).willReturn(connectionFactory);
             given(connectionFactory.getConnection()).willReturn(connection);
             given(connection.ping()).willReturn("PONG");
 
@@ -58,8 +62,8 @@ class RedisHealthIndicatorTest {
         @Test
         void shouldReturnDownWithException() {
             // given
-            var exception = new RuntimeException("Connection refused");
-            given(stringRedisTemplate.getConnectionFactory()).willThrow(exception);
+            var exception = new RedisConnectionFailureException("Connection refused");
+            given(connectionFactory.getConnection()).willThrow(exception);
 
             // when
             var health = healthIndicator.health();

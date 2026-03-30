@@ -3,6 +3,7 @@ package com.stablebridge.txrecovery.infrastructure.health;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
+import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -20,7 +21,7 @@ public class RedisHealthIndicator implements HealthIndicator {
     @Override
     public Health health() {
         try {
-            var pong = stringRedisTemplate.getConnectionFactory().getConnection().ping();
+            var pong = stringRedisTemplate.execute(RedisConnection::ping);
             return Health.up()
                     .withDetail("ping", pong)
                     .build();
