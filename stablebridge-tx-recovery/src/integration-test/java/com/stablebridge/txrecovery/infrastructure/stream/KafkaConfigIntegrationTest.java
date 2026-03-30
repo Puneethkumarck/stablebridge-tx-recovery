@@ -17,13 +17,16 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionEventPublisher;
 import com.stablebridge.txrecovery.testutil.IntegrationTestBase;
+import com.stablebridge.txrecovery.testutil.KafkaContainerExtension;
 
+@ExtendWith(KafkaContainerExtension.class)
 class KafkaConfigIntegrationTest extends IntegrationTestBase {
 
     @Autowired
