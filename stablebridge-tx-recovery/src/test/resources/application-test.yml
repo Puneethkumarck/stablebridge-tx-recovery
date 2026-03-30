@@ -11,6 +11,9 @@ spring:
 str:
   api:
     key: test-api-key
+    operators:
+      ops-lead: key-for-ops-lead
+      compliance-officer: key-for-compliance
   signer:
     backend: local-keystore
     keystore-path: test-keystore.p12
