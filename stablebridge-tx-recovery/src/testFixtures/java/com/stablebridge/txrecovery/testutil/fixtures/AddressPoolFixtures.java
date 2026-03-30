@@ -4,15 +4,17 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.stablebridge.txrecovery.api.model.AddressResponse;
+import com.stablebridge.txrecovery.api.model.NonceSyncResponse;
 import com.stablebridge.txrecovery.api.model.RegisterAddressRequest;
 import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
 import com.stablebridge.txrecovery.domain.address.model.AddressTier;
 import com.stablebridge.txrecovery.domain.address.model.ChainFamily;
+import com.stablebridge.txrecovery.domain.address.model.NonceSyncResult;
 import com.stablebridge.txrecovery.domain.address.model.PooledAddress;
 
-public final class AddressPoolControllerFixtures {
+public final class AddressPoolFixtures {
 
-    private AddressPoolControllerFixtures() {}
+    private AddressPoolFixtures() {}
 
     public static final String SOME_EVM_ADDRESS = "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B";
     public static final String SOME_CHAIN = "ethereum";
@@ -23,7 +25,6 @@ public final class AddressPoolControllerFixtures {
     public static final RegisterAddressRequest SOME_REGISTER_REQUEST = RegisterAddressRequest.builder()
             .address(SOME_EVM_ADDRESS)
             .chain(SOME_CHAIN)
-            .chainFamily("EVM")
             .tier("HOT")
             .signerEndpoint(SOME_SIGNER_ENDPOINT)
             .build();
@@ -59,7 +60,33 @@ public final class AddressPoolControllerFixtures {
             .registeredAt(SOME_REGISTERED_AT)
             .build();
 
+    public static final AddressResponse SOME_DRAINING_ADDRESS_RESPONSE = AddressResponse.builder()
+            .id(SOME_ADDRESS_ID.toString())
+            .address(SOME_EVM_ADDRESS)
+            .chain(SOME_CHAIN)
+            .chainFamily("EVM")
+            .tier("HOT")
+            .status("DRAINING")
+            .currentNonce(42)
+            .inFlightCount(2)
+            .signerEndpoint(SOME_SIGNER_ENDPOINT)
+            .registeredAt(SOME_REGISTERED_AT)
+            .build();
+
     public static final PooledAddress SOME_SYNCED_ADDRESS = SOME_REGISTERED_ADDRESS.toBuilder()
+            .currentNonce(100)
+            .build();
+
+    public static final NonceSyncResult SOME_NONCE_SYNC_RESULT = NonceSyncResult.builder()
+            .previousNonce(42)
+            .currentNonce(100)
+            .address(SOME_SYNCED_ADDRESS)
+            .build();
+
+    public static final NonceSyncResponse SOME_NONCE_SYNC_RESPONSE = NonceSyncResponse.builder()
+            .address(SOME_EVM_ADDRESS)
+            .chain(SOME_CHAIN)
+            .previousNonce(42)
             .currentNonce(100)
             .build();
 }

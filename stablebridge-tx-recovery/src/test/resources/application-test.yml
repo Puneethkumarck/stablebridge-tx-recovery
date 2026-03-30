@@ -94,3 +94,44 @@ str:
         gas-multiplier: 1.25
         requires-human-approval: true
         description: Human escalation for high-value
+  redis:
+    host: localhost
+    port: 6379
+  chains:
+    ethereum_mainnet:
+      enabled: true
+      chain-family: EVM
+      chain-id: 1
+      finality-blocks: 12
+      stuck-threshold-blocks: 50
+      poll-interval: PT12S
+      max-fee-cap-gwei: 200
+      rpc:
+        urls:
+          - http://localhost:8545
+        timeout: PT5S
+        max-retries: 3
+        rate-limit-rps: 25
+        rate-limit-burst: 50
+        circuit-breaker:
+          failure-rate-threshold: 50
+          wait-duration-in-open-state: PT30S
+          sliding-window-size: 10
+    solana_mainnet:
+      enabled: true
+      chain-family: SOLANA
+      chain-id: 0
+      finality-blocks: 31
+      stuck-threshold-blocks: 150
+      poll-interval: PT0.4S
+      rpc:
+        urls:
+          - http://localhost:8899
+        timeout: PT5S
+        max-retries: 3
+        rate-limit-rps: 25
+        rate-limit-burst: 50
+        circuit-breaker:
+          failure-rate-threshold: 50
+          wait-duration-in-open-state: PT30S
+          sliding-window-size: 10

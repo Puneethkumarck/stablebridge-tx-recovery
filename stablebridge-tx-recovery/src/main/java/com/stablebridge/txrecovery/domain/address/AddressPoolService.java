@@ -11,8 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
 import com.stablebridge.txrecovery.domain.address.model.AddressTier;
 import com.stablebridge.txrecovery.domain.address.model.ChainFamily;
+import com.stablebridge.txrecovery.domain.address.model.NonceSyncResult;
 import com.stablebridge.txrecovery.domain.address.model.PooledAddress;
 import com.stablebridge.txrecovery.domain.address.port.AddressPoolRepository;
+import com.stablebridge.txrecovery.domain.address.port.ChainFamilyResolver;
 import com.stablebridge.txrecovery.domain.address.port.OnChainNonceProvider;
 import com.stablebridge.txrecovery.domain.exception.AddressNotFoundException;
 import com.stablebridge.txrecovery.domain.exception.DuplicateAddressException;
@@ -28,16 +30,17 @@ public class AddressPoolService {
 
     private final AddressPoolRepository addressPoolRepository;
     private final OnChainNonceProvider onChainNonceProvider;
+    private final ChainFamilyResolver chainFamilyResolver;
     private final Clock clock;
 
     @Transactional
-    public PooledAddress register(String address, String chain, ChainFamily chainFamily,
-            AddressTier tier, String signerEndpoint) {
+    public PooledAddress register(String address, String chain, AddressTier tier, String signerEndpoint) {
         addressPoolRepository.findByAddressAndChain(address, chain)
                 .ifPresent(_ -> {
                     throw new DuplicateAddressException(address, chain);
                 });
 
+        var chainFamily = chainFamilyResolver.resolve(chain);
         var initialNonce = resolveInitialNonce(address, chain, chainFamily);
 
         var pooledAddress = PooledAddress.builder()
@@ -80,17 +83,19 @@ public class AddressPoolService {
     }
 
     @Transactional
-    public PooledAddress syncNonce(String address, String chain) {
+    public NonceSyncResult syncNonce(String address, String chain) {
         var pooledAddress = addressPoolRepository.findByAddressAndChain(address, chain)
                 .orElseThrow(() -> new AddressNotFoundException(address, chain));
 
+        var previousNonce = pooledAddress.currentNonce();
         var onChainNonce = onChainNonceProvider.getTransactionCount(address, chain);
 
         var synced = pooledAddress.toBuilder()
                 .currentNonce(onChainNonce.longValueExact())
                 .build();
 
-        return addressPoolRepository.save(synced);
+        var saved = addressPoolRepository.save(synced);
+        return new NonceSyncResult(previousNonce, saved.currentNonce(), saved);
     }
 
     private long resolveInitialNonce(String address, String chain, ChainFamily chainFamily) {

@@ -2,11 +2,8 @@ package com.stablebridge.txrecovery.infrastructure.db.address;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-
-import jakarta.persistence.criteria.Predicate;
 
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Repository;
@@ -65,19 +62,16 @@ class AddressPoolRepositoryAdapter implements AddressPoolRepository {
     @Override
     @Transactional(readOnly = true)
     public List<PooledAddress> findByFilters(String chain, AddressTier tier, AddressStatus status) {
-        Specification<AddressPoolEntity> spec = (root, _, cb) -> {
-            var predicates = new ArrayList<Predicate>();
-            if (chain != null) {
-                predicates.add(cb.equal(root.get("chain"), chain));
-            }
-            if (tier != null) {
-                predicates.add(cb.equal(root.get("tier"), tier));
-            }
-            if (status != null) {
-                predicates.add(cb.equal(root.get("status"), status));
-            }
-            return cb.and(predicates.toArray(new Predicate[0]));
-        };
+        var spec = Specification.<AddressPoolEntity>where((Specification<AddressPoolEntity>) null);
+        if (chain != null) {
+            spec = spec.and((root, _, cb) -> cb.equal(root.get("chain"), chain));
+        }
+        if (tier != null) {
+            spec = spec.and((root, _, cb) -> cb.equal(root.get("tier"), tier));
+        }
+        if (status != null) {
+            spec = spec.and((root, _, cb) -> cb.equal(root.get("status"), status));
+        }
         return jpaRepository.findAll(spec).stream()
                 .map(mapper::toDomain)
                 .toList();

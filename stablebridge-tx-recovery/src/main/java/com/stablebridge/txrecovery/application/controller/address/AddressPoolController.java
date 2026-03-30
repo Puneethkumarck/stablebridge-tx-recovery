@@ -23,7 +23,7 @@ import com.stablebridge.txrecovery.application.controller.address.mapper.Address
 import com.stablebridge.txrecovery.domain.address.AddressPoolService;
 import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
 import com.stablebridge.txrecovery.domain.address.model.AddressTier;
-import com.stablebridge.txrecovery.domain.address.model.ChainFamily;
+import com.stablebridge.txrecovery.domain.exception.InvalidParameterException;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,9 +41,8 @@ public class AddressPoolController {
     @PostMapping
     public ResponseEntity<AddressResponse> register(@Valid @RequestBody RegisterAddressRequest request) {
         var tier = parseTier(request.tier());
-        var chainFamily = parseChainFamily(request.chainFamily());
         var pooledAddress = addressPoolService.register(
-                request.address(), request.chain(), chainFamily, tier, request.signerEndpoint());
+                request.address(), request.chain(), tier, request.signerEndpoint());
         var response = mapper.toResponse(pooledAddress);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -73,17 +72,12 @@ public class AddressPoolController {
     public ResponseEntity<NonceSyncResponse> syncNonce(
             @PathVariable String address,
             @RequestParam String chain) {
-        var before = addressPoolService.list(chain, null, null).stream()
-                .filter(a -> a.address().equals(address))
-                .findFirst()
-                .map(PooledAddress -> PooledAddress.currentNonce())
-                .orElse(0L);
-        var synced = addressPoolService.syncNonce(address, chain);
+        var result = addressPoolService.syncNonce(address, chain);
         var response = NonceSyncResponse.builder()
-                .address(synced.address())
-                .chain(synced.chain())
-                .previousNonce(before)
-                .currentNonce(synced.currentNonce())
+                .address(result.address().address())
+                .chain(result.address().chain())
+                .previousNonce(result.previousNonce())
+                .currentNonce(result.currentNonce())
                 .build();
         return ResponseEntity.ok(response);
     }
@@ -92,7 +86,7 @@ public class AddressPoolController {
         try {
             return AddressTier.valueOf(tier);
         } catch (IllegalArgumentException _) {
-            throw new IllegalArgumentException("Invalid tier: %s".formatted(tier));
+            throw new InvalidParameterException("tier", tier);
         }
     }
 
@@ -100,15 +94,7 @@ public class AddressPoolController {
         try {
             return AddressStatus.valueOf(status);
         } catch (IllegalArgumentException _) {
-            throw new IllegalArgumentException("Invalid status: %s".formatted(status));
-        }
-    }
-
-    private ChainFamily parseChainFamily(String chainFamily) {
-        try {
-            return ChainFamily.valueOf(chainFamily);
-        } catch (IllegalArgumentException _) {
-            throw new IllegalArgumentException("Invalid chain family: %s".formatted(chainFamily));
+            throw new InvalidParameterException("status", status);
         }
     }
 }

@@ -1,6 +1,6 @@
 package com.stablebridge.txrecovery.application.controller.address;
 
-import static com.stablebridge.txrecovery.testutil.fixtures.AddressPoolControllerFixtures.*;
+import static com.stablebridge.txrecovery.testutil.fixtures.AddressPoolFixtures.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -20,7 +20,6 @@ import com.stablebridge.txrecovery.api.model.NonceSyncResponse;
 import com.stablebridge.txrecovery.domain.address.AddressPoolService;
 import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
 import com.stablebridge.txrecovery.domain.address.model.AddressTier;
-import com.stablebridge.txrecovery.domain.address.model.ChainFamily;
 import com.stablebridge.txrecovery.domain.exception.AddressNotFoundException;
 import com.stablebridge.txrecovery.domain.exception.DuplicateAddressException;
 import com.stablebridge.txrecovery.testutil.ControllerIntegrationTestBase;
@@ -41,16 +40,19 @@ class AddressPoolControllerIntegrationTest extends ControllerIntegrationTestBase
 
         @Test
         void shouldRegisterAddressAndReturn201() throws Exception {
+            // given
             given(addressPoolService.register(
-                    SOME_EVM_ADDRESS, SOME_CHAIN, ChainFamily.EVM, AddressTier.HOT, SOME_SIGNER_ENDPOINT))
+                    SOME_EVM_ADDRESS, SOME_CHAIN, AddressTier.HOT, SOME_SIGNER_ENDPOINT))
                     .willReturn(SOME_REGISTERED_ADDRESS);
 
+            // when
             var result = mockMvc.perform(authenticatedJson(
                             post(BASE_PATH),
                             objectMapper.writeValueAsString(SOME_REGISTER_REQUEST)))
                     .andExpect(status().isCreated())
                     .andReturn();
 
+            // then
             var response = objectMapper.readValue(
                     result.getResponse().getContentAsString(), AddressResponse.class);
             assertThat(response)
@@ -60,41 +62,49 @@ class AddressPoolControllerIntegrationTest extends ControllerIntegrationTestBase
 
         @Test
         void shouldReturn409WhenAddressAlreadyRegistered() throws Exception {
+            // given
             given(addressPoolService.register(
-                    SOME_EVM_ADDRESS, SOME_CHAIN, ChainFamily.EVM, AddressTier.HOT, SOME_SIGNER_ENDPOINT))
+                    SOME_EVM_ADDRESS, SOME_CHAIN, AddressTier.HOT, SOME_SIGNER_ENDPOINT))
                     .willThrow(new DuplicateAddressException(SOME_EVM_ADDRESS, SOME_CHAIN));
 
+            // when
             var result = mockMvc.perform(authenticatedJson(
                             post(BASE_PATH),
                             objectMapper.writeValueAsString(SOME_REGISTER_REQUEST)))
                     .andExpect(status().isConflict())
                     .andReturn();
 
+            // then
             assertErrorResponse(result, HttpStatus.CONFLICT, "STR-4091",
                     "Address already registered: %s on chain %s".formatted(SOME_EVM_ADDRESS, SOME_CHAIN));
         }
 
         @Test
         void shouldReturn400WhenAddressIsBlank() throws Exception {
+            // given
             var invalidRequest = SOME_REGISTER_REQUEST.toBuilder().address("").build();
 
+            // when
             var result = mockMvc.perform(authenticatedJson(
                             post(BASE_PATH),
                             objectMapper.writeValueAsString(invalidRequest)))
                     .andExpect(status().isBadRequest())
                     .andReturn();
 
+            // then
             assertValidationError(result, "address");
         }
 
         @Test
         void shouldReturn400WhenRequestBodyIsMissing() throws Exception {
+            // when
             var result = mockMvc.perform(authenticated(
                             post(BASE_PATH))
                             .contentType("application/json"))
                     .andExpect(status().isBadRequest())
                     .andReturn();
 
+            // then
             assertErrorResponse(result, HttpStatus.BAD_REQUEST, "STR-4000", "Malformed request body");
         }
     }
@@ -104,9 +114,11 @@ class AddressPoolControllerIntegrationTest extends ControllerIntegrationTestBase
 
         @Test
         void shouldListAddressesWithFilters() throws Exception {
+            // given
             given(addressPoolService.list(SOME_CHAIN, AddressTier.HOT, AddressStatus.ACTIVE))
                     .willReturn(List.of(SOME_REGISTERED_ADDRESS));
 
+            // when
             var result = mockMvc.perform(authenticated(get(BASE_PATH))
                             .param("chain", SOME_CHAIN)
                             .param("tier", "HOT")
@@ -114,6 +126,7 @@ class AddressPoolControllerIntegrationTest extends ControllerIntegrationTestBase
                     .andExpect(status().isOk())
                     .andReturn();
 
+            // then
             var response = objectMapper.readValue(
                     result.getResponse().getContentAsString(),
                     new TypeReference<List<AddressResponse>>() {});
@@ -125,13 +138,16 @@ class AddressPoolControllerIntegrationTest extends ControllerIntegrationTestBase
 
         @Test
         void shouldListAllAddressesWithoutFilters() throws Exception {
+            // given
             given(addressPoolService.list(null, null, null))
                     .willReturn(List.of(SOME_REGISTERED_ADDRESS, SOME_DRAINING_ADDRESS));
 
+            // when
             var result = mockMvc.perform(authenticated(get(BASE_PATH)))
                     .andExpect(status().isOk())
                     .andReturn();
 
+            // then
             var response = objectMapper.readValue(
                     result.getResponse().getContentAsString(),
                     new TypeReference<List<AddressResponse>>() {});
@@ -144,37 +160,46 @@ class AddressPoolControllerIntegrationTest extends ControllerIntegrationTestBase
 
         @Test
         void shouldDrainAddressAndReturn200() throws Exception {
+            // given
             given(addressPoolService.drain(SOME_EVM_ADDRESS, SOME_CHAIN))
                     .willReturn(SOME_DRAINING_ADDRESS);
 
+            // when
             var result = mockMvc.perform(authenticated(
                             delete(BASE_PATH + "/{address}", SOME_EVM_ADDRESS))
                             .param("chain", SOME_CHAIN))
                     .andExpect(status().isOk())
                     .andReturn();
 
+            // then
             var response = objectMapper.readValue(
                     result.getResponse().getContentAsString(), AddressResponse.class);
-            assertThat(response.status()).isEqualTo("DRAINING");
+            assertThat(response)
+                    .usingRecursiveComparison()
+                    .isEqualTo(SOME_DRAINING_ADDRESS_RESPONSE);
         }
 
         @Test
         void shouldReturn404WhenAddressNotFound() throws Exception {
+            // given
             given(addressPoolService.drain("0xUnknown", SOME_CHAIN))
                     .willThrow(new AddressNotFoundException("0xUnknown", SOME_CHAIN));
 
+            // when
             var result = mockMvc.perform(authenticated(
                             delete(BASE_PATH + "/{address}", "0xUnknown"))
                             .param("chain", SOME_CHAIN))
                     .andExpect(status().isNotFound())
                     .andReturn();
 
+            // then
             assertErrorResponse(result, HttpStatus.NOT_FOUND, "STR-4042",
                     "Address not found: 0xUnknown on chain %s".formatted(SOME_CHAIN));
         }
 
         @Test
         void shouldReturn400WhenChainParamIsMissing() throws Exception {
+            // when/then
             mockMvc.perform(authenticated(
                             delete(BASE_PATH + "/{address}", SOME_EVM_ADDRESS)))
                     .andExpect(status().isBadRequest());
@@ -186,36 +211,39 @@ class AddressPoolControllerIntegrationTest extends ControllerIntegrationTestBase
 
         @Test
         void shouldSyncNonceAndReturn200() throws Exception {
-            given(addressPoolService.list(SOME_CHAIN, null, null))
-                    .willReturn(List.of(SOME_REGISTERED_ADDRESS));
+            // given
             given(addressPoolService.syncNonce(SOME_EVM_ADDRESS, SOME_CHAIN))
-                    .willReturn(SOME_SYNCED_ADDRESS);
+                    .willReturn(SOME_NONCE_SYNC_RESULT);
 
+            // when
             var result = mockMvc.perform(authenticated(
                             post(BASE_PATH + "/{address}/nonces/sync", SOME_EVM_ADDRESS))
                             .param("chain", SOME_CHAIN))
                     .andExpect(status().isOk())
                     .andReturn();
 
+            // then
             var response = objectMapper.readValue(
                     result.getResponse().getContentAsString(), NonceSyncResponse.class);
-            assertThat(response.previousNonce()).isEqualTo(42);
-            assertThat(response.currentNonce()).isEqualTo(100);
+            assertThat(response)
+                    .usingRecursiveComparison()
+                    .isEqualTo(SOME_NONCE_SYNC_RESPONSE);
         }
 
         @Test
         void shouldReturn404WhenSyncingUnknownAddress() throws Exception {
-            given(addressPoolService.list(SOME_CHAIN, null, null))
-                    .willReturn(List.of());
+            // given
             given(addressPoolService.syncNonce("0xUnknown", SOME_CHAIN))
                     .willThrow(new AddressNotFoundException("0xUnknown", SOME_CHAIN));
 
+            // when
             var result = mockMvc.perform(authenticated(
                             post(BASE_PATH + "/{address}/nonces/sync", "0xUnknown"))
                             .param("chain", SOME_CHAIN))
                     .andExpect(status().isNotFound())
                     .andReturn();
 
+            // then
             assertErrorResponse(result, HttpStatus.NOT_FOUND, "STR-4042",
                     "Address not found: 0xUnknown on chain %s".formatted(SOME_CHAIN));
         }
