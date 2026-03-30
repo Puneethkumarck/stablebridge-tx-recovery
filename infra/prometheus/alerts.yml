@@ -1,0 +1,126 @@
+groups:
+  - name: stablebridge-tx-recovery-p1
+    rules:
+      - alert: StrTransactionStuckCritical
+        expr: >
+          histogram_quantile(0.99,
+            rate(str_transaction_stuck_duration_seconds_bucket[5m])
+          ) > 1800
+        for: 5m
+        labels:
+          severity: critical
+          routing: pagerduty
+        annotations:
+          summary: "Transaction stuck for more than 30 minutes on {{ $labels.chain }}"
+          description: >-
+            The 99th percentile stuck duration on chain {{ $labels.chain }}
+            has exceeded 30 minutes (current: {{ $value | humanizeDuration }}).
+            Immediate investigation required to prevent fund lockup.
+
+      - alert: StrNonceGapDetected
+        expr: >
+          increase(str_nonce_gaps_detected_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          routing: pagerduty
+        annotations:
+          summary: "Nonce gap detected on chain {{ $labels.chain }}"
+          description: >-
+            A nonce gap has been detected on chain {{ $labels.chain }}.
+            This can cause all subsequent transactions to stall until the gap
+            is filled. Manual nonce reconciliation may be required.
+
+      - alert: StrRecoveryBudgetExhausted
+        expr: >
+          str_human_escalation_pending > 0
+        for: 5m
+        labels:
+          severity: critical
+          routing: pagerduty
+        annotations:
+          summary: "Recovery budget exhausted on chain {{ $labels.chain }}, awaiting human"
+          description: >-
+            Gas recovery budget on chain {{ $labels.chain }} is exhausted
+            with {{ $value }} pending escalation(s) awaiting human intervention.
+            Approve additional budget or take manual recovery action.
+
+      - alert: StrChainRpcDown
+        expr: >
+          absent_over_time(str_gas_base_fee_gwei[2m])
+          or (changes(str_gas_base_fee_gwei[2m]) == 0
+              and str_gas_base_fee_gwei > 0)
+        for: 2m
+        labels:
+          severity: critical
+          routing: pagerduty
+        annotations:
+          summary: "Chain RPC unreachable for {{ $labels.chain }}"
+          description: >-
+            The gas oracle has not received an updated base fee for chain
+            {{ $labels.chain }} in over 2 minutes, indicating the RPC endpoint
+            is unreachable. All transaction submissions and monitoring are
+            degraded until connectivity is restored.
+
+  - name: stablebridge-tx-recovery-p2
+    rules:
+      - alert: StrHighStuckRate
+        expr: >
+          (
+            rate(str_transactions_stuck_total[5m])
+            / on(chain) rate(str_transactions_submitted_total[5m])
+          ) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          routing: slack
+        annotations:
+          summary: "High stuck transaction rate on chain {{ $labels.chain }}"
+          description: >-
+            More than 20% of submitted transactions on chain {{ $labels.chain }}
+            are becoming stuck (current ratio: {{ $value | humanizePercentage }}).
+            This may indicate gas pricing issues or network congestion.
+
+      - alert: StrGasSpike
+        expr: >
+          str_gas_base_fee_gwei
+          / avg_over_time(str_gas_base_fee_gwei[1h]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          routing: slack
+        annotations:
+          summary: "Gas fee spike detected on chain {{ $labels.chain }}"
+          description: >-
+            Current base fee on chain {{ $labels.chain }} is more than 5x the
+            1-hour average (current: {{ $value | humanize }}x).
+            Transaction costs are elevated; consider deferring non-urgent
+            submissions.
+
+      - alert: StrAddressPoolLow
+        expr: >
+          str_address_pool_size{status="active"} < 2
+        for: 5m
+        labels:
+          severity: warning
+          routing: slack
+        annotations:
+          summary: "Low address pool for {{ $labels.tier }} tier on chain {{ $labels.chain }}"
+          description: >-
+            The {{ $labels.tier }} address pool on chain {{ $labels.chain }}
+            has fewer than 2 active addresses (current: {{ $value }}).
+            Register additional addresses to maintain operational capacity.
+
+      - alert: StrTemporalWorkflowFailed
+        expr: >
+          increase(str_recovery_attempts_total{outcome="failure"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          routing: slack
+        annotations:
+          summary: "Temporal workflow failure on chain {{ $labels.chain }}"
+          description: >-
+            A recovery workflow execution has failed on chain {{ $labels.chain }}
+            (action: {{ $labels.action }}). Review Temporal UI for workflow
+            history and failure details.
