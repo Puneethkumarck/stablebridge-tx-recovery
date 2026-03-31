@@ -1,11 +1,11 @@
 package com.stablebridge.txrecovery.infrastructure.stream;
 
-import static com.stablebridge.txrecovery.infrastructure.stream.KafkaTransactionEventPublisher.DLQ_PREFIX;
-import static com.stablebridge.txrecovery.infrastructure.stream.KafkaTransactionEventPublisher.TOPIC_PREFIX;
+import static com.stablebridge.txrecovery.infrastructure.stream.OutboxTransactionEventPublisher.TOPIC_PREFIX;
 
 import java.util.HashMap;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+import javax.sql.DataSource;
 
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -21,22 +21,31 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionEventPublisher;
+import com.stablebridge.txrecovery.infrastructure.db.outbox.OutboxEventPersister;
+import com.stablebridge.txrecovery.infrastructure.db.outbox.OutboxEventReader;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.core.LockProvider;
+import net.javacrumbs.shedlock.provider.jdbctemplate.JdbcTemplateLockProvider;
+import net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;
 import tools.jackson.databind.ObjectMapper;
 
 @Configuration
 @Slf4j
 @RequiredArgsConstructor
+@EnableScheduling
+@EnableSchedulerLock(defaultLockAtMostFor = "PT5M")
 @EnableConfigurationProperties(KafkaProperties.class)
 @ConditionalOnProperty(name = "spring.kafka.bootstrap-servers")
 public class KafkaConfig {
 
     static final int PARTITIONS = 6;
     static final int RETENTION_DAYS = 30;
+    static final String DLQ_PREFIX = "str.tx.dlq.";
 
     private final KafkaProperties kafkaProperties;
 
@@ -81,9 +90,20 @@ public class KafkaConfig {
     }
 
     @Bean
-    TransactionEventPublisher kafkaTransactionEventPublisher(
-            KafkaTemplate<String, String> kafkaTemplate, ObjectMapper objectMapper) {
-        return new KafkaTransactionEventPublisher(kafkaTemplate, objectMapper);
+    TransactionEventPublisher outboxTransactionEventPublisher(
+            OutboxEventPersister outboxEventPersister, ObjectMapper objectMapper) {
+        return new OutboxTransactionEventPublisher(outboxEventPersister, objectMapper);
+    }
+
+    @Bean
+    OutboxEventRelay outboxEventRelay(
+            OutboxEventReader outboxEventReader, KafkaTemplate<String, String> kafkaTemplate) {
+        return new OutboxEventRelay(outboxEventReader, kafkaTemplate);
+    }
+
+    @Bean
+    LockProvider lockProvider(DataSource dataSource) {
+        return new JdbcTemplateLockProvider(dataSource);
     }
 
     private NewTopic buildEventTopic(String chain) {
