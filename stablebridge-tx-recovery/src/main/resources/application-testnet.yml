@@ -15,14 +15,14 @@ spring:
 
 str:
   api:
-    key: ${STR_API_KEY:change-me}
+    key: ${STR_API_KEY}
   nonce:
     enabled: true
   kafka:
-    enabled-chains: ethereum_mainnet,solana_mainnet
+    enabled-chains: ethereum_sepolia,solana_devnet
 
   chains:
-    ethereum_mainnet:
+    ethereum_sepolia:
       enabled: true
       chain-family: EVM
       chain-id: 11155111
@@ -50,7 +50,7 @@ str:
     polygon_mainnet:
       enabled: false
 
-    solana_mainnet:
+    solana_devnet:
       enabled: true
       chain-family: SOLANA
       chain-id: 0

@@ -262,19 +262,13 @@ class AddressPoolServiceTest {
         @Test
         void shouldAutoRetireWhenDrainingAndInFlightReachesZero() {
             // given
-            var drainingWithOneInFlight = SOME_DRAINING_ADDRESS.toBuilder()
+            var retiredAddress = SOME_DRAINING_ADDRESS.toBuilder()
                     .inFlightCount(0)
-                    .build();
-            given(addressPoolRepository.findByAddressAndChain(SOME_EVM_ADDRESS, SOME_CHAIN))
-                    .willReturn(Optional.of(drainingWithOneInFlight));
-
-            var expectedRetired = drainingWithOneInFlight.toBuilder()
                     .status(AddressStatus.RETIRED)
                     .retiredAt(SOME_REGISTERED_AT)
                     .build();
-
-            given(addressPoolRepository.save(eqIgnoring(expectedRetired)))
-                    .willAnswer(inv -> inv.getArgument(0));
+            given(addressPoolRepository.findByAddressAndChain(SOME_EVM_ADDRESS, SOME_CHAIN))
+                    .willReturn(Optional.of(retiredAddress));
 
             // when
             var result = addressPoolService.decrementInFlightCount(SOME_EVM_ADDRESS, SOME_CHAIN);
@@ -283,7 +277,7 @@ class AddressPoolServiceTest {
             then(addressPoolRepository).should().decrementInFlightCount(SOME_EVM_ADDRESS, SOME_CHAIN);
             assertThat(result)
                     .usingRecursiveComparison()
-                    .isEqualTo(expectedRetired);
+                    .isEqualTo(retiredAddress);
         }
 
         @Test

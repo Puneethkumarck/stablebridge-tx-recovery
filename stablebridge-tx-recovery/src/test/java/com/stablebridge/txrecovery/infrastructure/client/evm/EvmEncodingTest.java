@@ -1,6 +1,7 @@
 package com.stablebridge.txrecovery.infrastructure.client.evm;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigInteger;
 import java.util.HexFormat;
@@ -150,6 +151,19 @@ class EvmEncodingTest {
 
             // then
             assertThat(result1).isEqualTo(result2);
+        }
+
+        @Test
+        void shouldThrowWhenUnsignedPayloadHasWrongPrefix() {
+            // given
+            var invalidPayload = new byte[]{0x01, (byte) 0xc0};
+            var signature = new byte[65];
+            signature[64] = 27;
+
+            // when/then
+            assertThatThrownBy(() -> EvmEncoding.assembleSignedEip1559(invalidPayload, signature))
+                    .isInstanceOf(EvmRpcException.class)
+                    .hasMessageContaining("EIP-1559");
         }
     }
 

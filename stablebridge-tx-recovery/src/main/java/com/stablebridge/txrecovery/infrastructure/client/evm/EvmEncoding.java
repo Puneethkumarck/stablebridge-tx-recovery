@@ -50,13 +50,15 @@ public final class EvmEncoding {
     }
 
     public static byte[] assembleSignedEip1559(byte[] unsignedPayload, byte[] signature) {
+        if (unsignedPayload == null || unsignedPayload.length == 0) {
+            throw new EvmRpcException("Unsigned payload cannot be null or empty", false);
+        }
+        if (signature == null || signature.length != EXPECTED_SIGNATURE_LENGTH) {
+            throw new EvmRpcException(
+                    "Signature must be exactly %d bytes".formatted(EXPECTED_SIGNATURE_LENGTH), false);
+        }
         if (unsignedPayload[0] != EIP_1559_TX_TYPE) {
             throw new EvmRpcException("Expected EIP-1559 type prefix (0x02)", false);
-        }
-        if (signature.length < EXPECTED_SIGNATURE_LENGTH) {
-            throw new EvmRpcException(
-                    "Signature must be at least %d bytes, got %d".formatted(EXPECTED_SIGNATURE_LENGTH, signature.length),
-                    false);
         }
 
         var r = new BigInteger(1, signature, SIGNATURE_R_OFFSET, KEY_SIZE);
@@ -91,6 +93,9 @@ public final class EvmEncoding {
 
     private static byte[] extractRlpListContent(byte[] data, int offset) {
         int prefix = data[offset] & 0xff;
+        if (prefix < 0xc0) {
+            throw new EvmRpcException("Expected RLP list prefix at offset " + offset, false);
+        }
         int headerSize;
         int contentLength;
 

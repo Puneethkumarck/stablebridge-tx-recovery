@@ -50,7 +50,11 @@ public class StateMachine<S, T extends StateProvider<S>> {
         }
 
         public Builder<S, T> withTransition(S from, S to, Function<T, StateChangedEvent<S>> action) {
-            transitions.put(new TransitionKey<>(from, to), action);
+            var key = new TransitionKey<>(from, to);
+            if (transitions.containsKey(key)) {
+                throw new IllegalArgumentException("Duplicate transition: %s -> %s".formatted(from, to));
+            }
+            transitions.put(key, action);
             return this;
         }
 

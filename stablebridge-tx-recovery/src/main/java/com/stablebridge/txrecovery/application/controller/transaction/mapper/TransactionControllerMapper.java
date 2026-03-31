@@ -36,8 +36,12 @@ public interface TransactionControllerMapper {
     }
 
     default BigInteger computeRawAmount(SubmitTransactionRequest request) {
-        return request.amount()
-                .movePointRight(request.tokenDecimals())
-                .toBigIntegerExact();
+        var shifted = request.amount().movePointRight(request.tokenDecimals());
+        if (shifted.stripTrailingZeros().scale() > 0) {
+            throw new IllegalArgumentException(
+                    "Amount precision (%d decimals) exceeds token decimals (%d)"
+                            .formatted(request.amount().scale(), request.tokenDecimals()));
+        }
+        return shifted.toBigInteger();
     }
 }

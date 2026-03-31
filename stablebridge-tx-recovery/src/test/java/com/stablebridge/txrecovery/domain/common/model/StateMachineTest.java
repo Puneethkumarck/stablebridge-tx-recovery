@@ -104,9 +104,10 @@ class StateMachineTest {
             var entity = new Entity(Status.REJECTED);
 
             // when/then
-            assertThatThrownBy(() -> STATE_MACHINE.transition(entity, Status.REJECTED))
+            assertThatThrownBy(() -> STATE_MACHINE.transition(entity, Status.APPROVED))
                     .isInstanceOf(StateMachineException.class)
-                    .hasMessageContaining("REJECTED");
+                    .hasMessageContaining("REJECTED")
+                    .hasMessageContaining("APPROVED");
         }
     }
 
@@ -143,6 +144,19 @@ class StateMachineTest {
             assertThatThrownBy(() -> StateMachine.<Status, Entity>builder().build())
                     .isInstanceOf(NullPointerException.class)
                     .hasMessageContaining("exceptionProvider");
+        }
+
+        @Test
+        void shouldThrowOnDuplicateTransition() {
+            // when/then
+            assertThatThrownBy(() -> StateMachine.<Status, Entity>builder()
+                    .withExceptionProvider((from, to) -> new StateMachineException("TEST-0001", from, to))
+                    .withTransition(Status.CREATED, Status.PENDING, StateMachine.noAction())
+                    .withTransition(Status.CREATED, Status.PENDING, StateMachine.noAction())
+                    .build())
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("CREATED")
+                    .hasMessageContaining("PENDING");
         }
     }
 }

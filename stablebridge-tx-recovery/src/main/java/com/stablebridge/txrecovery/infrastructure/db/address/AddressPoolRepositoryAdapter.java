@@ -42,6 +42,7 @@ class AddressPoolRepositoryAdapter implements AddressPoolRepository {
     @Transactional
     public void decrementInFlightCount(String address, String chain) {
         jpaRepository.decrementInFlightCount(address, chain);
+        jpaRepository.retireIfDraining(address, chain, Instant.now(clock));
     }
 
     @Override

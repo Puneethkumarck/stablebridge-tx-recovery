@@ -25,7 +25,7 @@ dependencies {
     // Flyway
     implementation(libs.flyway.core)
     implementation(libs.flyway.postgresql)
-    implementation("org.springframework.boot:spring-boot-flyway")
+    implementation("org.springframework.boot:spring-boot-starter-flyway")
 
     // Resilience4j
     implementation(libs.resilience4j.spring.boot)
@@ -72,7 +72,7 @@ dependencies {
     testImplementation(testFixtures(project))
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-webmvc-test")
-    testImplementation("org.springframework.boot:spring-boot-flyway")
+    testImplementation("org.springframework.boot:spring-boot-starter-flyway")
     testImplementation(libs.archunit)
     testImplementation(libs.testcontainers.junit)
     testImplementation(libs.testcontainers.postgresql)

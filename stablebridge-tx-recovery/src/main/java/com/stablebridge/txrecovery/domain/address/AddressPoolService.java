@@ -98,19 +98,8 @@ public class AddressPoolService {
     public PooledAddress decrementInFlightCount(String address, String chain) {
         addressPoolRepository.decrementInFlightCount(address, chain);
 
-        var pooledAddress = addressPoolRepository.findByAddressAndChain(address, chain)
+        return addressPoolRepository.findByAddressAndChain(address, chain)
                 .orElseThrow(() -> new AddressNotFoundException(address, chain));
-
-        if (pooledAddress.status() == DRAINING && pooledAddress.inFlightCount() == 0) {
-            ADDRESS_STATE_MACHINE.transition(pooledAddress, RETIRED);
-            var retired = pooledAddress.toBuilder()
-                    .status(RETIRED)
-                    .retiredAt(Instant.now(clock))
-                    .build();
-            return addressPoolRepository.save(retired);
-        }
-
-        return pooledAddress;
     }
 
     @Transactional

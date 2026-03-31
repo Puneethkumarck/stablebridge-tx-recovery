@@ -3,6 +3,7 @@ package com.stablebridge.txrecovery.domain.transaction;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -125,6 +126,7 @@ public class TransactionSubmissionService {
     }
 
     public SubmissionStrategy calculateStrategy(BigDecimal amount) {
+        Objects.requireNonNull(amount, "amount must not be null");
         return amount.compareTo(HIGH_VALUE_THRESHOLD) > 0
                 ? SubmissionStrategy.SEQUENTIAL
                 : SubmissionStrategy.PIPELINED;

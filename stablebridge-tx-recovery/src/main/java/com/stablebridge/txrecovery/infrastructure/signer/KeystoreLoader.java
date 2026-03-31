@@ -35,6 +35,9 @@ final class KeystoreLoader {
             for (var entry : keysNode) {
                 var address = entry.get("address").asText();
                 var privateKeyHex = entry.get("privateKeyHex").asText();
+                if (entries.containsKey(address)) {
+                    throw new SignerConfigurationException("Duplicate address in keystore: " + address);
+                }
                 entries.put(address, hex.parseHex(privateKeyHex));
             }
 

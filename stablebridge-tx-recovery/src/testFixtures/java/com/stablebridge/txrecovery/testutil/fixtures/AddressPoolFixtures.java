@@ -52,6 +52,7 @@ public final class AddressPoolFixtures {
     public static final PooledAddress SOME_RETIRED_ADDRESS = SOME_REGISTERED_ADDRESS.toBuilder()
             .status(AddressStatus.RETIRED)
             .inFlightCount(0)
+            .retiredAt(SOME_REGISTERED_AT)
             .build();
 
     public static final AddressResponse SOME_ADDRESS_RESPONSE = AddressResponse.builder()
