@@ -113,11 +113,10 @@ class EvmChainTransactionManagerTest {
             var expected = BroadcastResult.builder()
                     .txHash(SOME_BROADCAST_TX_HASH)
                     .chain(SOME_CHAIN)
-                    .broadcastedAt(Instant.now())
+                    .broadcastedAt(Instant.parse("2026-01-01T00:00:00Z"))
                     .build();
             assertThat(result)
                     .usingRecursiveComparison()
-                    .ignoringFields("broadcastedAt")
                     .isEqualTo(expected);
         }
 
@@ -135,12 +134,12 @@ class EvmChainTransactionManagerTest {
             var expected = BroadcastResult.builder()
                     .txHash("placeholder")
                     .chain(SOME_CHAIN)
-                    .broadcastedAt(Instant.now())
+                    .broadcastedAt(Instant.parse("2026-01-01T00:00:00Z"))
                     .details(Map.of("note", "Transaction already known by node"))
                     .build();
             assertThat(result)
                     .usingRecursiveComparison()
-                    .ignoringFields("broadcastedAt", "txHash")
+                    .ignoringFields("txHash")
                     .isEqualTo(expected);
             assertThat(result.txHash()).startsWith("0x");
         }

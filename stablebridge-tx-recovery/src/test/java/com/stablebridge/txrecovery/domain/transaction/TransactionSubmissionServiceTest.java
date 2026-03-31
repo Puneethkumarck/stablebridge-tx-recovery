@@ -17,6 +17,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -128,6 +129,8 @@ class TransactionSubmissionServiceTest {
             assertThat(result.projection())
                     .usingRecursiveComparison()
                     .isEqualTo(SOME_TRANSACTION_PROJECTION);
+            then(postCommitAction).shouldHaveNoInteractions();
+            then(transactionWorkflowStarter).shouldHaveNoInteractions();
         }
 
         @Test
@@ -149,12 +152,19 @@ class TransactionSubmissionServiceTest {
             // given
             given(transactionIntentStore.findByIntentId(SOME_INTENT_ID))
                     .willReturn(Optional.empty());
+            var captor = ArgumentCaptor.forClass(Runnable.class);
 
             // when
             transactionSubmissionService.submitTransaction(SOME_TRANSACTION_INTENT);
 
             // then
-            then(postCommitAction).should().executeAfterCommit(org.mockito.ArgumentMatchers.any());
+            then(postCommitAction).should().executeAfterCommit(captor.capture());
+            then(transactionWorkflowStarter).shouldHaveNoInteractions();
+
+            captor.getValue().run();
+
+            then(transactionWorkflowStarter).should().startWorkflow(eqIgnoring(SOME_TRANSACTION_INTENT.toBuilder()
+                    .strategy(SubmissionStrategy.PIPELINED).build()));
         }
     }
 
@@ -182,6 +192,14 @@ class TransactionSubmissionServiceTest {
             assertThat(result.projections()).allMatch(p -> p.status() == TransactionStatus.RECEIVED);
             assertThat(result.batchId()).isNotBlank();
             assertThat(result.createdAt()).isNotNull();
+        }
+
+        @Test
+        void shouldRejectEmptyBatch() {
+            // when/then
+            assertThatThrownBy(() -> transactionSubmissionService.submitBatch(List.of()))
+                    .isInstanceOf(BatchValidationException.class)
+                    .hasMessageContaining("at least one");
         }
 
         @Test

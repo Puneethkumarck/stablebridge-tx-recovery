@@ -16,5 +16,6 @@ public record BatchSubmissionResult(
         Objects.requireNonNull(batchId);
         Objects.requireNonNull(projections);
         Objects.requireNonNull(createdAt);
+        projections = List.copyOf(projections);
     }
 }

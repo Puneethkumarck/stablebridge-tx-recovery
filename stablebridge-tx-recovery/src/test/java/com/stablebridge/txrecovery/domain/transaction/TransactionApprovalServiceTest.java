@@ -66,12 +66,11 @@ class TransactionApprovalServiceTest {
                     .transactionId(SOME_APPROVAL_TRANSACTION_ID)
                     .status(TransactionStatus.AWAITING_HUMAN)
                     .action(ApprovalAction.RETRY)
+                    .approvedAt(Instant.parse("2026-01-01T00:00:00Z"))
                     .build();
             assertThat(result)
                     .usingRecursiveComparison()
-                    .ignoringFields("approvedAt")
                     .isEqualTo(expected);
-            assertThat(result.approvedAt()).isNotNull();
 
             var expectedApproval = HumanApproval.builder()
                     .action(ApprovalAction.RETRY)
@@ -99,10 +98,10 @@ class TransactionApprovalServiceTest {
                     .transactionId(SOME_APPROVAL_TRANSACTION_ID)
                     .status(TransactionStatus.AWAITING_HUMAN)
                     .action(ApprovalAction.ABORT)
+                    .approvedAt(Instant.parse("2026-01-01T00:00:00Z"))
                     .build();
             assertThat(result)
                     .usingRecursiveComparison()
-                    .ignoringFields("approvedAt")
                     .isEqualTo(expected);
         }
 

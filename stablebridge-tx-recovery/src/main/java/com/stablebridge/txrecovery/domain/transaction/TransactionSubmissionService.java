@@ -47,7 +47,7 @@ public class TransactionSubmissionService {
         var existing = transactionIntentStore.findByIntentId(intent.intentId());
         if (existing.isPresent()) {
             var projection = transactionProjectionStore.findByIntentId(intent.intentId())
-                    .orElseThrow();
+                    .orElseThrow(() -> new TransactionNotFoundException(intent.intentId()));
             return new SubmissionResult.AlreadyExists(projection);
         }
 
@@ -61,6 +61,11 @@ public class TransactionSubmissionService {
 
     @Transactional
     public BatchSubmissionResult submitBatch(List<TransactionIntent> intents) {
+        Objects.requireNonNull(intents, "intents must not be null");
+        if (intents.isEmpty()) {
+            throw new BatchValidationException("batch must contain at least one transaction intent");
+        }
+
         var batchId = UuidCreator.getTimeOrderedEpoch().toString();
         validateBatchConsistency(intents);
 

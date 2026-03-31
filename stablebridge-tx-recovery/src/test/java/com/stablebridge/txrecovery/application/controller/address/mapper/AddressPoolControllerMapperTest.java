@@ -91,6 +91,14 @@ class AddressPoolControllerMapperTest {
     }
 
     @Test
+    void shouldThrowInvalidParameterExceptionForNullTier() {
+        // when/then
+        assertThatThrownBy(() -> mapper.parseTier(null))
+                .isInstanceOf(InvalidParameterException.class)
+                .hasMessageContaining("tier");
+    }
+
+    @Test
     void shouldParseStatusFromValidString() {
         // when
         var result = mapper.parseStatus("ACTIVE");
@@ -103,6 +111,14 @@ class AddressPoolControllerMapperTest {
     void shouldThrowInvalidParameterExceptionForInvalidStatus() {
         // when/then
         assertThatThrownBy(() -> mapper.parseStatus("INVALID"))
+                .isInstanceOf(InvalidParameterException.class)
+                .hasMessageContaining("status");
+    }
+
+    @Test
+    void shouldThrowInvalidParameterExceptionForNullStatus() {
+        // when/then
+        assertThatThrownBy(() -> mapper.parseStatus(null))
                 .isInstanceOf(InvalidParameterException.class)
                 .hasMessageContaining("status");
     }

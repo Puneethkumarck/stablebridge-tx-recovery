@@ -38,6 +38,9 @@ public interface AddressPoolControllerMapper {
     NonceSyncResponse toNonceSyncResponse(NonceSyncResult result);
 
     default AddressTier parseTier(String tier) {
+        if (tier == null) {
+            throw new InvalidParameterException("tier", null);
+        }
         try {
             return AddressTier.valueOf(tier);
         } catch (IllegalArgumentException _) {
@@ -46,6 +49,9 @@ public interface AddressPoolControllerMapper {
     }
 
     default AddressStatus parseStatus(String status) {
+        if (status == null) {
+            throw new InvalidParameterException("status", null);
+        }
         try {
             return AddressStatus.valueOf(status);
         } catch (IllegalArgumentException _) {
