@@ -44,7 +44,9 @@ public class TransactionController {
     public ResponseEntity<TransactionResponse> submitTransaction(
             @Valid @RequestBody SubmitTransactionRequest request) {
         try {
-            var intent = transactionControllerMapper.toDomain(request);
+            var intent = transactionControllerMapper.toDomain(request).toBuilder()
+                    .strategy(transactionSubmissionService.calculateStrategy(request.amount()))
+                    .build();
             var projection = transactionSubmissionService.submitTransaction(intent);
             transactionSubmissionService.startWorkflowAfterCommit(intent);
             var response = transactionControllerMapper.toResponse(projection);

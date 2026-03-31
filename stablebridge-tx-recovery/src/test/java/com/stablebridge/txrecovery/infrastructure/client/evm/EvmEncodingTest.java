@@ -76,6 +76,84 @@ class EvmEncodingTest {
     }
 
     @Nested
+    class AssembleSignedEip1559 {
+
+        @Test
+        void shouldProduceEip1559TypePrefix() {
+            // given
+            var unsigned = EvmEncoding.encodeEip1559Transaction(
+                    1L, 0L,
+                    BigInteger.valueOf(2_000_000_000L),
+                    BigInteger.valueOf(30_000_000_000L),
+                    BigInteger.valueOf(21_000L),
+                    SOME_ADDRESS,
+                    BigInteger.ZERO,
+                    new byte[0]);
+            var signature = new byte[65];
+            signature[0] = 0x01;
+            signature[32] = 0x02;
+            signature[64] = 27;
+
+            // when
+            var result = EvmEncoding.assembleSignedEip1559(unsigned, signature);
+
+            // then
+            assertThat(result[0]).isEqualTo((byte) 0x02);
+        }
+
+        @Test
+        void shouldProduceLargerOutputThanUnsigned() {
+            // given
+            var unsigned = EvmEncoding.encodeEip1559Transaction(
+                    1L, 0L,
+                    BigInteger.valueOf(2_000_000_000L),
+                    BigInteger.valueOf(30_000_000_000L),
+                    BigInteger.valueOf(21_000L),
+                    SOME_ADDRESS,
+                    BigInteger.ZERO,
+                    new byte[0]);
+
+            var signature = new byte[65];
+            for (int i = 0; i < 32; i++) {
+                signature[i] = (byte) (i + 1);
+            }
+            for (int i = 32; i < 64; i++) {
+                signature[i] = (byte) (i + 1);
+            }
+            signature[64] = 28;
+
+            // when
+            var result = EvmEncoding.assembleSignedEip1559(unsigned, signature);
+
+            // then
+            assertThat(result).hasSizeGreaterThan(unsigned.length);
+        }
+
+        @Test
+        void shouldProduceDeterministicOutputForSameInputs() {
+            // given
+            var unsigned = EvmEncoding.encodeEip1559Transaction(
+                    11155111L, 5L,
+                    BigInteger.valueOf(1_500_000_000L),
+                    BigInteger.valueOf(30_000_000_000L),
+                    BigInteger.valueOf(65_000L),
+                    SOME_ADDRESS,
+                    BigInteger.ZERO,
+                    new byte[]{0x01, 0x02, 0x03});
+
+            var signature = new byte[65];
+            signature[64] = 27;
+
+            // when
+            var result1 = EvmEncoding.assembleSignedEip1559(unsigned, signature);
+            var result2 = EvmEncoding.assembleSignedEip1559(unsigned, signature);
+
+            // then
+            assertThat(result1).isEqualTo(result2);
+        }
+    }
+
+    @Nested
     class DecodeData {
 
         @Test

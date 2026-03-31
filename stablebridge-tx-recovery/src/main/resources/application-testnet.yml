@@ -16,6 +16,8 @@ spring:
 str:
   api:
     key: ${STR_API_KEY:change-me}
+  nonce:
+    enabled: true
   kafka:
     enabled-chains: ethereum_mainnet,solana_mainnet
 

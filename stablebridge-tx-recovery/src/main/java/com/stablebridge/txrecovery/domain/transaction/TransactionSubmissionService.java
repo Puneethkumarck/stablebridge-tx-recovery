@@ -124,7 +124,7 @@ public class TransactionSubmissionService {
         }
     }
 
-    SubmissionStrategy calculateStrategy(BigDecimal amount) {
+    public SubmissionStrategy calculateStrategy(BigDecimal amount) {
         return amount.compareTo(HIGH_VALUE_THRESHOLD) > 0
                 ? SubmissionStrategy.SEQUENTIAL
                 : SubmissionStrategy.PIPELINED;

@@ -22,6 +22,7 @@ import com.stablebridge.txrecovery.domain.exception.SignerKeyNotFoundException;
 import com.stablebridge.txrecovery.domain.transaction.model.SignedTransaction;
 import com.stablebridge.txrecovery.domain.transaction.model.UnsignedTransaction;
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionSigner;
+import com.stablebridge.txrecovery.infrastructure.client.evm.EvmEncoding;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -55,7 +56,7 @@ public class LocalKeystoreSigner implements TransactionSigner {
 
         var signedPayload = isSolanaChain(transaction.chain())
                 ? signEd25519(transaction.payload(), privateKey)
-                : signEcdsa(transaction.payload(), privateKey);
+                : assembleEvmSignedTransaction(transaction.payload(), privateKey);
 
         log.debug("Signed transaction intentId={} chain={} address={}",
                 transaction.intentId(), transaction.chain(), fromAddress);
@@ -66,6 +67,11 @@ public class LocalKeystoreSigner implements TransactionSigner {
                 .signedPayload(signedPayload)
                 .signerAddress(fromAddress)
                 .build();
+    }
+
+    private static byte[] assembleEvmSignedTransaction(byte[] unsignedPayload, byte[] privateKeyBytes) {
+        var rawSignature = signEcdsa(unsignedPayload, privateKeyBytes);
+        return EvmEncoding.assembleSignedEip1559(unsignedPayload, rawSignature);
     }
 
     private static boolean isSolanaChain(String chain) {
