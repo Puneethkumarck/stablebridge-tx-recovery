@@ -17,7 +17,6 @@ import tools.jackson.databind.ObjectMapper;
 class OutboxTransactionEventPublisher implements TransactionEventPublisher {
 
     public static final String TOPIC_PREFIX = TransactionLifecycleEvent.TOPIC_PREFIX + ".";
-    public static final String DLQ_PREFIX = "str.tx.dlq.";
 
     private final OutboxEventPersister outboxEventPersister;
     private final ObjectMapper objectMapper;

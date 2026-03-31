@@ -68,17 +68,21 @@ class KafkaConfigIntegrationTest extends IntegrationTestBase {
     void shouldPersistEventToOutbox() {
         // given
         var event = uniqueEvent();
+        var expectedTopic = TOPIC_PREFIX + SOME_CHAIN;
 
         // when
         transactionEventPublisher.publish(event);
 
         // then
         var pending = outboxEventReader.findPending(10);
-        assertThat(pending).anyMatch(e -> e.eventId().equals(event.eventId()));
+        assertThat(pending)
+                .anyMatch(e -> e.eventId().equals(event.eventId())
+                        && e.topic().equals(expectedTopic)
+                        && e.partitionKey().equals(event.toAddress()));
     }
 
     @Test
-    void shouldRelayOutboxEventToKafka() {
+    void shouldRelayOutboxEventToKafkaAndMarkPublished() {
         // given
         var topic = TOPIC_PREFIX + SOME_CHAIN;
         var event = uniqueEvent();
@@ -97,6 +101,9 @@ class KafkaConfigIntegrationTest extends IntegrationTestBase {
             assertThat(record.key()).isEqualTo(event.toAddress());
             assertThat(record.value()).contains(SOME_CHAIN);
         }
+
+        var pending = outboxEventReader.findPending(10);
+        assertThat(pending).noneMatch(e -> e.eventId().equals(event.eventId()));
     }
 
     private TransactionLifecycleEvent uniqueEvent() {

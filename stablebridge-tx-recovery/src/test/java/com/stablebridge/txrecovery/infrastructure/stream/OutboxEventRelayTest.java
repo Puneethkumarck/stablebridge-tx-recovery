@@ -1,5 +1,8 @@
 package com.stablebridge.txrecovery.infrastructure.stream;
 
+import static com.stablebridge.txrecovery.testutil.fixtures.TransactionLifecycleEventFixtures.SOME_EVENT_ID;
+import static com.stablebridge.txrecovery.testutil.fixtures.TransactionLifecycleEventFixtures.SOME_PAYLOAD;
+import static com.stablebridge.txrecovery.testutil.fixtures.TransactionLifecycleEventFixtures.SOME_TO_ADDRESS;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
@@ -23,10 +26,7 @@ import com.stablebridge.txrecovery.infrastructure.db.outbox.OutboxEventReader.Pe
 @ExtendWith(MockitoExtension.class)
 class OutboxEventRelayTest {
 
-    private static final String SOME_EVENT_ID = "evt-001";
     private static final String SOME_TOPIC = "str.tx.events.ethereum_mainnet";
-    private static final String SOME_KEY = "0xrecipient";
-    private static final String SOME_PAYLOAD = "{\"json\":true}";
 
     @Mock
     private OutboxEventReader outboxEventReader;
@@ -40,9 +40,9 @@ class OutboxEventRelayTest {
     @Test
     void shouldRelayPendingEventsToKafkaAndMarkPublished() {
         // given
-        var event = new PendingOutboxEvent("id-1", SOME_EVENT_ID, SOME_TOPIC, SOME_KEY, SOME_PAYLOAD);
+        var event = new PendingOutboxEvent("id-1", SOME_EVENT_ID, SOME_TOPIC, SOME_TO_ADDRESS, SOME_PAYLOAD);
         given(outboxEventReader.findPending(OutboxEventRelay.BATCH_SIZE)).willReturn(List.of(event));
-        given(kafkaTemplate.send(SOME_TOPIC, SOME_KEY, SOME_PAYLOAD)).willReturn(completedFuture());
+        given(kafkaTemplate.send(SOME_TOPIC, SOME_TO_ADDRESS, SOME_PAYLOAD)).willReturn(completedFuture());
 
         // when
         relay.relay();
@@ -52,11 +52,11 @@ class OutboxEventRelayTest {
     }
 
     @Test
-    void shouldIncrementRetryCount_whenKafkaSendFails() {
+    void shouldIncrementRetryCountWhenKafkaSendFails() {
         // given
-        var event = new PendingOutboxEvent("id-1", SOME_EVENT_ID, SOME_TOPIC, SOME_KEY, SOME_PAYLOAD);
+        var event = new PendingOutboxEvent("id-1", SOME_EVENT_ID, SOME_TOPIC, SOME_TO_ADDRESS, SOME_PAYLOAD);
         given(outboxEventReader.findPending(OutboxEventRelay.BATCH_SIZE)).willReturn(List.of(event));
-        given(kafkaTemplate.send(SOME_TOPIC, SOME_KEY, SOME_PAYLOAD)).willReturn(failedFuture());
+        given(kafkaTemplate.send(SOME_TOPIC, SOME_TO_ADDRESS, SOME_PAYLOAD)).willReturn(failedFuture());
 
         // when
         relay.relay();
@@ -67,7 +67,7 @@ class OutboxEventRelayTest {
     }
 
     @Test
-    void shouldDoNothing_whenNoPendingEvents() {
+    void shouldDoNothingWhenNoPendingEvents() {
         // given
         given(outboxEventReader.findPending(OutboxEventRelay.BATCH_SIZE)).willReturn(List.of());
 

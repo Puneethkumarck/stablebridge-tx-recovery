@@ -1,11 +1,11 @@
 package com.stablebridge.txrecovery.infrastructure.stream;
 
-import static com.stablebridge.txrecovery.infrastructure.stream.OutboxTransactionEventPublisher.DLQ_PREFIX;
 import static com.stablebridge.txrecovery.infrastructure.stream.OutboxTransactionEventPublisher.TOPIC_PREFIX;
 
 import java.util.HashMap;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+import javax.sql.DataSource;
 
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -29,18 +29,23 @@ import com.stablebridge.txrecovery.infrastructure.db.outbox.OutboxEventReader;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.core.LockProvider;
+import net.javacrumbs.shedlock.provider.jdbctemplate.JdbcTemplateLockProvider;
+import net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;
 import tools.jackson.databind.ObjectMapper;
 
 @Configuration
 @Slf4j
 @RequiredArgsConstructor
 @EnableScheduling
+@EnableSchedulerLock(defaultLockAtMostFor = "PT5M")
 @EnableConfigurationProperties(KafkaProperties.class)
 @ConditionalOnProperty(name = "spring.kafka.bootstrap-servers")
 public class KafkaConfig {
 
     static final int PARTITIONS = 6;
     static final int RETENTION_DAYS = 30;
+    static final String DLQ_PREFIX = "str.tx.dlq.";
 
     private final KafkaProperties kafkaProperties;
 
@@ -94,6 +99,11 @@ public class KafkaConfig {
     OutboxEventRelay outboxEventRelay(
             OutboxEventReader outboxEventReader, KafkaTemplate<String, String> kafkaTemplate) {
         return new OutboxEventRelay(outboxEventReader, kafkaTemplate);
+    }
+
+    @Bean
+    LockProvider lockProvider(DataSource dataSource) {
+        return new JdbcTemplateLockProvider(dataSource);
     }
 
     private NewTopic buildEventTopic(String chain) {

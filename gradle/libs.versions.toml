@@ -15,6 +15,7 @@ wiremock = "3.13.2"
 instancio = "5.5.1"
 awaitility = "4.3.0"
 uuid-creator = "6.1.1"
+shedlock = "6.6.0"
 jib = "3.5.3"
 
 [libraries]
@@ -55,6 +56,10 @@ wiremock = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremoc
 instancio = { module = "org.instancio:instancio-junit", version.ref = "instancio" }
 awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
 uuid-creator = { module = "com.github.f4b6a3:uuid-creator", version.ref = "uuid-creator" }
+
+# ShedLock
+shedlock-spring = { module = "net.javacrumbs.shedlock:shedlock-spring", version.ref = "shedlock" }
+shedlock-provider-jdbc-template = { module = "net.javacrumbs.shedlock:shedlock-provider-jdbc-template", version.ref = "shedlock" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

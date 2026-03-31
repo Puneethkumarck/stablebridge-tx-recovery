@@ -36,6 +36,10 @@ dependencies {
     // Kafka
     implementation("org.springframework.kafka:spring-kafka")
 
+    // ShedLock
+    implementation(libs.shedlock.spring)
+    implementation(libs.shedlock.provider.jdbc.template)
+
     // Observability
     implementation("io.micrometer:micrometer-registry-prometheus")
     implementation(libs.logstash.logback.encoder)

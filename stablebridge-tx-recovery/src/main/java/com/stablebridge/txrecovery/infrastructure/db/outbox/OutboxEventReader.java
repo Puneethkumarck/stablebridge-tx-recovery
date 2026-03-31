@@ -1,5 +1,6 @@
 package com.stablebridge.txrecovery.infrastructure.db.outbox;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 
@@ -7,12 +8,15 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class OutboxEventReader {
 
     private final OutboxEventJpaRepository outboxRepository;
+    private final Clock clock;
 
     @Transactional(readOnly = true)
     public List<PendingOutboxEvent> findPending(int batchSize) {
@@ -28,12 +32,16 @@ public class OutboxEventReader {
 
     @Transactional
     public void markPublished(String eventId) {
-        outboxRepository.updateStatusAndPublishedAt(eventId, OutboxEventStatus.PUBLISHED, Instant.now());
+        outboxRepository.updateStatusAndPublishedAt(eventId, OutboxEventStatus.PUBLISHED, Instant.now(clock));
     }
 
     @Transactional
     public void incrementRetryOrFail(String eventId, int maxRetries) {
         var entity = outboxRepository.findByEventId(eventId);
+        if (entity.isEmpty()) {
+            log.warn("Outbox event not found for retry increment: eventId={}", eventId);
+            return;
+        }
         entity.ifPresent(e -> {
             e.setRetryCount(e.getRetryCount() + 1);
             if (e.getRetryCount() >= maxRetries) {
