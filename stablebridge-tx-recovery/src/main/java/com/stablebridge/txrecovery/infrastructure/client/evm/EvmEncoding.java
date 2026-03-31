@@ -12,12 +12,12 @@ import lombok.NoArgsConstructor;
 public final class EvmEncoding {
 
     private static final int EIP_1559_TX_TYPE = 0x02;
-    private static final int UNSIGNED_FIELD_COUNT = 9;
     private static final int SIGNATURE_R_OFFSET = 0;
     private static final int SIGNATURE_S_OFFSET = 32;
     private static final int SIGNATURE_V_OFFSET = 64;
     private static final int KEY_SIZE = 32;
     private static final int ETHEREUM_V_OFFSET = 27;
+    private static final int EXPECTED_SIGNATURE_LENGTH = 65;
 
     public static byte[] encodeEip1559Transaction(
             long chainId,
@@ -53,10 +53,19 @@ public final class EvmEncoding {
         if (unsignedPayload[0] != EIP_1559_TX_TYPE) {
             throw new EvmRpcException("Expected EIP-1559 type prefix (0x02)", false);
         }
+        if (signature.length < EXPECTED_SIGNATURE_LENGTH) {
+            throw new EvmRpcException(
+                    "Signature must be at least %d bytes, got %d".formatted(EXPECTED_SIGNATURE_LENGTH, signature.length),
+                    false);
+        }
 
         var r = new BigInteger(1, signature, SIGNATURE_R_OFFSET, KEY_SIZE);
         var s = new BigInteger(1, signature, SIGNATURE_S_OFFSET, KEY_SIZE);
         int yParity = (signature[SIGNATURE_V_OFFSET] & 0xff) - ETHEREUM_V_OFFSET;
+        if (yParity != 0 && yParity != 1) {
+            throw new EvmRpcException(
+                    "Invalid yParity %d (V byte must be 27 or 28)".formatted(yParity + ETHEREUM_V_OFFSET), false);
+        }
 
         var unsignedListContent = extractRlpListContent(unsignedPayload, 1);
 

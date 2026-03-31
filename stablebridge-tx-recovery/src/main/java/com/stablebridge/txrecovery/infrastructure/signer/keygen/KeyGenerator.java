@@ -37,16 +37,18 @@ public final class KeyGenerator {
         var hex = HexFormat.of();
         String address;
         String json;
+        String finalKeyHex;
 
         switch (chainType) {
             case "solana" -> {
                 var publicKey = new byte[Ed25519.PUBLIC_KEY_SIZE];
                 Ed25519.generatePublicKey(privateKey, 0, publicKey, 0);
                 address = encodeBase58(publicKey);
-                json = formatKeystoreJson(address, hex.formatHex(privateKey));
+                finalKeyHex = hex.formatHex(privateKey);
+                json = formatKeystoreJson(address, finalKeyHex);
                 System.out.println("Chain:       Solana");
                 System.out.println("Address:     " + address);
-                System.out.println("Private key: " + hex.formatHex(privateKey));
+                System.out.println("Private key: " + finalKeyHex);
                 System.out.println("Keystore:    " + outputPath.toAbsolutePath());
             }
             case "evm" -> {
@@ -70,10 +72,11 @@ public final class KeyGenerator {
                     System.arraycopy(adjustedKey, 0, keyBytes, KEY_SIZE - adjustedKey.length, adjustedKey.length);
                 }
 
-                json = formatKeystoreJson(address, hex.formatHex(keyBytes));
+                finalKeyHex = hex.formatHex(keyBytes);
+                json = formatKeystoreJson(address, finalKeyHex);
                 System.out.println("Chain:       EVM");
                 System.out.println("Address:     " + address);
-                System.out.println("Private key: " + hex.formatHex(keyBytes));
+                System.out.println("Private key: " + finalKeyHex);
                 System.out.println("Keystore:    " + outputPath.toAbsolutePath());
             }
             default -> {
@@ -85,7 +88,7 @@ public final class KeyGenerator {
 
         if (Files.exists(outputPath)) {
             var existing = Files.readString(outputPath);
-            json = mergeKeystoreJson(existing, address, hex.formatHex(privateKey));
+            json = mergeKeystoreJson(existing, address, finalKeyHex);
         }
 
         var parent = outputPath.getParent();
