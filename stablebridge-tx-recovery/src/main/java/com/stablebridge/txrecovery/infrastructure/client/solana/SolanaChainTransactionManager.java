@@ -89,6 +89,9 @@ class SolanaChainTransactionManager implements ChainTransactionManager {
             return classifyPendingTransaction(txHash);
         }
 
+        log.info("Signature status for {}: confirmationStatus={} isFinalized={} isConfirmedOrFinalized={}",
+                txHash, status.confirmationStatus(), status.isFinalized(), status.isConfirmedOrFinalized());
+
         if (status.hasError()) {
             pendingFirstSeen.remove(txHash);
             return TransactionStatus.FAILED;

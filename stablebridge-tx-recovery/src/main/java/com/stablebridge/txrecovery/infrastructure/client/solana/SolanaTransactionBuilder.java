@@ -13,8 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import org.bouncycastle.math.ec.rfc8032.Ed25519;
-
 import com.stablebridge.txrecovery.domain.recovery.model.FeeEstimate;
 import com.stablebridge.txrecovery.domain.recovery.model.FeeUrgency;
 import com.stablebridge.txrecovery.domain.recovery.port.FeeOracle;
@@ -37,12 +35,13 @@ class SolanaTransactionBuilder {
     private static final byte[] TOKEN_PROGRAM_ID = decodeBase58("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
     private static final byte[] ATA_PROGRAM_ID = decodeBase58("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
     private static final byte[] COMPUTE_BUDGET_PROGRAM_ID = decodeBase58("ComputeBudget111111111111111111111111111111");
-    private static final byte[] RECENT_BLOCKHASHES_SYSVAR = decodeBase58("SysvarRecentB1ockHashes11111111111111111111");
+    private static final byte[] SYSVAR_RECENT_BLOCKHASHES = decodeBase58("SysvarRecentB1ockHashes11111111111111111111");
 
     private static final int ADVANCE_NONCE_INSTRUCTION_INDEX = 4;
     private static final byte SPL_TRANSFER_INSTRUCTION = 3;
     private static final byte SET_COMPUTE_UNIT_LIMIT_INSTRUCTION = 0x02;
     private static final byte SET_COMPUTE_UNIT_PRICE_INSTRUCTION = 0x03;
+    private static final byte CREATE_ATA_IDEMPOTENT_INSTRUCTION = 1;
 
     private static final String BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
@@ -82,6 +81,7 @@ class SolanaTransactionBuilder {
                 buildAdvanceNonceInstruction(nonceAccountKey, fromKey),
                 buildSetComputeUnitLimitInstruction(defaultComputeUnitLimit),
                 buildSetComputeUnitPriceInstruction(computeUnitPrice),
+                buildCreateAtaIdempotentInstruction(fromKey, destKey, destAta, mintKey),
                 buildSplTransferInstruction(sourceAta, destAta, fromKey, intent.rawAmount()));
 
         var payload = serializeMessage(fromKey, nonceBlockhash, instructions);
@@ -142,9 +142,22 @@ class SolanaTransactionBuilder {
                 .array();
         var accounts = List.of(
                 new AccountMeta(nonceAccount, true, false),
-                new AccountMeta(RECENT_BLOCKHASHES_SYSVAR, false, false),
+                new AccountMeta(SYSVAR_RECENT_BLOCKHASHES, false, false),
                 new AccountMeta(nonceAuthority, false, true));
         return new SolanaInstruction(SYSTEM_PROGRAM_ID, accounts, data);
+    }
+
+    private static SolanaInstruction buildCreateAtaIdempotentInstruction(
+            byte[] payer, byte[] owner, byte[] ata, byte[] mint) {
+        var accounts = List.of(
+                new AccountMeta(payer, true, true),
+                new AccountMeta(ata, true, false),
+                new AccountMeta(owner, false, false),
+                new AccountMeta(mint, false, false),
+                new AccountMeta(SYSTEM_PROGRAM_ID, false, false),
+                new AccountMeta(TOKEN_PROGRAM_ID, false, false));
+        return new SolanaInstruction(
+                ATA_PROGRAM_ID, accounts, new byte[]{CREATE_ATA_IDEMPOTENT_INSTRUCTION});
     }
 
     private static SolanaInstruction buildSplTransferInstruction(
@@ -181,11 +194,44 @@ class SolanaTransactionBuilder {
             digest.update(programId);
             digest.update(markerBytes);
             var hash = digest.digest();
-            if (!Ed25519.validatePublicKeyFull(hash, 0)) {
+            if (!isOnEd25519Curve(hash)) {
                 return hash;
             }
         }
         throw new SolanaRpcException(-1, "Unable to derive PDA: no valid off-curve address found");
+    }
+
+    private static final BigInteger ED25519_P =
+            BigInteger.TWO.pow(255).subtract(BigInteger.valueOf(19));
+    private static final BigInteger ED25519_D =
+            BigInteger.valueOf(-121665).multiply(BigInteger.valueOf(121666).modPow(
+                    ED25519_P.subtract(BigInteger.TWO), ED25519_P)).mod(ED25519_P);
+
+    private static boolean isOnEd25519Curve(byte[] point) {
+        if (point.length != 32) {
+            return false;
+        }
+        var reversed = new byte[32];
+        for (var i = 0; i < 32; i++) {
+            reversed[i] = point[31 - i];
+        }
+        var y = new BigInteger(1, reversed).and(BigInteger.TWO.pow(255).subtract(BigInteger.ONE));
+        if (y.compareTo(ED25519_P) >= 0) {
+            return false;
+        }
+        var y2 = y.multiply(y).mod(ED25519_P);
+        var x2num = y2.subtract(BigInteger.ONE).mod(ED25519_P);
+        var x2den = ED25519_D.multiply(y2).add(BigInteger.ONE).mod(ED25519_P);
+        var x2 = x2num.multiply(x2den.modPow(ED25519_P.subtract(BigInteger.TWO), ED25519_P)).mod(ED25519_P);
+        if (x2.signum() == 0) {
+            return true;
+        }
+        var x = x2.modPow(ED25519_P.add(BigInteger.valueOf(3)).divide(BigInteger.valueOf(8)), ED25519_P);
+        if (!x.multiply(x).mod(ED25519_P).equals(x2)) {
+            x = x.multiply(BigInteger.TWO.modPow(
+                    ED25519_P.subtract(BigInteger.ONE).divide(BigInteger.valueOf(4)), ED25519_P)).mod(ED25519_P);
+        }
+        return x.multiply(x).mod(ED25519_P).equals(x2);
     }
 
     static byte[] decodeBase58(String input) {

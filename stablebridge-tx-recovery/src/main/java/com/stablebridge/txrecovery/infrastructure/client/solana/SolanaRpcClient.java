@@ -76,10 +76,49 @@ public class SolanaRpcClient {
         var request = new JsonRpcRequest(nextId(), "getAccountInfo", params);
         var accountInfo =
                 execute(request, new TypeReference<JsonRpcResponse<SolanaAccountInfo>>() {});
-        return Optional.ofNullable(accountInfo)
+        var base64Data = Optional.ofNullable(accountInfo)
                 .map(SolanaAccountInfo::value)
                 .map(v -> v.data().getFirst())
                 .orElseThrow(() -> new SolanaRpcException(-1, "Nonce account not found: " + nonceAccountAddress));
+        return extractBlockhashFromNonceAccount(base64Data);
+    }
+
+    private static String extractBlockhashFromNonceAccount(String base64Data) {
+        var data = Base64.getDecoder().decode(base64Data);
+        if (data.length < NONCE_BLOCKHASH_END) {
+            throw new SolanaRpcException(-1,
+                    "Nonce account data too short: expected >= %d bytes, got %d"
+                            .formatted(NONCE_BLOCKHASH_END, data.length));
+        }
+        var blockhash = new byte[PUBKEY_LENGTH];
+        System.arraycopy(data, NONCE_BLOCKHASH_OFFSET, blockhash, 0, PUBKEY_LENGTH);
+        return encodeBase58(blockhash);
+    }
+
+    private static final int PUBKEY_LENGTH = 32;
+    private static final int NONCE_BLOCKHASH_OFFSET = 40;
+    private static final int NONCE_BLOCKHASH_END = 72;
+    private static final String BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+    private static String encodeBase58(byte[] input) {
+        var bi = java.math.BigInteger.ZERO;
+        for (var b : input) {
+            bi = bi.multiply(java.math.BigInteger.valueOf(256)).add(java.math.BigInteger.valueOf(b & 0xFF));
+        }
+        var sb = new StringBuilder();
+        while (bi.compareTo(java.math.BigInteger.ZERO) > 0) {
+            var divmod = bi.divideAndRemainder(java.math.BigInteger.valueOf(58));
+            sb.insert(0, BASE58_ALPHABET.charAt(divmod[1].intValue()));
+            bi = divmod[0];
+        }
+        for (var b : input) {
+            if (b == 0) {
+                sb.insert(0, '1');
+            } else {
+                break;
+            }
+        }
+        return sb.toString();
     }
 
     public boolean isBlockhashValid(String blockhash, SolanaCommitment commitment) {

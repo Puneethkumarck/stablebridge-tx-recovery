@@ -1,6 +1,7 @@
 package com.stablebridge.txrecovery.testutil.fixtures;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.List;
 
@@ -31,6 +32,7 @@ public final class TransactionControllerFixtures {
             .amount(SOME_AMOUNT)
             .token(SOME_TOKEN)
             .tokenDecimals(6)
+            .rawAmount(new BigInteger("100000000"))
             .tokenContractAddress(SOME_TOKEN_CONTRACT)
             .build();
 

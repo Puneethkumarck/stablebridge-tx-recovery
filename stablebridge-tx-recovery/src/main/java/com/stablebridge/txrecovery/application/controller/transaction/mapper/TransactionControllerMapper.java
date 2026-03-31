@@ -1,5 +1,6 @@
 package com.stablebridge.txrecovery.application.controller.transaction.mapper;
 
+import java.math.BigInteger;
 import java.util.List;
 
 import org.mapstruct.InjectionStrategy;
@@ -16,7 +17,7 @@ import com.stablebridge.txrecovery.domain.transaction.model.TransactionProjectio
 public interface TransactionControllerMapper {
 
     @Mapping(target = "intentId", expression = "java(generateIntentId(request))")
-    @Mapping(target = "rawAmount", ignore = true)
+    @Mapping(target = "rawAmount", expression = "java(computeRawAmount(request))")
     @Mapping(target = "strategy", ignore = true)
     @Mapping(target = "batchId", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
@@ -32,5 +33,11 @@ public interface TransactionControllerMapper {
 
     default String generateIntentId(SubmitTransactionRequest request) {
         return request.intentId() != null ? request.intentId() : UuidCreator.getTimeOrderedEpoch().toString();
+    }
+
+    default BigInteger computeRawAmount(SubmitTransactionRequest request) {
+        return request.amount()
+                .movePointRight(request.tokenDecimals())
+                .toBigIntegerExact();
     }
 }

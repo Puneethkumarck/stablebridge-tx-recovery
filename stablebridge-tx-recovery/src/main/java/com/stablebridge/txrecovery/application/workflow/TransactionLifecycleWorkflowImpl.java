@@ -189,7 +189,7 @@ public class TransactionLifecycleWorkflowImpl implements TransactionLifecycleWor
             var polledStatus = rpcActivities.checkStatus(txHash, chain);
 
             switch (polledStatus) {
-                case CONFIRMED -> handleConfirmed();
+                case CONFIRMED, FINALIZED -> handleConfirmed();
                 case STUCK -> handleStuck(intent);
                 case DROPPED -> handleDropped(intent);
                 default -> Workflow.sleep(POLL_INTERVAL);

@@ -89,17 +89,17 @@ services:
       POSTGRES_USER: temporal
       POSTGRES_PWD: temporal
       POSTGRES_SEEDS: postgres-temporal
-      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+      BIND_ON_IP: 0.0.0.0
       PROMETHEUS_ENDPOINT: 0.0.0.0:8000
     depends_on:
       postgres-temporal:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "temporal", "workflow", "list", "--namespace", "default", "--address", "localhost:7233"]
+      test: ["CMD", "tctl", "cluster", "health"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 30s
+      start_period: 40s
 
   temporal-ui:
     image: temporalio/ui:2.48.1

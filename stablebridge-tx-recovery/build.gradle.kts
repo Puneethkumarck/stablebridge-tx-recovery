@@ -25,6 +25,7 @@ dependencies {
     // Flyway
     implementation(libs.flyway.core)
     implementation(libs.flyway.postgresql)
+    implementation("org.springframework.boot:spring-boot-flyway")
 
     // Resilience4j
     implementation(libs.resilience4j.spring.boot)
@@ -84,4 +85,10 @@ dependencies {
     // Lombok for tests
     testCompileOnly(libs.lombok)
     testAnnotationProcessor(libs.lombok)
+}
+
+tasks.register<JavaExec>("generateKey") {
+    description = "Generate a signing keypair (usage: ./gradlew generateKey --args='solana keys.json')"
+    mainClass.set("com.stablebridge.txrecovery.infrastructure.signer.keygen.KeyGenerator")
+    classpath = sourceSets["main"].runtimeClasspath
 }

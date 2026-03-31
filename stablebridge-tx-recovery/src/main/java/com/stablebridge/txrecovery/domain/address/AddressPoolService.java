@@ -7,7 +7,6 @@ import static com.stablebridge.txrecovery.domain.address.model.AddressStatus.RET
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,7 +57,6 @@ public class AddressPoolService {
         var initialNonce = resolveInitialNonce(address, chain, chainFamily);
 
         var pooledAddress = PooledAddress.builder()
-                .id(UUID.randomUUID())
                 .address(address)
                 .chain(chain)
                 .chainFamily(chainFamily)

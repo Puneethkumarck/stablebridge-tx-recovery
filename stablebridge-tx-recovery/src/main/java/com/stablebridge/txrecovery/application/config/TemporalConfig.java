@@ -8,11 +8,17 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.stablebridge.txrecovery.application.config.StrProperties.TemporalConfigProperties.ActivityConfig;
 import com.stablebridge.txrecovery.application.workflow.TransactionLifecycleActivities;
+import com.stablebridge.txrecovery.application.workflow.TransactionLifecycleActivitiesImpl;
 import com.stablebridge.txrecovery.application.workflow.TransactionLifecycleWorkflowImpl;
+import com.stablebridge.txrecovery.domain.recovery.model.EscalationPolicy;
+import com.stablebridge.txrecovery.domain.recovery.model.GasBudgetPolicy;
+import com.stablebridge.txrecovery.domain.transaction.port.TransactionEventPublisher;
+import com.stablebridge.txrecovery.domain.transaction.port.TransactionSigner;
 
 import io.temporal.activity.ActivityOptions;
 import io.temporal.api.enums.v1.WorkflowIdReusePolicy;
@@ -48,9 +54,11 @@ public class TemporalConfig {
 
     @Bean
     DataConverter dataConverter() {
-        var objectMapper = new ObjectMapper()
-                .findAndRegisterModules()
-                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        var objectMapper = JsonMapper.builder()
+                .findAndAddModules()
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+                .disable(MapperFeature.AUTO_DETECT_IS_GETTERS)
+                .build();
         return DefaultDataConverter.newDefaultInstance()
                 .withPayloadConverterOverrides(new JacksonJsonPayloadConverter(objectMapper));
     }
@@ -104,6 +112,23 @@ public class TemporalConfig {
         worker.registerWorkflowImplementationTypes(workflowImplOptions, TransactionLifecycleWorkflowImpl.class);
         activitiesProvider.ifAvailable(worker::registerActivitiesImplementations);
         return worker;
+    }
+
+    @Bean
+    TransactionLifecycleActivities transactionLifecycleActivities(
+            ChainAdapterRegistry chainAdapterRegistry,
+            TransactionSigner transactionSigner,
+            TransactionEventPublisher eventPublisher,
+            GasBudgetPolicy gasBudgetPolicy,
+            EscalationPolicy defaultEscalationPolicy,
+            Map<String, java.time.Duration> chainPollIntervals) {
+        return new TransactionLifecycleActivitiesImpl(
+                chainAdapterRegistry,
+                transactionSigner,
+                eventPublisher,
+                gasBudgetPolicy,
+                defaultEscalationPolicy,
+                chainPollIntervals);
     }
 
     @Bean

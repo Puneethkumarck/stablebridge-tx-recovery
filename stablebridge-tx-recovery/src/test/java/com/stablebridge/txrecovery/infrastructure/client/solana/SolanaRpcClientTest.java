@@ -289,7 +289,8 @@ class SolanaRpcClientTest {
         @Test
         void shouldReturnNonceDataFromAccountInfo(WireMockRuntimeInfo wmInfo) {
             // given
-            var nonceData = "SGVsbG8gV29ybGQ=";
+            var nonceAccountBase64 = "AQAAAAEAAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8giBMAAAAAAAA=";
+            var expectedBlockhash = "4wBqpZM9xaSheZzJSMawUKKwhdpChKbZ5eu5ky4Vigw";
             var responseBody = """
                     {
                       "jsonrpc": "2.0",
@@ -303,7 +304,7 @@ class SolanaRpcClientTest {
                         }
                       }
                     }"""
-                    .formatted(nonceData);
+                    .formatted(nonceAccountBase64);
 
             wmInfo.getWireMock()
                     .register(post(urlEqualTo("/"))
@@ -316,7 +317,7 @@ class SolanaRpcClientTest {
             var result = client.getNonce(SOME_NONCE_ACCOUNT, SolanaCommitment.CONFIRMED);
 
             // then
-            assertThat(result).isEqualTo(nonceData);
+            assertThat(result).isEqualTo(expectedBlockhash);
         }
 
         @Test

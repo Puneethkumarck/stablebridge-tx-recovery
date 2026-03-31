@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Optional;
 import java.util.UUID;
 
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.criteria.Predicate;
 
 import org.springframework.data.domain.PageRequest;
@@ -23,11 +24,16 @@ class TransactionProjectionStoreAdapter implements TransactionProjectionStore {
 
     private final TransactionProjectionJpaRepository jpaRepository;
     private final TransactionProjectionEntityMapper mapper;
+    private final EntityManager entityManager;
 
     @Override
     public void save(TransactionProjection projection) {
         var entity = mapper.toEntity(projection);
-        jpaRepository.save(entity);
+        if (entity.getVersion() == null) {
+            entityManager.persist(entity);
+        } else {
+            entityManager.merge(entity);
+        }
     }
 
     @Override

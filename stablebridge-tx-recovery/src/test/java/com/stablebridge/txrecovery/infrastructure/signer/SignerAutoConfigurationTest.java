@@ -3,10 +3,13 @@ package com.stablebridge.txrecovery.infrastructure.signer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.time.Duration;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import tools.jackson.databind.json.JsonMapper;
 
@@ -17,11 +20,18 @@ class SignerAutoConfigurationTest {
     @Nested
     class LocalKeystoreBackend {
 
+        @TempDir
+        java.nio.file.Path tempDir;
+
         @Test
-        void shouldCreateLocalKeystoreSignerWhenProperlyConfigured() {
+        void shouldCreateLocalKeystoreSignerWhenProperlyConfigured() throws IOException {
             // given
+            var keystoreFile = tempDir.resolve("keys.json");
+            var keyHex = "ab".repeat(32);
+            Files.writeString(keystoreFile,
+                    "{\"keys\": [{\"address\": \"0xTestAddr\", \"privateKeyHex\": \"%s\"}]}".formatted(keyHex));
             var properties = LocalSignerProperties.builder()
-                    .keystorePath("/path/to/keystore.p12")
+                    .keystorePath(keystoreFile.toString())
                     .password("secret")
                     .build();
 

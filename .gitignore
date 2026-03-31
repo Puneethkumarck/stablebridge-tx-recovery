@@ -47,5 +47,15 @@ CLAUDE.md
 # Claude Code (local config)
 .claude/
 
+# Signing keys
+keys.json
+
+# Terraform
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.backup
+infra/terraform/.terraform.lock.hcl
+infra/terraform/terraform.tfvars.local
+
 # Worktree setup marker
 .worktree-setup-done
