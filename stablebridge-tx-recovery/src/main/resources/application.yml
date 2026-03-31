@@ -150,7 +150,7 @@ str:
       chain-family: EVM
       chain-id: 1
       finality-blocks: 12
-      stuck-threshold-blocks: 50
+      stuck-threshold-blocks: 250
       poll-interval: PT12S
       max-fee-cap-gwei: 200
       token-contracts:
@@ -192,8 +192,8 @@ str:
       enabled: true
       chain-family: EVM
       chain-id: 137
-      finality-blocks: 128
-      stuck-threshold-blocks: 200
+      finality-blocks: 256
+      stuck-threshold-blocks: 500
       poll-interval: PT2S
       max-fee-cap-gwei: 500
       token-contracts:
