@@ -1,7 +1,7 @@
 package com.stablebridge.txrecovery.infrastructure.stream;
 
-import static com.stablebridge.txrecovery.infrastructure.stream.KafkaTransactionEventPublisher.DLQ_PREFIX;
-import static com.stablebridge.txrecovery.infrastructure.stream.KafkaTransactionEventPublisher.TOPIC_PREFIX;
+import static com.stablebridge.txrecovery.infrastructure.stream.OutboxTransactionEventPublisher.DLQ_PREFIX;
+import static com.stablebridge.txrecovery.infrastructure.stream.OutboxTransactionEventPublisher.TOPIC_PREFIX;
 
 import java.util.HashMap;
 import java.util.function.Predicate;
@@ -21,8 +21,11 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionEventPublisher;
+import com.stablebridge.txrecovery.infrastructure.db.outbox.OutboxEventPersister;
+import com.stablebridge.txrecovery.infrastructure.db.outbox.OutboxEventReader;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +34,7 @@ import tools.jackson.databind.ObjectMapper;
 @Configuration
 @Slf4j
 @RequiredArgsConstructor
+@EnableScheduling
 @EnableConfigurationProperties(KafkaProperties.class)
 @ConditionalOnProperty(name = "spring.kafka.bootstrap-servers")
 public class KafkaConfig {
@@ -81,9 +85,15 @@ public class KafkaConfig {
     }
 
     @Bean
-    TransactionEventPublisher kafkaTransactionEventPublisher(
-            KafkaTemplate<String, String> kafkaTemplate, ObjectMapper objectMapper) {
-        return new KafkaTransactionEventPublisher(kafkaTemplate, objectMapper);
+    TransactionEventPublisher outboxTransactionEventPublisher(
+            OutboxEventPersister outboxEventPersister, ObjectMapper objectMapper) {
+        return new OutboxTransactionEventPublisher(outboxEventPersister, objectMapper);
+    }
+
+    @Bean
+    OutboxEventRelay outboxEventRelay(
+            OutboxEventReader outboxEventReader, KafkaTemplate<String, String> kafkaTemplate) {
+        return new OutboxEventRelay(outboxEventReader, kafkaTemplate);
     }
 
     private NewTopic buildEventTopic(String chain) {

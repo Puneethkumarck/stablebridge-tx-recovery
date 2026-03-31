@@ -1,10 +1,10 @@
 package com.stablebridge.txrecovery.infrastructure.stream;
 
-import static com.stablebridge.txrecovery.infrastructure.stream.KafkaTransactionEventPublisher.TOPIC_PREFIX;
+import static com.stablebridge.txrecovery.infrastructure.stream.OutboxTransactionEventPublisher.TOPIC_PREFIX;
 import static com.stablebridge.txrecovery.testutil.fixtures.TransactionLifecycleEventFixtures.SOME_CHAIN;
-import static com.stablebridge.txrecovery.testutil.fixtures.TransactionLifecycleEventFixtures.SOME_EVENT;
 import static com.stablebridge.txrecovery.testutil.fixtures.TransactionLifecycleEventFixtures.SOME_EVENT_WITH_FIXED_TIMESTAMP;
 import static com.stablebridge.txrecovery.testutil.fixtures.TransactionLifecycleEventFixtures.SOME_FIXED_TIMESTAMP;
+import static com.stablebridge.txrecovery.testutil.fixtures.TransactionLifecycleEventFixtures.buildEvent;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
@@ -22,7 +22,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 
+import com.stablebridge.txrecovery.domain.transaction.event.TransactionLifecycleEvent;
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionEventPublisher;
+import com.stablebridge.txrecovery.infrastructure.db.outbox.OutboxEventReader;
 import com.stablebridge.txrecovery.testutil.IntegrationTestBase;
 import com.stablebridge.txrecovery.testutil.KafkaContainerExtension;
 
@@ -37,6 +39,12 @@ class KafkaConfigIntegrationTest extends IntegrationTestBase {
 
     @Autowired
     private TransactionEventPublisher transactionEventPublisher;
+
+    @Autowired
+    private OutboxEventReader outboxEventReader;
+
+    @Autowired
+    private OutboxEventRelay outboxEventRelay;
 
     @Test
     void shouldInjectKafkaTemplate() {
@@ -57,13 +65,27 @@ class KafkaConfigIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    void shouldPublishEventToPerChainTopic() {
+    void shouldPersistEventToOutbox() {
         // given
-        var topic = TOPIC_PREFIX + SOME_CHAIN;
-        var event = SOME_EVENT;
+        var event = uniqueEvent();
 
         // when
         transactionEventPublisher.publish(event);
+
+        // then
+        var pending = outboxEventReader.findPending(10);
+        assertThat(pending).anyMatch(e -> e.eventId().equals(event.eventId()));
+    }
+
+    @Test
+    void shouldRelayOutboxEventToKafka() {
+        // given
+        var topic = TOPIC_PREFIX + SOME_CHAIN;
+        var event = uniqueEvent();
+        transactionEventPublisher.publish(event);
+
+        // when
+        outboxEventRelay.relay();
         kafkaTemplate.flush();
 
         // then
@@ -75,6 +97,12 @@ class KafkaConfigIntegrationTest extends IntegrationTestBase {
             assertThat(record.key()).isEqualTo(event.toAddress());
             assertThat(record.value()).contains(SOME_CHAIN);
         }
+    }
+
+    private TransactionLifecycleEvent uniqueEvent() {
+        return buildEvent("0xrecipient").toBuilder()
+                .eventId(UUID.randomUUID().toString())
+                .build();
     }
 
     @Nested
