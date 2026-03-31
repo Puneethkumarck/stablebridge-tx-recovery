@@ -1,7 +1,5 @@
 package com.stablebridge.txrecovery.infrastructure.signer;
 
-import java.util.Map;
-
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -21,8 +19,9 @@ class SignerAutoConfiguration {
     @ConditionalOnProperty(name = "str.signer.backend", havingValue = "local-keystore")
     TransactionSigner localKeystoreSigner(LocalSignerProperties properties) {
         validateLocalKeystore(properties);
-        log.info("Signer backend: local-keystore");
-        return new LocalKeystoreSigner(Map.of());
+        var keys = KeystoreLoader.load(properties.keystorePath());
+        log.info("Signer backend: local-keystore, loaded {} key(s)", keys.size());
+        return new LocalKeystoreSigner(keys);
     }
 
     @Bean

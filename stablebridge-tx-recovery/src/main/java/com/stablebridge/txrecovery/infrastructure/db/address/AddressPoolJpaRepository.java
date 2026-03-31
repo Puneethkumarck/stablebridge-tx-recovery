@@ -42,13 +42,22 @@ interface AddressPoolJpaRepository
             """)
     int incrementInFlightCount(String address, String chain, Instant now);
 
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("""
             UPDATE AddressPoolEntity a
             SET a.inFlightCount = a.inFlightCount - 1
             WHERE a.address = :address AND a.chain = :chain AND a.inFlightCount > 0
             """)
     int decrementInFlightCount(String address, String chain);
+
+    @Modifying(clearAutomatically = true)
+    @Query("""
+            UPDATE AddressPoolEntity a
+            SET a.status = 'RETIRED', a.retiredAt = :now
+            WHERE a.address = :address AND a.chain = :chain
+              AND a.status = 'DRAINING' AND a.inFlightCount = 0
+            """)
+    int retireIfDraining(String address, String chain, Instant now);
 
     Optional<AddressPoolEntity> findByAddressAndChain(String address, String chain);
 }

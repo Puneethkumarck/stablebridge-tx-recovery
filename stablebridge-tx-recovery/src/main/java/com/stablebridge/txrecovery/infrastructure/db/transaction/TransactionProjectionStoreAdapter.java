@@ -4,11 +4,13 @@ import java.util.ArrayList;
 import java.util.Optional;
 import java.util.UUID;
 
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.criteria.Predicate;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.stablebridge.txrecovery.domain.transaction.model.PagedResult;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionFilters;
@@ -23,11 +25,17 @@ class TransactionProjectionStoreAdapter implements TransactionProjectionStore {
 
     private final TransactionProjectionJpaRepository jpaRepository;
     private final TransactionProjectionEntityMapper mapper;
+    private final EntityManager entityManager;
 
     @Override
+    @Transactional
     public void save(TransactionProjection projection) {
         var entity = mapper.toEntity(projection);
-        jpaRepository.save(entity);
+        if (entity.getVersion() == null) {
+            entityManager.persist(entity);
+        } else {
+            entityManager.merge(entity);
+        }
     }
 
     @Override

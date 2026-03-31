@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.stablebridge.txrecovery.domain.common.model.StateProvider;
+
 import lombok.Builder;
 
 @Builder(toBuilder = true)
@@ -19,7 +21,7 @@ public record PooledAddress(
         String signerEndpoint,
         Instant registeredAt,
         Instant retiredAt,
-        Instant lastUsedAt) {
+        Instant lastUsedAt) implements StateProvider<AddressStatus> {
 
     public PooledAddress {
         Objects.requireNonNull(address);
@@ -27,5 +29,10 @@ public record PooledAddress(
         Objects.requireNonNull(chainFamily);
         Objects.requireNonNull(tier);
         Objects.requireNonNull(status);
+    }
+
+    @Override
+    public AddressStatus state() {
+        return status;
     }
 }

@@ -24,10 +24,21 @@ import lombok.extern.slf4j.Slf4j;
 class EscalationAutoConfiguration {
 
     @Bean
-    EscalationPolicyEngine escalationPolicyEngine(EscalationPolicyProperties properties) {
-        var defaultPolicy = toPolicy(properties.defaultTiers());
+    GasBudgetPolicy gasBudgetPolicy(EscalationPolicyProperties properties) {
+        return toGasBudgetPolicy(properties.gasBudget());
+    }
+
+    @Bean
+    EscalationPolicy defaultEscalationPolicy(EscalationPolicyProperties properties) {
+        return toPolicy(properties.defaultTiers());
+    }
+
+    @Bean
+    EscalationPolicyEngine escalationPolicyEngine(
+            EscalationPolicyProperties properties,
+            GasBudgetPolicy gasBudgetPolicy,
+            EscalationPolicy defaultEscalationPolicy) {
         var highValuePolicy = toPolicy(properties.highValueTiers());
-        var gasBudgetPolicy = toGasBudgetPolicy(properties.gasBudget());
         var chainOverrides = Optional.ofNullable(properties.chainOverrides())
                 .map(overrides -> overrides.entrySet().stream()
                         .collect(Collectors.toMap(Map.Entry::getKey, entry -> toPolicy(entry.getValue()))))
@@ -39,7 +50,7 @@ class EscalationAutoConfiguration {
                 chainOverrides.size());
 
         return new EscalationPolicyEngine(
-                defaultPolicy,
+                defaultEscalationPolicy,
                 highValuePolicy,
                 properties.highValueThresholdUsd(),
                 gasBudgetPolicy,

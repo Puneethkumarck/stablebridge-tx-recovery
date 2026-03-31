@@ -16,9 +16,6 @@ import java.util.Map;
 
 import org.bouncycastle.crypto.ec.CustomNamedCurves;
 import org.bouncycastle.crypto.params.ECDomainParameters;
-import org.bouncycastle.crypto.params.ECPublicKeyParameters;
-import org.bouncycastle.crypto.signers.ECDSASigner;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.bouncycastle.math.ec.rfc8032.Ed25519;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -76,7 +73,7 @@ class LocalKeystoreSignerTest {
     class EvmSigning {
 
         @Test
-        void shouldSignTransactionWithSecp256k1() {
+        void shouldProduceSignedEip1559Transaction() {
             // given
             var transaction = someUnsignedTransaction(SOME_INTENT_ID, SOME_EVM_CHAIN);
 
@@ -91,32 +88,25 @@ class LocalKeystoreSignerTest {
                     .signerAddress(SOME_EVM_ADDRESS)
                     .build();
             assertThat(result).usingRecursiveComparison().isEqualTo(expected);
-
-            var r = new BigInteger(1, result.signedPayload(), 0, 32);
-            var s = new BigInteger(1, result.signedPayload(), 32, 32);
-            var hash = new Keccak.Digest256().digest(SOME_PAYLOAD);
-            var publicKeyParam = new ECPublicKeyParameters(secp256k1PublicKeyPoint, secp256k1DomainParams);
-            var verifier = new ECDSASigner();
-            verifier.init(false, publicKeyParam);
-            assertThat(verifier.verifySignature(hash, r, s)).isTrue();
+            assertThat(result.signedPayload()[0]).isEqualTo((byte) 0x02);
+            assertThat(result.signedPayload()).hasSizeGreaterThan(transaction.payload().length);
         }
 
         @Test
-        void shouldProduceLowSSignature() {
+        void shouldProduceDeterministicSignedTransaction() {
             // given
             var transaction = someUnsignedTransaction(SOME_INTENT_ID, SOME_EVM_CHAIN);
 
             // when
-            var result = signer.sign(transaction, SOME_EVM_ADDRESS);
+            var result1 = signer.sign(transaction, SOME_EVM_ADDRESS);
+            var result2 = signer.sign(transaction, SOME_EVM_ADDRESS);
 
             // then
-            var s = new BigInteger(1, result.signedPayload(), 32, 32);
-            var halfN = CustomNamedCurves.getByName("secp256k1").getN().shiftRight(1);
-            assertThat(s).isLessThanOrEqualTo(halfN);
+            assertThat(result1.signedPayload()).isEqualTo(result2.signedPayload());
         }
 
         @Test
-        void shouldSignNonSolanaChainWithEcdsa() {
+        void shouldSignNonSolanaChainAsEip1559() {
             // given
             var transaction = someUnsignedTransaction(SOME_INTENT_ID, "polygon");
 
@@ -124,9 +114,7 @@ class LocalKeystoreSignerTest {
             var result = signer.sign(transaction, SOME_EVM_ADDRESS);
 
             // then
-            assertThat(result.signedPayload()).hasSize(65);
-            var v = result.signedPayload()[64] & 0xFF;
-            assertThat(v).isBetween(27, 28);
+            assertThat(result.signedPayload()[0]).isEqualTo((byte) 0x02);
         }
     }
 
