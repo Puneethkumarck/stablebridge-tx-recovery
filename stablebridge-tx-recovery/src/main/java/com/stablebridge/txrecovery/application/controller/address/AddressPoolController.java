@@ -22,9 +22,6 @@ import com.stablebridge.txrecovery.api.model.NonceSyncResponse;
 import com.stablebridge.txrecovery.api.model.RegisterAddressRequest;
 import com.stablebridge.txrecovery.application.controller.address.mapper.AddressPoolControllerMapper;
 import com.stablebridge.txrecovery.domain.address.AddressPoolService;
-import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
-import com.stablebridge.txrecovery.domain.address.model.AddressTier;
-import com.stablebridge.txrecovery.domain.exception.InvalidParameterException;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +38,7 @@ public class AddressPoolController {
 
     @PostMapping
     public ResponseEntity<AddressResponse> register(@Valid @RequestBody RegisterAddressRequest request) {
-        var tier = parseTier(request.tier());
+        var tier = mapper.parseTier(request.tier());
         var pooledAddress = addressPoolService.register(
                 request.address(), request.chain(), tier, request.signerEndpoint());
         var response = mapper.toResponse(pooledAddress);
@@ -53,8 +50,8 @@ public class AddressPoolController {
             @RequestParam(required = false) String chain,
             @RequestParam(required = false) String tier,
             @RequestParam(required = false) String status) {
-        var parsedTier = tier != null ? parseTier(tier) : null;
-        var parsedStatus = status != null ? parseStatus(status) : null;
+        var parsedTier = tier != null ? mapper.parseTier(tier) : null;
+        var parsedStatus = status != null ? mapper.parseStatus(status) : null;
         var addresses = addressPoolService.list(chain, parsedTier, parsedStatus);
         var responses = mapper.toResponseList(addresses);
         return ResponseEntity.ok(responses);
@@ -74,28 +71,7 @@ public class AddressPoolController {
             @PathVariable String address,
             @RequestParam String chain) {
         var result = addressPoolService.syncNonce(address, chain);
-        var response = NonceSyncResponse.builder()
-                .address(result.address().address())
-                .chain(result.address().chain())
-                .previousNonce(result.previousNonce())
-                .currentNonce(result.currentNonce())
-                .build();
+        var response = mapper.toNonceSyncResponse(result);
         return ResponseEntity.ok(response);
-    }
-
-    private AddressTier parseTier(String tier) {
-        try {
-            return AddressTier.valueOf(tier);
-        } catch (IllegalArgumentException _) {
-            throw new InvalidParameterException("tier", tier);
-        }
-    }
-
-    private AddressStatus parseStatus(String status) {
-        try {
-            return AddressStatus.valueOf(status);
-        } catch (IllegalArgumentException _) {
-            throw new InvalidParameterException("status", status);
-        }
     }
 }

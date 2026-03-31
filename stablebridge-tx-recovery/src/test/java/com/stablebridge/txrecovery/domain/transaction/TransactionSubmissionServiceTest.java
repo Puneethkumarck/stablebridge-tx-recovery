@@ -22,9 +22,11 @@ import com.stablebridge.txrecovery.domain.exception.BatchValidationException;
 import com.stablebridge.txrecovery.domain.exception.DuplicateIntentException;
 import com.stablebridge.txrecovery.domain.exception.TransactionNotFoundException;
 import com.stablebridge.txrecovery.domain.transaction.model.PagedResult;
+import com.stablebridge.txrecovery.domain.transaction.model.SubmissionResult;
 import com.stablebridge.txrecovery.domain.transaction.model.SubmissionStrategy;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionFilters;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
+import com.stablebridge.txrecovery.domain.transaction.port.PostCommitAction;
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionIntentStore;
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionProjectionStore;
 import com.stablebridge.txrecovery.domain.transaction.port.TransactionWorkflowStarter;
@@ -40,6 +42,9 @@ class TransactionSubmissionServiceTest {
 
     @Mock
     private TransactionWorkflowStarter transactionWorkflowStarter;
+
+    @Mock
+    private PostCommitAction postCommitAction;
 
     @InjectMocks
     private TransactionSubmissionService transactionSubmissionService;
@@ -57,11 +62,12 @@ class TransactionSubmissionServiceTest {
             var result = transactionSubmissionService.submitTransaction(SOME_TRANSACTION_INTENT);
 
             // then
-            assertThat(result.status()).isEqualTo(TransactionStatus.RECEIVED);
-            assertThat(result.intentId()).isEqualTo(SOME_INTENT_ID);
-            assertThat(result.chain()).isEqualTo(SOME_CHAIN);
-            assertThat(result.token()).isEqualTo(SOME_TOKEN);
-            assertThat(result.retryCount()).isZero();
+            assertThat(result).isInstanceOf(SubmissionResult.Created.class);
+            assertThat(result.projection().status()).isEqualTo(TransactionStatus.RECEIVED);
+            assertThat(result.projection().intentId()).isEqualTo(SOME_INTENT_ID);
+            assertThat(result.projection().chain()).isEqualTo(SOME_CHAIN);
+            assertThat(result.projection().token()).isEqualTo(SOME_TOKEN);
+            assertThat(result.projection().retryCount()).isZero();
             then(transactionIntentStore).should().save(eqIgnoring(SOME_TRANSACTION_INTENT.toBuilder()
                     .strategy(SubmissionStrategy.PIPELINED).build()));
         }
@@ -79,7 +85,8 @@ class TransactionSubmissionServiceTest {
             var result = transactionSubmissionService.submitTransaction(highValueIntent);
 
             // then
-            assertThat(result.status()).isEqualTo(TransactionStatus.RECEIVED);
+            assertThat(result).isInstanceOf(SubmissionResult.Created.class);
+            assertThat(result.projection().status()).isEqualTo(TransactionStatus.RECEIVED);
             then(transactionIntentStore).should().save(eqIgnoring(highValueIntent.toBuilder()
                     .strategy(SubmissionStrategy.SEQUENTIAL).build()));
         }
@@ -99,17 +106,21 @@ class TransactionSubmissionServiceTest {
         }
 
         @Test
-        void shouldThrowDuplicateIntentExceptionWhenIntentAlreadyExists() {
+        void shouldReturnAlreadyExistsWhenIntentAlreadyExists() {
             // given
             given(transactionIntentStore.findByIntentId(SOME_INTENT_ID))
                     .willReturn(Optional.of(SOME_TRANSACTION_INTENT));
             given(transactionProjectionStore.findByIntentId(SOME_INTENT_ID))
                     .willReturn(Optional.of(SOME_TRANSACTION_PROJECTION));
 
-            // when/then
-            assertThatThrownBy(() -> transactionSubmissionService.submitTransaction(SOME_TRANSACTION_INTENT))
-                    .isInstanceOf(DuplicateIntentException.class)
-                    .hasMessageContaining(SOME_TRANSACTION_ID);
+            // when
+            var result = transactionSubmissionService.submitTransaction(SOME_TRANSACTION_INTENT);
+
+            // then
+            assertThat(result).isInstanceOf(SubmissionResult.AlreadyExists.class);
+            assertThat(result.projection())
+                    .usingRecursiveComparison()
+                    .isEqualTo(SOME_TRANSACTION_PROJECTION);
         }
 
         @Test
@@ -124,6 +135,19 @@ class TransactionSubmissionServiceTest {
             // when/then
             assertThatThrownBy(() -> transactionSubmissionService.submitTransaction(SOME_TRANSACTION_INTENT))
                     .isInstanceOf(DuplicateIntentException.class);
+        }
+
+        @Test
+        void shouldScheduleWorkflowStartAfterCommit() {
+            // given
+            given(transactionIntentStore.findByIntentId(SOME_INTENT_ID))
+                    .willReturn(Optional.empty());
+
+            // when
+            transactionSubmissionService.submitTransaction(SOME_TRANSACTION_INTENT);
+
+            // then
+            then(postCommitAction).should().executeAfterCommit(org.mockito.ArgumentMatchers.any());
         }
     }
 
@@ -144,11 +168,13 @@ class TransactionSubmissionServiceTest {
                     .willReturn(Optional.empty());
 
             // when
-            var results = transactionSubmissionService.submitBatch(intents, "batch-001");
+            var result = transactionSubmissionService.submitBatch(intents);
 
             // then
-            assertThat(results).hasSize(2);
-            assertThat(results).allMatch(p -> p.status() == TransactionStatus.RECEIVED);
+            assertThat(result.projections()).hasSize(2);
+            assertThat(result.projections()).allMatch(p -> p.status() == TransactionStatus.RECEIVED);
+            assertThat(result.batchId()).isNotBlank();
+            assertThat(result.createdAt()).isNotNull();
         }
 
         @Test
@@ -161,7 +187,7 @@ class TransactionSubmissionServiceTest {
             var intents = List.of(SOME_TRANSACTION_INTENT, solanaIntent);
 
             // when/then
-            assertThatThrownBy(() -> transactionSubmissionService.submitBatch(intents, "batch-001"))
+            assertThatThrownBy(() -> transactionSubmissionService.submitBatch(intents))
                     .isInstanceOf(BatchValidationException.class)
                     .hasMessageContaining("same chain and token");
         }
@@ -176,7 +202,7 @@ class TransactionSubmissionServiceTest {
             var intents = List.of(SOME_TRANSACTION_INTENT, differentTokenIntent);
 
             // when/then
-            assertThatThrownBy(() -> transactionSubmissionService.submitBatch(intents, "batch-001"))
+            assertThatThrownBy(() -> transactionSubmissionService.submitBatch(intents))
                     .isInstanceOf(BatchValidationException.class)
                     .hasMessageContaining("same chain and token");
         }

@@ -2,11 +2,16 @@ package com.stablebridge.txrecovery.application.controller.address.mapper;
 
 import static com.stablebridge.txrecovery.testutil.fixtures.AddressPoolFixtures.*;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
+
+import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
+import com.stablebridge.txrecovery.domain.address.model.AddressTier;
+import com.stablebridge.txrecovery.domain.exception.InvalidParameterException;
 
 class AddressPoolControllerMapperTest {
 
@@ -55,5 +60,50 @@ class AddressPoolControllerMapperTest {
         assertThat(result)
                 .usingRecursiveComparison()
                 .isEqualTo(SOME_DRAIN_RESPONSE);
+    }
+
+    @Test
+    void shouldMapNonceSyncResultToResponse() {
+        // when
+        var result = mapper.toNonceSyncResponse(SOME_NONCE_SYNC_RESULT);
+
+        // then
+        assertThat(result)
+                .usingRecursiveComparison()
+                .isEqualTo(SOME_NONCE_SYNC_RESPONSE);
+    }
+
+    @Test
+    void shouldParseTierFromValidString() {
+        // when
+        var result = mapper.parseTier("HOT");
+
+        // then
+        assertThat(result).isEqualTo(AddressTier.HOT);
+    }
+
+    @Test
+    void shouldThrowInvalidParameterExceptionForInvalidTier() {
+        // when/then
+        assertThatThrownBy(() -> mapper.parseTier("INVALID"))
+                .isInstanceOf(InvalidParameterException.class)
+                .hasMessageContaining("tier");
+    }
+
+    @Test
+    void shouldParseStatusFromValidString() {
+        // when
+        var result = mapper.parseStatus("ACTIVE");
+
+        // then
+        assertThat(result).isEqualTo(AddressStatus.ACTIVE);
+    }
+
+    @Test
+    void shouldThrowInvalidParameterExceptionForInvalidStatus() {
+        // when/then
+        assertThatThrownBy(() -> mapper.parseStatus("INVALID"))
+                .isInstanceOf(InvalidParameterException.class)
+                .hasMessageContaining("status");
     }
 }

@@ -3,13 +3,13 @@ package com.stablebridge.txrecovery.application.controller.transaction;
 import static com.stablebridge.txrecovery.testutil.TestUtils.eqIgnoring;
 import static com.stablebridge.txrecovery.testutil.fixtures.TransactionControllerFixtures.*;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -25,10 +25,11 @@ import com.stablebridge.txrecovery.api.model.PagedResponse;
 import com.stablebridge.txrecovery.api.model.SubmitBatchRequest;
 import com.stablebridge.txrecovery.api.model.TransactionResponse;
 import com.stablebridge.txrecovery.application.controller.transaction.mapper.TransactionControllerMapper;
-import com.stablebridge.txrecovery.domain.exception.DuplicateIntentException;
 import com.stablebridge.txrecovery.domain.exception.TransactionNotFoundException;
 import com.stablebridge.txrecovery.domain.transaction.TransactionSubmissionService;
+import com.stablebridge.txrecovery.domain.transaction.model.BatchSubmissionResult;
 import com.stablebridge.txrecovery.domain.transaction.model.PagedResult;
+import com.stablebridge.txrecovery.domain.transaction.model.SubmissionResult;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionFilters;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionProjection;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
@@ -76,7 +77,7 @@ class TransactionControllerIntegrationTest extends ControllerIntegrationTestBase
         void shouldSubmitTransactionAndReturn201() throws Exception {
             // given
             given(transactionSubmissionService.submitTransaction(eqIgnoring(SOME_TRANSACTION_INTENT)))
-                    .willReturn(SOME_TRANSACTION_PROJECTION);
+                    .willReturn(new SubmissionResult.Created(SOME_TRANSACTION_PROJECTION));
 
             // when
             var result = mockMvc.perform(authenticatedJson(
@@ -102,9 +103,7 @@ class TransactionControllerIntegrationTest extends ControllerIntegrationTestBase
                     .build();
 
             given(transactionSubmissionService.submitTransaction(eqIgnoring(SOME_TRANSACTION_INTENT)))
-                    .willThrow(new DuplicateIntentException("existing-tx-001"));
-            given(transactionSubmissionService.findById("existing-tx-001"))
-                    .willReturn(existingProjection);
+                    .willReturn(new SubmissionResult.AlreadyExists(existingProjection));
 
             // when
             var result = mockMvc.perform(authenticatedJson(
@@ -199,18 +198,19 @@ class TransactionControllerIntegrationTest extends ControllerIntegrationTestBase
         @Test
         void shouldSubmitBatchAndReturn201() throws Exception {
             // given
-            var secondIntent = SOME_TRANSACTION_INTENT.toBuilder()
-                    .intentId(SOME_SECOND_INTENT_ID)
-                    .build();
             var secondProjection = SOME_TRANSACTION_PROJECTION.toBuilder()
                     .transactionId("tx-67890")
                     .intentId(SOME_SECOND_INTENT_ID)
                     .build();
+            var batchResult = new BatchSubmissionResult(
+                    "batch-001",
+                    List.of(SOME_TRANSACTION_PROJECTION, secondProjection),
+                    Instant.now());
 
             given(transactionSubmissionService.submitBatch(
-                    eqIgnoring(List.of(SOME_TRANSACTION_INTENT, secondIntent)),
-                    argThat(batchId -> batchId != null && !batchId.isBlank())))
-                    .willReturn(List.of(SOME_TRANSACTION_PROJECTION, secondProjection));
+                    eqIgnoring(List.of(SOME_TRANSACTION_INTENT, SOME_TRANSACTION_INTENT.toBuilder()
+                            .intentId(SOME_SECOND_INTENT_ID).build()))))
+                    .willReturn(batchResult);
 
             // when
             var result = mockMvc.perform(authenticatedJson(
@@ -416,8 +416,8 @@ class TransactionControllerIntegrationTest extends ControllerIntegrationTestBase
                     .andReturn();
 
             // then
-            assertErrorResponse(result, HttpStatus.BAD_REQUEST, "STR-4000",
-                    "Invalid status filter: INVALID_STATUS");
+            assertErrorResponse(result, HttpStatus.BAD_REQUEST, "STR-4003",
+                    "Invalid value 'INVALID_STATUS' for parameter 'status'");
         }
     }
 }
