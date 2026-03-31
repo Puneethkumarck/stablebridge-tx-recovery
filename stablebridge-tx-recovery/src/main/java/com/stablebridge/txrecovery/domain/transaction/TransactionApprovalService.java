@@ -1,5 +1,6 @@
 package com.stablebridge.txrecovery.domain.transaction;
 
+import java.time.Clock;
 import java.time.Instant;
 
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ public class TransactionApprovalService {
 
     private final TransactionProjectionStore transactionProjectionStore;
     private final TransactionWorkflowSignaler transactionWorkflowSignaler;
+    private final Clock clock;
 
     @Transactional
     public ApprovalResult approveTransaction(
@@ -39,7 +41,7 @@ public class TransactionApprovalService {
                 .action(action)
                 .approvedBy(approvedBy)
                 .reason(reason)
-                .approvedAt(Instant.now())
+                .approvedAt(Instant.now(clock))
                 .build();
 
         transactionWorkflowSignaler.signalApproveRecovery(transactionId, approval);
@@ -62,7 +64,7 @@ public class TransactionApprovalService {
         var cancelRequest = CancelRequest.builder()
                 .requestedBy(requestedBy)
                 .reason(reason)
-                .requestedAt(Instant.now())
+                .requestedAt(Instant.now(clock))
                 .build();
 
         transactionWorkflowSignaler.signalCancelTransaction(transactionId, cancelRequest);

@@ -8,6 +8,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Nested;
@@ -15,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.stablebridge.txrecovery.domain.exception.InvalidTransactionStateException;
@@ -37,6 +41,9 @@ class TransactionApprovalServiceTest {
 
     @Mock
     private TransactionWorkflowSignaler transactionWorkflowSignaler;
+
+    @Spy
+    private final Clock clock = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
 
     @InjectMocks
     private TransactionApprovalService transactionApprovalService;

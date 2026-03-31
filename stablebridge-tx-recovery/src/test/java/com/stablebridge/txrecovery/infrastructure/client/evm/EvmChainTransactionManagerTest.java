@@ -21,7 +21,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
 
@@ -46,12 +48,14 @@ class EvmChainTransactionManagerTest {
     @Mock
     private EvmTransactionBuilder transactionBuilder;
 
+    private final Clock clock = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
+
     private EvmChainTransactionManager manager;
 
     @BeforeEach
     void setUp() {
         manager = new EvmChainTransactionManager(
-                rpcClient, transactionBuilder, SOME_FINALITY_BLOCKS, SOME_STUCK_THRESHOLD_BLOCKS);
+                rpcClient, transactionBuilder, SOME_FINALITY_BLOCKS, SOME_STUCK_THRESHOLD_BLOCKS, clock);
     }
 
     @Nested

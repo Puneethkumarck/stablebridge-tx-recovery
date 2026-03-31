@@ -1,6 +1,7 @@
 package com.stablebridge.txrecovery.domain.transaction;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -39,6 +40,7 @@ public class TransactionSubmissionService {
     private final TransactionProjectionStore transactionProjectionStore;
     private final TransactionWorkflowStarter transactionWorkflowStarter;
     private final PostCommitAction postCommitAction;
+    private final Clock clock;
 
     @Transactional
     public SubmissionResult submitTransaction(TransactionIntent intent) {
@@ -70,7 +72,7 @@ public class TransactionSubmissionService {
                 .map(this::createBatchTransaction)
                 .toList();
 
-        return new BatchSubmissionResult(batchId, projections, Instant.now());
+        return new BatchSubmissionResult(batchId, projections, Instant.now(clock));
     }
 
     @Transactional(readOnly = true)
@@ -97,7 +99,7 @@ public class TransactionSubmissionService {
                 : calculateStrategy(intent.amount());
         return intent.toBuilder()
                 .strategy(strategy)
-                .createdAt(Instant.now())
+                .createdAt(Instant.now(clock))
                 .build();
     }
 
@@ -114,7 +116,7 @@ public class TransactionSubmissionService {
                 .amount(enrichedIntent.amount())
                 .token(enrichedIntent.token())
                 .retryCount(0)
-                .submittedAt(Instant.now())
+                .submittedAt(Instant.now(clock))
                 .build();
 
         transactionProjectionStore.save(projection);

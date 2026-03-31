@@ -1,5 +1,6 @@
 package com.stablebridge.txrecovery.infrastructure.client.evm;
 
+import java.time.Clock;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -28,6 +29,7 @@ public class EvmChainBeanFactory implements ChainBeanFactory {
     private final CircuitBreakerRegistry circuitBreakerRegistry;
     private final RateLimiterRegistry rateLimiterRegistry;
     private final SubmissionResourceManager evmSubmissionResourceManager;
+    private final Clock clock;
 
     private final Map<String, EvmRpcClient> rpcClientCache = new ConcurrentHashMap<>();
     private final Map<String, FeeOracle> feeOracleCache = new ConcurrentHashMap<>();
@@ -69,7 +71,7 @@ public class EvmChainBeanFactory implements ChainBeanFactory {
         var feeOracle = createFeeOracle(config);
         var txBuilder = new EvmTransactionBuilder(rpcClient, feeOracle, config.chainId());
         return new EvmChainTransactionManager(
-                rpcClient, txBuilder, config.finalityBlocks(), config.stuckThresholdBlocks());
+                rpcClient, txBuilder, config.finalityBlocks(), config.stuckThresholdBlocks(), clock);
     }
 
     @Override
