@@ -8,8 +8,13 @@ import org.mapstruct.Mapping;
 
 import com.stablebridge.txrecovery.api.model.AddressResponse;
 import com.stablebridge.txrecovery.api.model.DrainResponse;
+import com.stablebridge.txrecovery.api.model.NonceSyncResponse;
+import com.stablebridge.txrecovery.domain.address.model.AddressStatus;
+import com.stablebridge.txrecovery.domain.address.model.AddressTier;
 import com.stablebridge.txrecovery.domain.address.model.DrainResult;
+import com.stablebridge.txrecovery.domain.address.model.NonceSyncResult;
 import com.stablebridge.txrecovery.domain.address.model.PooledAddress;
+import com.stablebridge.txrecovery.domain.exception.InvalidParameterException;
 
 @Mapper(componentModel = "spring", injectionStrategy = InjectionStrategy.CONSTRUCTOR)
 public interface AddressPoolControllerMapper {
@@ -27,4 +32,30 @@ public interface AddressPoolControllerMapper {
     @Mapping(target = "previousStatus", expression = "java(drainResult.previousStatus().name())")
     @Mapping(target = "newStatus", expression = "java(drainResult.address().status().name())")
     DrainResponse toDrainResponse(DrainResult drainResult);
+
+    @Mapping(target = "address", source = "address.address")
+    @Mapping(target = "chain", source = "address.chain")
+    NonceSyncResponse toNonceSyncResponse(NonceSyncResult result);
+
+    default AddressTier parseTier(String tier) {
+        if (tier == null) {
+            throw new InvalidParameterException("tier", null);
+        }
+        try {
+            return AddressTier.valueOf(tier);
+        } catch (IllegalArgumentException _) {
+            throw new InvalidParameterException("tier", tier);
+        }
+    }
+
+    default AddressStatus parseStatus(String status) {
+        if (status == null) {
+            throw new InvalidParameterException("status", null);
+        }
+        try {
+            return AddressStatus.valueOf(status);
+        } catch (IllegalArgumentException _) {
+            throw new InvalidParameterException("status", status);
+        }
+    }
 }

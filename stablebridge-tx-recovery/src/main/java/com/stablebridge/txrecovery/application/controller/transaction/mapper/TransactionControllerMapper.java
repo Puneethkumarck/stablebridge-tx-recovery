@@ -1,6 +1,7 @@
 package com.stablebridge.txrecovery.application.controller.transaction.mapper;
 
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.List;
 
 import org.mapstruct.InjectionStrategy;
@@ -8,10 +9,15 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
 import com.github.f4b6a3.uuid.UuidCreator;
+import com.stablebridge.txrecovery.api.model.BatchTransactionResponse;
 import com.stablebridge.txrecovery.api.model.SubmitTransactionRequest;
 import com.stablebridge.txrecovery.api.model.TransactionResponse;
+import com.stablebridge.txrecovery.domain.exception.InvalidParameterException;
+import com.stablebridge.txrecovery.domain.transaction.model.BatchSubmissionResult;
+import com.stablebridge.txrecovery.domain.transaction.model.TransactionFilters;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionIntent;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionProjection;
+import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
 
 @Mapper(componentModel = "spring", injectionStrategy = InjectionStrategy.CONSTRUCTOR)
 public interface TransactionControllerMapper {
@@ -31,6 +37,27 @@ public interface TransactionControllerMapper {
 
     List<TransactionResponse> toResponseList(List<TransactionProjection> projections);
 
+    default TransactionFilters toFilters(String chain, String status, String fromAddress,
+            String toAddress, String token, Instant fromDate, Instant toDate) {
+        return TransactionFilters.builder()
+                .chain(chain)
+                .status(parseStatus(status))
+                .fromAddress(fromAddress)
+                .toAddress(toAddress)
+                .token(token)
+                .fromDate(fromDate)
+                .toDate(toDate)
+                .build();
+    }
+
+    default BatchTransactionResponse toBatchResponse(BatchSubmissionResult result) {
+        return BatchTransactionResponse.builder()
+                .batchId(result.batchId())
+                .transactions(toResponseList(result.projections()))
+                .createdAt(result.createdAt())
+                .build();
+    }
+
     default String generateIntentId(SubmitTransactionRequest request) {
         return request.intentId() != null ? request.intentId() : UuidCreator.getTimeOrderedEpoch().toString();
     }
@@ -43,5 +70,16 @@ public interface TransactionControllerMapper {
                             .formatted(request.amount().scale(), request.tokenDecimals()));
         }
         return shifted.toBigInteger();
+    }
+
+    default TransactionStatus parseStatus(String status) {
+        if (status == null) {
+            return null;
+        }
+        try {
+            return TransactionStatus.valueOf(status);
+        } catch (IllegalArgumentException _) {
+            throw new InvalidParameterException("status", status);
+        }
     }
 }

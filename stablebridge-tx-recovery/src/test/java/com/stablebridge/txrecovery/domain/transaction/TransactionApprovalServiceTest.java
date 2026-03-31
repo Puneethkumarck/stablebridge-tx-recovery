@@ -8,6 +8,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Nested;
@@ -15,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.stablebridge.txrecovery.domain.exception.InvalidTransactionStateException;
@@ -38,6 +42,9 @@ class TransactionApprovalServiceTest {
     @Mock
     private TransactionWorkflowSignaler transactionWorkflowSignaler;
 
+    @Spy
+    private final Clock clock = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
+
     @InjectMocks
     private TransactionApprovalService transactionApprovalService;
 
@@ -59,12 +66,11 @@ class TransactionApprovalServiceTest {
                     .transactionId(SOME_APPROVAL_TRANSACTION_ID)
                     .status(TransactionStatus.AWAITING_HUMAN)
                     .action(ApprovalAction.RETRY)
+                    .approvedAt(Instant.parse("2026-01-01T00:00:00Z"))
                     .build();
             assertThat(result)
                     .usingRecursiveComparison()
-                    .ignoringFields("approvedAt")
                     .isEqualTo(expected);
-            assertThat(result.approvedAt()).isNotNull();
 
             var expectedApproval = HumanApproval.builder()
                     .action(ApprovalAction.RETRY)
@@ -92,10 +98,10 @@ class TransactionApprovalServiceTest {
                     .transactionId(SOME_APPROVAL_TRANSACTION_ID)
                     .status(TransactionStatus.AWAITING_HUMAN)
                     .action(ApprovalAction.ABORT)
+                    .approvedAt(Instant.parse("2026-01-01T00:00:00Z"))
                     .build();
             assertThat(result)
                     .usingRecursiveComparison()
-                    .ignoringFields("approvedAt")
                     .isEqualTo(expected);
         }
 

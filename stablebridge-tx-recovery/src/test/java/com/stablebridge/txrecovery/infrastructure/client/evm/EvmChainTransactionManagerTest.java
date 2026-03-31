@@ -21,7 +21,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
 
@@ -46,12 +48,14 @@ class EvmChainTransactionManagerTest {
     @Mock
     private EvmTransactionBuilder transactionBuilder;
 
+    private final Clock clock = Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC);
+
     private EvmChainTransactionManager manager;
 
     @BeforeEach
     void setUp() {
         manager = new EvmChainTransactionManager(
-                rpcClient, transactionBuilder, SOME_FINALITY_BLOCKS, SOME_STUCK_THRESHOLD_BLOCKS);
+                rpcClient, transactionBuilder, SOME_FINALITY_BLOCKS, SOME_STUCK_THRESHOLD_BLOCKS, clock);
     }
 
     @Nested
@@ -109,11 +113,10 @@ class EvmChainTransactionManagerTest {
             var expected = BroadcastResult.builder()
                     .txHash(SOME_BROADCAST_TX_HASH)
                     .chain(SOME_CHAIN)
-                    .broadcastedAt(Instant.now())
+                    .broadcastedAt(Instant.parse("2026-01-01T00:00:00Z"))
                     .build();
             assertThat(result)
                     .usingRecursiveComparison()
-                    .ignoringFields("broadcastedAt")
                     .isEqualTo(expected);
         }
 
@@ -131,12 +134,12 @@ class EvmChainTransactionManagerTest {
             var expected = BroadcastResult.builder()
                     .txHash("placeholder")
                     .chain(SOME_CHAIN)
-                    .broadcastedAt(Instant.now())
+                    .broadcastedAt(Instant.parse("2026-01-01T00:00:00Z"))
                     .details(Map.of("note", "Transaction already known by node"))
                     .build();
             assertThat(result)
                     .usingRecursiveComparison()
-                    .ignoringFields("broadcastedAt", "txHash")
+                    .ignoringFields("txHash")
                     .isEqualTo(expected);
             assertThat(result.txHash()).startsWith("0x");
         }

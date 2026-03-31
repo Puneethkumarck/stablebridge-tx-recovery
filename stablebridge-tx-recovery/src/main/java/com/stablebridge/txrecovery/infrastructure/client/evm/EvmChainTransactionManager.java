@@ -1,5 +1,6 @@
 package com.stablebridge.txrecovery.infrastructure.client.evm;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Map;
@@ -32,6 +33,7 @@ class EvmChainTransactionManager implements ChainTransactionManager {
     private final EvmTransactionBuilder transactionBuilder;
     private final long finalityBlocks;
     private final long stuckThresholdBlocks;
+    private final Clock clock;
     private final ConcurrentHashMap<String, Long> pendingFirstSeen = new ConcurrentHashMap<>();
 
     @Override
@@ -52,7 +54,7 @@ class EvmChainTransactionManager implements ChainTransactionManager {
             return BroadcastResult.builder()
                     .txHash(txHash)
                     .chain(chain)
-                    .broadcastedAt(Instant.now())
+                    .broadcastedAt(Instant.now(clock))
                     .build();
         } catch (EvmRpcException e) {
             return handleBroadcastError(e, signedTransaction, chain);
@@ -85,7 +87,7 @@ class EvmChainTransactionManager implements ChainTransactionManager {
             return BroadcastResult.builder()
                     .txHash(txHash)
                     .chain(chain)
-                    .broadcastedAt(Instant.now())
+                    .broadcastedAt(Instant.now(clock))
                     .details(Map.of("note", "Transaction already known by node"))
                     .build();
         }

@@ -3,7 +3,6 @@ package com.stablebridge.txrecovery.application.controller.transaction;
 import static com.stablebridge.txrecovery.testutil.TestUtils.eqIgnoring;
 import static com.stablebridge.txrecovery.testutil.fixtures.TransactionControllerFixtures.*;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -34,10 +33,11 @@ import com.stablebridge.txrecovery.api.model.SubmitBatchRequest;
 import com.stablebridge.txrecovery.api.model.TransactionResponse;
 import com.stablebridge.txrecovery.application.controller.GlobalExceptionHandler;
 import com.stablebridge.txrecovery.application.controller.transaction.mapper.TransactionControllerMapper;
-import com.stablebridge.txrecovery.domain.exception.DuplicateIntentException;
 import com.stablebridge.txrecovery.domain.exception.TransactionNotFoundException;
 import com.stablebridge.txrecovery.domain.transaction.TransactionSubmissionService;
+import com.stablebridge.txrecovery.domain.transaction.model.BatchSubmissionResult;
 import com.stablebridge.txrecovery.domain.transaction.model.PagedResult;
+import com.stablebridge.txrecovery.domain.transaction.model.SubmissionResult;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionFilters;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionProjection;
 import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
@@ -76,7 +76,7 @@ class TransactionControllerTest {
             given(transactionControllerMapper.toDomain(eqIgnoring(SOME_SUBMIT_REQUEST)))
                     .willReturn(SOME_TRANSACTION_INTENT);
             given(transactionSubmissionService.submitTransaction(SOME_TRANSACTION_INTENT))
-                    .willReturn(SOME_TRANSACTION_PROJECTION);
+                    .willReturn(new SubmissionResult.Created(SOME_TRANSACTION_PROJECTION));
             given(transactionControllerMapper.toResponse(SOME_TRANSACTION_PROJECTION))
                     .willReturn(SOME_TRANSACTION_RESPONSE);
 
@@ -108,9 +108,7 @@ class TransactionControllerTest {
             given(transactionControllerMapper.toDomain(eqIgnoring(SOME_SUBMIT_REQUEST)))
                     .willReturn(SOME_TRANSACTION_INTENT);
             given(transactionSubmissionService.submitTransaction(SOME_TRANSACTION_INTENT))
-                    .willThrow(new DuplicateIntentException("existing-tx-001"));
-            given(transactionSubmissionService.findById("existing-tx-001"))
-                    .willReturn(existingProjection);
+                    .willReturn(new SubmissionResult.AlreadyExists(existingProjection));
             given(transactionControllerMapper.toResponse(existingProjection))
                     .willReturn(existingResponse);
 
@@ -234,6 +232,15 @@ class TransactionControllerTest {
                     .transactionId("tx-67890")
                     .intentId(SOME_SECOND_INTENT_ID)
                     .build();
+            var batchResult = new BatchSubmissionResult(
+                    "batch-001",
+                    List.of(SOME_TRANSACTION_PROJECTION, secondProjection),
+                    java.time.Instant.now());
+            var batchResponse = BatchTransactionResponse.builder()
+                    .batchId("batch-001")
+                    .transactions(List.of(SOME_TRANSACTION_RESPONSE, secondResponse))
+                    .createdAt(batchResult.createdAt())
+                    .build();
 
             given(transactionControllerMapper.toDomain(eqIgnoring(SOME_SUBMIT_REQUEST)))
                     .willReturn(SOME_TRANSACTION_INTENT);
@@ -241,12 +248,10 @@ class TransactionControllerTest {
                     .intentId(SOME_SECOND_INTENT_ID).build())))
                     .willReturn(secondIntent);
             given(transactionSubmissionService.submitBatch(
-                    eqIgnoring(List.of(SOME_TRANSACTION_INTENT, secondIntent)),
-                    argThat(batchId -> batchId != null && !batchId.isBlank())))
-                    .willReturn(List.of(SOME_TRANSACTION_PROJECTION, secondProjection));
-            given(transactionControllerMapper.toResponseList(
-                    List.of(SOME_TRANSACTION_PROJECTION, secondProjection)))
-                    .willReturn(List.of(SOME_TRANSACTION_RESPONSE, secondResponse));
+                    eqIgnoring(List.of(SOME_TRANSACTION_INTENT, secondIntent))))
+                    .willReturn(batchResult);
+            given(transactionControllerMapper.toBatchResponse(batchResult))
+                    .willReturn(batchResponse);
 
             // when
             var result = mockMvc.perform(post("/api/v1/transactions/batch")
@@ -363,6 +368,9 @@ class TransactionControllerTest {
                     .totalPages(1)
                     .build();
 
+            given(transactionControllerMapper.toFilters(
+                    SOME_CHAIN, "RECEIVED", "0xsender001", SOME_TO_ADDRESS, null, null, null))
+                    .willReturn(expectedFilters);
             given(transactionSubmissionService.findByFilters(expectedFilters, 0, 10))
                     .willReturn(pagedResult);
             given(transactionControllerMapper.toResponseList(List.of(SOME_TRANSACTION_PROJECTION)))
@@ -405,6 +413,8 @@ class TransactionControllerTest {
                     .totalPages(1)
                     .build();
 
+            given(transactionControllerMapper.toFilters(null, null, null, null, null, null, null))
+                    .willReturn(defaultFilters);
             given(transactionSubmissionService.findByFilters(defaultFilters, 0, 20))
                     .willReturn(pagedResult);
             given(transactionControllerMapper.toResponseList(List.of(SOME_TRANSACTION_PROJECTION)))

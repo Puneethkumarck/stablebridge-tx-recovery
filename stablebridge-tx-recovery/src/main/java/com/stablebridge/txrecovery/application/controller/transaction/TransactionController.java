@@ -15,17 +15,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.github.f4b6a3.uuid.UuidCreator;
 import com.stablebridge.txrecovery.api.model.BatchTransactionResponse;
 import com.stablebridge.txrecovery.api.model.PagedResponse;
 import com.stablebridge.txrecovery.api.model.SubmitBatchRequest;
 import com.stablebridge.txrecovery.api.model.SubmitTransactionRequest;
 import com.stablebridge.txrecovery.api.model.TransactionResponse;
 import com.stablebridge.txrecovery.application.controller.transaction.mapper.TransactionControllerMapper;
-import com.stablebridge.txrecovery.domain.exception.DuplicateIntentException;
 import com.stablebridge.txrecovery.domain.transaction.TransactionSubmissionService;
-import com.stablebridge.txrecovery.domain.transaction.model.TransactionFilters;
-import com.stablebridge.txrecovery.domain.transaction.model.TransactionStatus;
+import com.stablebridge.txrecovery.domain.transaction.model.SubmissionResult;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,40 +40,24 @@ public class TransactionController {
     @PostMapping
     public ResponseEntity<TransactionResponse> submitTransaction(
             @Valid @RequestBody SubmitTransactionRequest request) {
-        try {
-            var intent = transactionControllerMapper.toDomain(request);
-            intent = intent.toBuilder()
-                    .strategy(transactionSubmissionService.calculateStrategy(intent.amount()))
-                    .build();
-            var projection = transactionSubmissionService.submitTransaction(intent);
-            transactionSubmissionService.startWorkflowAfterCommit(intent);
-            var response = transactionControllerMapper.toResponse(projection);
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
-        } catch (DuplicateIntentException ex) {
-            var existing = transactionSubmissionService.findById(ex.getExistingTransactionId());
-            var response = transactionControllerMapper.toResponse(existing);
-            return ResponseEntity.ok(response);
-        }
+        var intent = transactionControllerMapper.toDomain(request);
+        var result = transactionSubmissionService.submitTransaction(intent);
+        var response = transactionControllerMapper.toResponse(result.projection());
+        return switch (result) {
+            case SubmissionResult.Created _ -> ResponseEntity.status(HttpStatus.CREATED).body(response);
+            case SubmissionResult.AlreadyExists _ -> ResponseEntity.ok(response);
+        };
     }
 
     @PostMapping("/batch")
     public ResponseEntity<BatchTransactionResponse> submitBatch(
             @Valid @RequestBody SubmitBatchRequest request) {
-        var batchId = UuidCreator.getTimeOrderedEpoch().toString();
         var intents = request.transactions().stream()
                 .map(transactionControllerMapper::toDomain)
                 .toList();
-
-        var projections = transactionSubmissionService.submitBatch(intents, batchId);
-        var responses = transactionControllerMapper.toResponseList(projections);
-
-        var batchResponse = BatchTransactionResponse.builder()
-                .batchId(batchId)
-                .transactions(responses)
-                .createdAt(Instant.now())
-                .build();
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(batchResponse);
+        var result = transactionSubmissionService.submitBatch(intents);
+        var response = transactionControllerMapper.toBatchResponse(result);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/{transactionId}")
@@ -98,16 +79,8 @@ public class TransactionController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
-        var filters = TransactionFilters.builder()
-                .chain(chain)
-                .status(parseStatus(status))
-                .fromAddress(fromAddress)
-                .toAddress(toAddress)
-                .token(token)
-                .fromDate(fromDate)
-                .toDate(toDate)
-                .build();
-
+        var filters = transactionControllerMapper.toFilters(
+                chain, status, fromAddress, toAddress, token, fromDate, toDate);
         var pagedProjections = transactionSubmissionService.findByFilters(filters, page, size);
         var responses = transactionControllerMapper.toResponseList(pagedProjections.content());
 
@@ -120,16 +93,5 @@ public class TransactionController {
                 .build();
 
         return ResponseEntity.ok(pagedResponse);
-    }
-
-    private TransactionStatus parseStatus(String status) {
-        if (status == null) {
-            return null;
-        }
-        try {
-            return TransactionStatus.valueOf(status);
-        } catch (IllegalArgumentException _) {
-            throw new IllegalArgumentException("Invalid status filter: %s".formatted(status));
-        }
     }
 }
