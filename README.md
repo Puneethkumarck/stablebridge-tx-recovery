@@ -104,23 +104,42 @@ When you submit a transaction to a blockchain, it doesn't execute immediately. I
 
 ### The Naive Approach (and Why It Fails)
 
+> **🎬 A Day in the Life of a Stuck Transaction**
+
 ```
-Your App  ──→  "Submit 50 USDC transfer to 0xABC"
-Blockchain ──→  "Transaction hash: 0x123... submitted."
-Your App  ──→  "Great, it's done!"
-                                          ... 3 hours later ...
-Your App  ──→  "Wait, it's still pending?!"
-Operator  ──→  "Let me SSH into the server and manually bump the gas..."
+ 🖥️  Your App       ──→  "Submit 50 USDC transfer to 0xABC"
+ ⛓️  Blockchain     ──→  "Transaction hash: 0x123... submitted."
+ 🖥️  Your App       ──→  "Great, it's done! ✅"
+
+                         ⏳ ... 30 minutes later ...
+
+ 🖥️  Your App       ──→  "Hmm, still pending... probably just slow."
+
+                         ⏳ ... 2 hours later ...
+
+ 🚨  PagerDuty      ──→  "ALERT: 47 transactions stuck on Ethereum"
+ 😰  On-call Eng    ──→  "Let me SSH in and check..."
+ 💻  Terminal        ──→  $ eth_getTransactionByHash 0x123...
+                          → status: pending, gas: 12 gwei
+                          → current base fee: 85 gwei  😱
+ 😤  On-call Eng    ──→  "Gas spiked 7x. Need to replace all 47 manually."
+
+                         ⏳ ... 45 minutes of manual nonce wrangling ...
+
+ 💸  On-call Eng    ──→  "Done. Spent $380 in gas fees. Missed 3 SLAs."
+ 📉  Dashboard      ──→  "Customer satisfaction: ↓ 12%"
 ```
 
-Most applications treat transaction submission as "fire and forget." They submit the transaction, store the hash, and assume it will confirm. When it doesn't, an engineer gets paged and has to:
+Most applications treat transaction submission as **"fire and forget."** They submit, store the hash, and assume it will confirm. When it doesn't, an engineer gets paged and has to:
 
-1. Figure out which transactions are stuck (query multiple RPCs)
-2. Understand *why* they're stuck (gas? nonce? dropped?)
-3. Construct a replacement transaction with the right parameters
-4. Sign and broadcast the replacement
-5. Monitor until the replacement confirms
-6. Update internal records
+| Step | Manual Action | ⏱️ Time | 😫 Pain Level |
+|------|--------------|---------|--------------|
+| 1 | Figure out *which* transactions are stuck | ~15 min | 🟡 Tedious |
+| 2 | Understand *why* — gas? nonce gap? dropped? | ~10 min | 🟠 Requires chain expertise |
+| 3 | Construct replacement transactions | ~20 min | 🔴 Error-prone |
+| 4 | Sign and broadcast replacements | ~5 min | 🟠 Security-sensitive |
+| 5 | Monitor until replacements confirm | ~30 min | 🟡 Waiting... |
+| 6 | Update internal records and notify | ~10 min | 🟡 Easy to forget |
 
 This is error-prone, chain-specific, and doesn't scale. A single stuck transaction can block an entire nonce sequence, cascading into dozens of failed transfers.
 
@@ -128,23 +147,23 @@ This is error-prone, chain-specific, and doesn't scale. A single stuck transacti
 
 ```mermaid
 flowchart LR
-    subgraph Without["Without Recovery Service"]
+    subgraph Without["❌ Without Recovery Service"]
         direction TB
-        A1["Submit transaction"] --> A2["Store tx hash"]
-        A2 --> A3["Hope it confirms"]
-        A3 --> A4["3 hours later: PagerDuty alert"]
-        A4 --> A5["Engineer SSHes in"]
-        A5 --> A6["Manual gas bump"]
-        A6 --> A7["Pray it works"]
+        A1["📤 Submit transaction"] --> A2["💾 Store tx hash"]
+        A2 --> A3["🤞 Hope it confirms"]
+        A3 --> A4["🚨 3 hours later:<br/>PagerDuty alert!"]
+        A4 --> A5["💻 Engineer SSHes in"]
+        A5 --> A6["🔧 Manual gas bump"]
+        A6 --> A7["🙏 Pray it works"]
     end
 
-    subgraph With["With StableBridge TX Recovery"]
+    subgraph With["✅ With StableBridge TX Recovery"]
         direction TB
-        B1["Submit via API"] --> B2["Temporal workflow<br/>manages lifecycle"]
-        B2 --> B3["Detect stuck<br/>after 10 min"]
-        B3 --> B4["Auto gas bump<br/>(1.2x → 1.5x → 2.0x)"]
-        B4 --> B5["Escalate to human<br/>only if needed"]
-        B5 --> B6["Confirmed.<br/>Event published."]
+        B1["📤 Submit via API"] --> B2["⚙️ Temporal workflow<br/>manages lifecycle"]
+        B2 --> B3["🔍 Detect stuck<br/>after 10 min"]
+        B3 --> B4["⛽ Auto gas bump<br/>(1.2x → 1.5x → 2.0x)"]
+        B4 --> B5["👤 Escalate to human<br/>only if needed"]
+        B5 --> B6["✅ Confirmed.<br/>Event published."]
     end
 
     Without ~~~ With
