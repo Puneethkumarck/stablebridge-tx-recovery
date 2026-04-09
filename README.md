@@ -1,22 +1,69 @@
-<p align="center">
-  <img src="https://img.shields.io/badge/Java-25_LTS-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java 25"/>
-  <img src="https://img.shields.io/badge/Spring_Boot-4.0.3-6DB33F?style=for-the-badge&logo=springboot&logoColor=white" alt="Spring Boot 4.0.3"/>
-  <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL 16"/>
-  <img src="https://img.shields.io/badge/Kafka-Redpanda-E0234E?style=for-the-badge&logo=apachekafka&logoColor=white" alt="Kafka"/>
-  <img src="https://img.shields.io/badge/Temporal-1.29-000000?style=for-the-badge&logo=temporal&logoColor=white" alt="Temporal"/>
-  <img src="https://img.shields.io/badge/Redis-7.4-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis"/>
-  <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License"/>
-</p>
+<div align="center">
+
+![Build](https://github.com/Puneethkumarck/stablebridge-tx-recovery/actions/workflows/ci.yml/badge.svg)
+![Java 25](https://img.shields.io/badge/Java-25_LTS-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.0.3-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![Kafka](https://img.shields.io/badge/Kafka-Redpanda-E0234E?style=for-the-badge&logo=apachekafka&logoColor=white)
+![Temporal](https://img.shields.io/badge/Temporal-1.29-000000?style=for-the-badge&logo=temporal&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-7.4-DC382D?style=for-the-badge&logo=redis&logoColor=white)
+![Architecture](https://img.shields.io/badge/Architecture-Hexagonal-purple?style=for-the-badge)
+![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Puneethkumarck/stablebridge-tx-recovery)
 
 # StableBridge Transaction Recovery
 
-> **Enterprise-grade microservice for stablecoin transaction recovery across EVM and Solana chains.** Detects stuck or failed on-chain transactions and orchestrates automated recovery with configurable escalation tiers, gas management, and human-approval workflows.
+**Enterprise-grade microservice for stablecoin transaction recovery across EVM and Solana chains.** Detects stuck or failed on-chain transactions and orchestrates automated recovery with configurable escalation tiers, gas management, and human-approval workflows.
+
+[Why Transaction Recovery?](#why-do-blockchain-transactions-fail) | [Understanding the Chains](#understanding-recovery-across-chains) | [Architecture](#architecture) | [Quick Start](#getting-started) | [API Reference](#api-reference) | [Configuration](#configuration-reference)
+
+</div>
+
+---
+
+## The Problem
+
+Blockchain transactions fail silently. A submitted stablecoin transfer can get stuck in the mempool for hours — and there's no built-in mechanism to detect this, let alone fix it.
+
+## The Solution
+
+StableBridge TX Recovery manages the **entire transaction lifecycle** from submission to finality. It detects stuck transactions, applies tiered gas-escalation strategies, and routes high-value decisions to human operators — all orchestrated through crash-proof Temporal workflows.
+
+## The Result
+
+A fully automated, multi-chain transaction lifecycle manager that turns "funds stuck for 6 hours, engineer on-call paged" into "automatic recovery in 10 minutes, zero human intervention for 95% of cases."
+
+<div align="center">
+
+| Metric | Value |
+|--------|-------|
+| **Chains** | EVM (Ethereum, Base, Polygon) + Solana |
+| **Recovery** | Tiered: gas bump → nonce replace → human approval |
+| **Durability** | Temporal workflows survive crashes + restarts |
+| **Delivery** | At-least-once (transactional outbox + Kafka) |
+| **Signing** | Pluggable: local keystore or remote HMAC callback |
+| **Escalation** | Separate tiers for standard vs. high-value (>$50K) |
+
+</div>
 
 ---
 
 ## Table of Contents
 
-- [Problem Statement](#problem-statement)
+- [Why Do Blockchain Transactions Fail?](#why-do-blockchain-transactions-fail)
+  - [The Naive Approach (and Why It Fails)](#the-naive-approach-and-why-it-fails)
+  - [What Transaction Recovery Replaces](#what-transaction-recovery-replaces)
+- [Understanding Recovery Across Chains](#understanding-recovery-across-chains)
+  - [EVM Chains (Ethereum, Base, Polygon)](#evm-chains-ethereum-base-polygon)
+  - [Solana](#solana)
+- [Gas Economics: Why Transactions Get Stuck](#gas-economics-why-transactions-get-stuck)
+  - [EIP-1559 and the Fee Market](#eip-1559-and-the-fee-market)
+  - [Solana Priority Fees](#solana-priority-fees)
+- [Nonce Management: The Hidden Complexity](#nonce-management-the-hidden-complexity)
+- [The Mempool: Where Transactions Wait (and Die)](#the-mempool-where-transactions-wait-and-die)
+- [Escalation: From Automatic to Human](#escalation-from-automatic-to-human)
+- [Durable Execution: Why Temporal?](#durable-execution-why-temporal)
+- [The Transaction Recovery Lifecycle](#the-transaction-recovery-lifecycle)
 - [Key Features](#key-features)
 - [Architecture](#architecture)
   - [System Architecture](#system-architecture)
@@ -33,12 +80,6 @@
   - [Quick Start](#quick-start)
   - [Make Targets](#make-targets)
 - [API Reference](#api-reference)
-  - [Transactions](#transactions)
-  - [Approvals](#approvals)
-  - [Chain Status](#chain-status)
-  - [Gas Oracle](#gas-oracle)
-  - [Address Pool](#address-pool)
-  - [Health & Metrics](#health--metrics)
 - [Configuration Reference](#configuration-reference)
 - [Resilience & Fault Tolerance](#resilience--fault-tolerance)
 - [Security](#security)
@@ -51,16 +92,443 @@
 
 ---
 
-## Problem Statement
+## Why Do Blockchain Transactions Fail?
 
-Blockchain transactions fail silently. A submitted stablecoin transfer can get stuck due to gas spikes, nonce gaps, network congestion, or RPC node failures. Without automated detection and recovery:
+When you submit a transaction to a blockchain, it doesn't execute immediately. It enters a **mempool** — a waiting area where unconfirmed transactions sit until a validator picks them up and includes them in a block. Between submission and confirmation, many things can go wrong:
 
-- **Funds stay locked** in pending transactions for hours or days
-- **Manual intervention** requires deep chain-specific knowledge
-- **No visibility** into which transactions are stuck and why
-- **Escalation** depends on ad-hoc processes with no audit trail
+1. **Gas price too low** — Other transactions outbid yours, validators prioritize higher-paying transactions, and yours sits in the mempool indefinitely
+2. **Nonce gaps** — EVM chains require transactions to execute in strict sequential order. If transaction #5 is pending, transaction #6 can never confirm, even if it has sufficient gas
+3. **Network congestion** — During high-activity periods (NFT mints, token launches, market crashes), gas prices can spike 10-100x in minutes
+4. **RPC node failures** — Your transaction was signed and broadcast, but the RPC node dropped it or returned a false success
+5. **Mempool eviction** — Mempools have finite size. When full, the lowest-fee transactions are dropped silently — no error, no notification
 
-StableBridge TX Recovery solves this with a **fully automated, multi-chain transaction lifecycle manager** that detects stuck transactions, applies tiered recovery strategies, and escalates to human operators only when necessary.
+### The Naive Approach (and Why It Fails)
+
+```
+Your App  ──→  "Submit 50 USDC transfer to 0xABC"
+Blockchain ──→  "Transaction hash: 0x123... submitted."
+Your App  ──→  "Great, it's done!"
+                                          ... 3 hours later ...
+Your App  ──→  "Wait, it's still pending?!"
+Operator  ──→  "Let me SSH into the server and manually bump the gas..."
+```
+
+Most applications treat transaction submission as "fire and forget." They submit the transaction, store the hash, and assume it will confirm. When it doesn't, an engineer gets paged and has to:
+
+1. Figure out which transactions are stuck (query multiple RPCs)
+2. Understand *why* they're stuck (gas? nonce? dropped?)
+3. Construct a replacement transaction with the right parameters
+4. Sign and broadcast the replacement
+5. Monitor until the replacement confirms
+6. Update internal records
+
+This is error-prone, chain-specific, and doesn't scale. A single stuck transaction can block an entire nonce sequence, cascading into dozens of failed transfers.
+
+### What Transaction Recovery Replaces
+
+```mermaid
+flowchart LR
+    subgraph Without["Without Recovery Service"]
+        direction TB
+        A1["Submit transaction"] --> A2["Store tx hash"]
+        A2 --> A3["Hope it confirms"]
+        A3 --> A4["3 hours later: PagerDuty alert"]
+        A4 --> A5["Engineer SSHes in"]
+        A5 --> A6["Manual gas bump"]
+        A6 --> A7["Pray it works"]
+    end
+
+    subgraph With["With StableBridge TX Recovery"]
+        direction TB
+        B1["Submit via API"] --> B2["Temporal workflow<br/>manages lifecycle"]
+        B2 --> B3["Detect stuck<br/>after 10 min"]
+        B3 --> B4["Auto gas bump<br/>(1.2x → 1.5x → 2.0x)"]
+        B4 --> B5["Escalate to human<br/>only if needed"]
+        B5 --> B6["Confirmed.<br/>Event published."]
+    end
+
+    Without ~~~ With
+```
+
+---
+
+## Understanding Recovery Across Chains
+
+StableBridge TX Recovery supports two fundamentally different blockchain architectures, each with its own transaction model, gas mechanism, and failure modes. Understanding these differences is essential to understanding why recovery is chain-specific.
+
+### EVM Chains (Ethereum, Base, Polygon)
+
+EVM chains use an **account-based model** with sequential nonces and a fee market. Every transaction from an address has a nonce — a counter that starts at 0 and increments by 1 for each transaction.
+
+```mermaid
+flowchart TB
+    subgraph Account["Account: 0xSender"]
+        direction TB
+        N0["Nonce 0: Send 100 USDC → 0xAlice ✓ Confirmed"]
+        N1["Nonce 1: Send 50 USDC → 0xBob ✓ Confirmed"]
+        N2["Nonce 2: Send 200 USDC → 0xCarol ⏳ Stuck (gas too low)"]
+        N3["Nonce 3: Send 75 USDC → 0xDave ❌ Blocked (waiting for nonce 2)"]
+        N4["Nonce 4: Send 30 USDC → 0xEve ❌ Blocked (waiting for nonce 2)"]
+    end
+
+    style N2 fill:#ff9800,color:#000
+    style N3 fill:#f44336,color:#fff
+    style N4 fill:#f44336,color:#fff
+```
+
+**Key concepts:**
+
+| Concept | What It Is | Why It Matters for Recovery |
+|---------|-----------|----------------------------|
+| **Nonce** | Sequential counter per address (0, 1, 2, ...) | A stuck transaction blocks ALL subsequent transactions from that address |
+| **Gas price** | Fee paid to validators per unit of computation | Too low = stuck in mempool; too high = overpaying |
+| **EIP-1559** | Fee model with base fee + priority tip | Base fee is burned, tip incentivizes validators. Recovery must set both correctly |
+| **Gas limit** | Maximum computation units a transaction can consume | Must cover the full token transfer execution cost |
+| **Transaction replacement** | Submit a new transaction with the same nonce and higher gas | The only way to "unstick" a pending EVM transaction |
+| **Mempool** | Waiting area for unconfirmed transactions | Transactions can be evicted (dropped) without notification |
+| **Finality** | Ethereum: `finalized` tag (~13 min); Base: 1 block; Polygon: 256 blocks | Recovery can stop monitoring only after finality is reached |
+
+**How EVM recovery works:**
+
+When a transaction is stuck, there are exactly two options: **speed it up** (resubmit with higher gas, same nonce) or **cancel it** (send 0 ETH to yourself with the same nonce and higher gas). Both rely on the EVM's nonce replacement rule: a new transaction with the same nonce replaces the pending one if it offers a higher gas price.
+
+```
+Original Transaction (stuck)          Replacement Transaction
+─────────────────────────             ──────────────────────
+Nonce:     42                         Nonce:     42  (same!)
+To:        0xMerchant                 To:        0xMerchant
+Value:     50 USDC                    Value:     50 USDC
+Gas Price: 20 gwei                    Gas Price: 30 gwei  ← 1.5x bump
+Status:    Pending (45 min)           Status:    Confirmed ✓
+
+The replacement cancels the original. Validators pick the higher-paying version.
+```
+
+### Solana
+
+Solana uses a fundamentally different model. There are **no nonces, no mempool in the traditional sense, and no gas price bidding**. Instead, transactions include a **blockhash** that expires after ~60 seconds, and validators prioritize by **compute unit price**.
+
+```mermaid
+flowchart TB
+    subgraph Solana["Solana Transaction Lifecycle"]
+        direction TB
+        TX["Transaction signed<br/><i>includes recent blockhash</i>"]
+        TX --> |"Submit to validator"| VP["Validator processes<br/><i>or forwards to leader</i>"]
+        VP --> |"Within ~60s"| CONF["Confirmed<br/><i>included in slot</i>"]
+        VP --> |"Blockhash expires"| DROP["Dropped silently<br/><i>no error, just gone</i>"]
+    end
+
+    style DROP fill:#f44336,color:#fff
+    style CONF fill:#4caf50,color:#fff
+```
+
+**Key concepts:**
+
+| Concept | What It Is | EVM Equivalent |
+|---------|-----------|----------------|
+| **Slot** | Time window (~400ms) where a validator produces a block | Block (~12s for Ethereum) |
+| **Blockhash** | A recent block's hash included in the transaction — expires in ~60s (~150 slots) | Nonce (but time-based, not sequential) |
+| **Compute units** | Solana's equivalent of gas — each instruction costs compute units | Gas units |
+| **Priority fee** | Extra fee per compute unit to incentivize validator inclusion | Priority tip (EIP-1559) |
+| **Finality** | `finalized` commitment level (~6.4 seconds, 32 slots) | Ethereum's `finalized` tag (~13 min) |
+| **Durable nonce** | An on-chain account that provides a non-expiring blockhash for offline signing | No direct equivalent |
+
+**How Solana recovery works:**
+
+Solana recovery is simpler in one way and harder in another. There's no nonce replacement — if a transaction isn't confirmed within ~60 seconds, the blockhash expires and the transaction is effectively dead. Recovery means **resubmitting a new transaction** with a fresh blockhash and (optionally) a higher priority fee.
+
+```
+Original Transaction (expired)        Recovery Transaction
+──────────────────────────            ──────────────────────
+Blockhash:  abc123 (expired)          Blockhash:  def456 (fresh)
+Signature:  5Kx7a...                  Signature:  8Mn2b... (new)
+Priority:   1000 microlamports        Priority:   5000 microlamports ← bumped
+Status:     Not found (expired)       Status:     Confirmed ✓
+
+Unlike EVM, we can't replace — we create an entirely new transaction.
+```
+
+**Critical difference from EVM:** On EVM, a stuck transaction blocks all subsequent ones (nonce ordering). On Solana, each transaction is independent — a failed transaction doesn't block anything else. But Solana transactions can fail due to account contention (multiple transactions trying to write to the same account simultaneously), which is a failure mode that doesn't exist on EVM.
+
+---
+
+## Gas Economics: Why Transactions Get Stuck
+
+The number one reason transactions get stuck is **gas pricing**. Understanding gas economics is essential to understanding why an automated recovery service exists.
+
+### EIP-1559 and the Fee Market
+
+Before EIP-1559 (Ethereum's 2021 fee reform), gas pricing was a simple auction: you set a gas price, and validators picked the highest-paying transactions. This led to wild price spikes and overpayment.
+
+EIP-1559 introduced a two-part fee model:
+
+```mermaid
+flowchart TB
+    subgraph EIP1559["EIP-1559 Fee Structure"]
+        direction TB
+        BASE["Base Fee<br/><i>Set by protocol<br/>Adjusts per block<br/>BURNED (not paid to validators)</i>"]
+        TIP["Priority Tip (maxPriorityFeePerGas)<br/><i>Set by sender<br/>Paid to validator<br/>Incentivizes faster inclusion</i>"]
+        CAP["Max Fee Cap (maxFeePerGas)<br/><i>Set by sender<br/>Absolute ceiling<br/>You never pay more than this</i>"]
+    end
+
+    subgraph Actual["What You Actually Pay"]
+        CALC["Effective Fee = min(baseFee + tip, maxFeeCap)<br/>Refund = maxFeeCap - effectiveFee"]
+    end
+
+    EIP1559 --> Actual
+```
+
+| Scenario | Base Fee | Your Max Fee | Your Tip | You Pay | Result |
+|----------|----------|-------------|----------|---------|--------|
+| **Normal** | 20 gwei | 40 gwei | 2 gwei | 22 gwei | Confirmed quickly |
+| **Congested** | 80 gwei | 40 gwei | 2 gwei | — | **Stuck!** Base fee exceeds your max |
+| **Spike then drop** | 80→20 gwei | 40 gwei | 2 gwei | 22 gwei | Confirms after congestion clears |
+
+**Why gas bumping works:** When the recovery service detects a stuck transaction, it resubmits with the same nonce but a higher `maxFeePerGas` and `maxPriorityFeePerGas`. The gas oracle queries current network conditions and applies a configurable multiplier (1.2x → 1.5x → 2.0x) to ensure the replacement is competitive.
+
+### Solana Priority Fees
+
+Solana doesn't have a gas auction in the EVM sense. Instead, each transaction specifies:
+
+- **Compute units**: The maximum computation budget (similar to gas limit)
+- **Compute unit price**: Microlamports per compute unit (similar to gas price)
+
+```
+Priority Fee = compute_units × compute_unit_price
+
+Example: 200,000 CU × 5,000 microlamports = 1,000,000 microlamports = 0.001 SOL
+```
+
+During congestion, validators prioritize transactions with higher compute unit prices. Unlike EVM, there's no base fee that dynamically adjusts — the fee market is purely tip-based.
+
+---
+
+## Nonce Management: The Hidden Complexity
+
+On EVM chains, every transaction from an address must have a sequential nonce. This creates a subtle but critical problem for systems that submit multiple transactions concurrently.
+
+```mermaid
+sequenceDiagram
+    participant App as TX Recovery
+    participant Redis as Redis (Nonce Store)
+    participant Chain as Blockchain RPC
+
+    App->>Chain: eth_getTransactionCount(0xSigner) → 42
+    App->>Redis: SETNX nonce:0xSigner = 42
+
+    Note over App: Submit TX A
+    App->>Redis: GET nonce → 42, INCR → 43
+    App->>Chain: Submit TX (nonce=42)
+
+    Note over App: Submit TX B (concurrent)
+    App->>Redis: GET nonce → 43, INCR → 44
+    App->>Chain: Submit TX (nonce=43)
+
+    Note over App: TX A gets stuck...
+    Note over Chain: TX B (nonce=43) is BLOCKED<br/>because nonce=42 hasn't confirmed
+
+    Note over App: Recovery bumps gas on TX A
+    App->>Chain: Replace TX (nonce=42, higher gas)
+    Note over Chain: TX A confirms → TX B unblocked → TX B confirms
+```
+
+**Why Redis CAS (compare-and-swap)?** If two threads simultaneously read nonce 42, both would submit with nonce 42 — one would fail with a nonce-too-low error. Redis atomic operations ensure that nonce allocation is strictly sequential, even under concurrent submission.
+
+**Nonce sync from chain:** When the service restarts (or suspects nonce drift), it calls `eth_getTransactionCount` to resynchronize the local nonce counter with the on-chain state. This prevents the entire nonce sequence from getting stuck due to a stale local counter.
+
+Solana doesn't have this problem — each transaction is independent and identified by its signature, not a sequential counter. But Solana has its own concurrency challenge: **account write locks**. If two transactions try to modify the same token account simultaneously, one will fail with an "account in use" error.
+
+---
+
+## The Mempool: Where Transactions Wait (and Die)
+
+The mempool is the most misunderstood part of blockchain transaction processing. It's not a single, global queue — it's a **per-node, in-memory staging area** with no durability guarantees.
+
+```mermaid
+flowchart LR
+    subgraph Submit["Your Transaction"]
+        TX["Signed TX<br/>nonce: 42<br/>gas: 20 gwei"]
+    end
+
+    subgraph Mempool["Mempool (per node)"]
+        direction TB
+        HIGH["High Gas TXs<br/>(picked first)"]
+        MED["Medium Gas TXs"]
+        LOW["Low Gas TXs<br/>(evicted first)"]
+    end
+
+    subgraph Block["Next Block"]
+        INCLUDED["~150 transactions<br/>selected by gas price"]
+    end
+
+    subgraph Graveyard["Evicted"]
+        DROPPED["Silently removed<br/>No error returned<br/>No notification"]
+    end
+
+    TX --> MED
+    HIGH --> INCLUDED
+    LOW -.-> Graveyard
+
+    style DROPPED fill:#f44336,color:#fff
+    style INCLUDED fill:#4caf50,color:#fff
+```
+
+**Critical properties of mempools:**
+
+| Property | Implication for Recovery |
+|----------|------------------------|
+| **Per-node, not global** | Your transaction might be in Node A's mempool but not Node B's. Querying a different node returns "not found" |
+| **No persistence** | If the node restarts, the mempool is cleared. Your transaction is gone |
+| **Size-limited** | Ethereum nodes typically hold ~5,000 transactions. During congestion, low-gas transactions are evicted |
+| **No eviction notification** | The transaction just disappears. No error, no event, no callback |
+| **Propagation is best-effort** | When you submit to one node, it gossips to peers — but propagation can fail |
+
+This is why the recovery service tracks the `DROPPED` state — when a transaction disappears from the mempool without being confirmed or failed, it needs to be detected and resubmitted.
+
+**Solana's approach:** Solana doesn't have a traditional mempool. Transactions are forwarded directly to the current leader validator. If the leader doesn't include it within the blockhash's validity window (~60 seconds), the transaction is simply invalid. There's no eviction — it just expires.
+
+---
+
+## Escalation: From Automatic to Human
+
+Not all stuck transactions are created equal. A 50 USDC transfer stuck for 15 minutes is an annoyance. A $500,000 USDC transfer stuck for 2 hours is a critical incident. The recovery service uses **tiered escalation** with separate policies for standard and high-value transactions.
+
+```mermaid
+flowchart TB
+    STUCK["Transaction detected as STUCK"] --> CHECK{"Value > $50,000?"}
+
+    CHECK -->|"No (standard)"| T1S["Tier 1: Gas bump 1.2x<br/><i>after 10 min stuck</i><br/>Automatic"]
+    CHECK -->|"Yes (high-value)"| T1H["Tier 1: Gas bump 1.1x<br/><i>after 5 min stuck</i><br/>Automatic, conservative"]
+
+    T1S --> T2S["Tier 2: Gas bump 1.5x<br/><i>after 30 min stuck</i><br/>Automatic"]
+    T1H --> T2H["Tier 2: Gas bump 1.3x<br/><i>after 20 min stuck</i><br/>Automatic, still conservative"]
+
+    T2S --> T3S["Tier 3: Nonce replacement 2.0x<br/><i>after 60 min stuck</i><br/>Human approval required"]
+    T2H --> T3H["Tier 3: Human review<br/><i>after 45 min stuck</i><br/>Operator must approve ANY action"]
+
+    T3S --> |"Approved"| RECOVER["Execute recovery"]
+    T3S --> |"Rejected"| CANCEL["Cancel transaction"]
+    T3H --> |"Approved"| RECOVER
+    T3H --> |"Rejected"| CANCEL
+
+    style T3S fill:#ff9800,color:#000
+    style T3H fill:#f44336,color:#fff
+```
+
+**Why tiered?** Aggressive gas bumping costs money. A 2.0x gas multiplier on a congested network might mean paying $200 in fees for a $50 transfer. The tiered approach starts conservative and escalates only when earlier attempts fail:
+
+| Tier | Trigger | Multiplier | Approval | Gas Budget Check |
+|------|---------|-----------|----------|-----------------|
+| 1 | Stuck > 10 min | 1.2x | Automatic | Yes — must be within budget |
+| 2 | Stuck > 30 min | 1.5x | Automatic | Yes — tighter budget check |
+| 3 | Stuck > 60 min | 2.0x (nonce replacement) | **Human required** | Yes — alerts if budget exceeded |
+
+**Gas budgets:** The escalation engine enforces a gas budget per transaction: `min(max(tx_value × 0.01, $5), $500)`. A $1,000 transfer gets a $10 gas budget; a $100,000 transfer gets a $500 cap. If a recovery attempt would exceed the budget, it triggers human review regardless of the tier.
+
+---
+
+## Durable Execution: Why Temporal?
+
+A transaction lifecycle can span minutes to hours. During that time, the recovery service might crash, restart, deploy a new version, or lose network connectivity. The lifecycle must survive all of these.
+
+**Why not a simple state machine + database polling?**
+
+```mermaid
+flowchart LR
+    subgraph Polling["Polling Approach"]
+        direction TB
+        P1["Cron: every 30s<br/>scan all pending TXs"]
+        P1 --> P2["For each: check status"]
+        P2 --> P3["If stuck: maybe recover"]
+        P3 --> P4["Update DB"]
+        P4 --> P5["Problem: 10,000 pending TXs<br/>= 10,000 RPC calls every 30s"]
+    end
+
+    subgraph Temporal["Temporal Approach"]
+        direction TB
+        T1["One workflow per TX<br/>sleeps until timeout"]
+        T1 --> T2["Wakes up: check status"]
+        T2 --> T3["If stuck: escalate"]
+        T3 --> T4["Sleep until next check"]
+        T4 --> T5["Survives crashes<br/>No polling overhead<br/>No lost state"]
+    end
+
+    Polling ~~~ Temporal
+```
+
+Temporal provides **durable execution** — the workflow code looks like regular sequential code (submit → wait → check → escalate), but the execution state is persisted to a database. If the worker crashes mid-execution, another worker picks up exactly where it left off.
+
+**Key Temporal features used:**
+
+| Feature | How It's Used |
+|---------|-------------|
+| **Workflows** | `TransactionLifecycleWorkflow` — one per transaction, manages the entire lifecycle |
+| **Activities** | Individual steps (build, sign, broadcast, check status) with independent retry policies |
+| **Signals** | `approveRecovery()` and `cancelTransaction()` — external input from human operators |
+| **Queries** | `getStatus()` — read workflow state without modifying it |
+| **Timers** | `Workflow.sleep()` — durable sleep that survives crashes (unlike `Thread.sleep`) |
+| **Continue-As-New** | Resets workflow history after hitting event limit (prevents unbounded growth) |
+| **Execution timeout** | 24 hours max — prevents zombie workflows from accumulating |
+
+---
+
+## The Transaction Recovery Lifecycle
+
+The recovery service is one piece of a larger payment infrastructure. Here's where it fits and how a transaction flows through the system:
+
+```mermaid
+sequenceDiagram
+    participant Client as Payment Service
+    participant API as TX Recovery API
+    participant Temporal as Temporal Workflow
+    participant Signer as Signer (Keystore / Callback)
+    participant Chain as Blockchain RPC
+    participant Kafka as Kafka
+    participant Operator as Human Operator
+
+    Client->>API: POST /api/v1/transactions<br/>{chain, from, to, token, amount}
+    API->>API: Validate + assign state: RECEIVED
+    API->>Temporal: Start TransactionLifecycleWorkflow
+
+    Note over Temporal: BUILDING state
+    Temporal->>Chain: Estimate gas + get nonce
+    Temporal->>Temporal: Build chain-specific TX
+
+    Note over Temporal: SIGNING state
+    Temporal->>Signer: Sign transaction bytes
+    Signer-->>Temporal: Signature
+
+    Note over Temporal: SUBMITTED state
+    Temporal->>Chain: eth_sendRawTransaction / sendTransaction
+    Chain-->>Temporal: TX hash
+
+    Note over Temporal: PENDING state — poll for confirmation
+    loop Every 15 seconds
+        Temporal->>Chain: eth_getTransactionReceipt
+        Chain-->>Temporal: null (still pending)
+    end
+
+    Note over Temporal: Stuck detection (>10 min pending)
+    Temporal->>Temporal: State → STUCK
+
+    Note over Temporal: Tier 1: Auto gas bump
+    Temporal->>Chain: Get current gas price
+    Temporal->>Temporal: Apply 1.2x multiplier
+    Temporal->>Temporal: State → RECOVERING
+    Temporal->>Chain: Submit replacement (same nonce, higher gas)
+
+    Note over Chain: Replacement confirms in block!
+    Chain-->>Temporal: Receipt (status: success)
+
+    Note over Temporal: CONFIRMED → wait for finality → FINALIZED
+    Temporal->>Kafka: Publish TransactionFinalizedEvent
+    Kafka->>Client: Event delivered
+
+    Note over Operator: (If Tier 3 was reached instead)
+    Temporal-->>Operator: State → AWAITING_HUMAN_APPROVAL
+    Operator->>API: POST /api/v1/transactions/{id}/approve
+    API->>Temporal: Signal: approveRecovery()
+```
 
 ---
 
@@ -299,6 +767,8 @@ All event publishing uses the **Transactional Outbox Pattern** to guarantee reli
                                               └──────────────────────┘
 ```
 
+**Why transactional outbox?** The classic dual-write problem: if you save to the database and then publish to Kafka, a crash between the two operations means the event is lost. If you publish first and then save, a crash means the database doesn't reflect reality. The outbox pattern solves this by writing both the domain change and the event to the **same database transaction**. A separate relay process reads the outbox table and publishes to Kafka — if it crashes, it simply retries (at-least-once delivery).
+
 ---
 
 ## Supported Chains
@@ -439,8 +909,8 @@ stablebridge-tx-recovery/                      <- Root project
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/stablebridge/tx-recovery.git
-cd tx-recovery
+git clone https://github.com/Puneethkumarck/stablebridge-tx-recovery.git
+cd stablebridge-tx-recovery
 
 # 2. Start infrastructure (PostgreSQL, Redis, Kafka, Temporal, Prometheus, Grafana)
 make infra-up
