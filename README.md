@@ -108,7 +108,7 @@ When you submit a transaction to a blockchain, it doesn't execute immediately. I
 
 > **🎬 A Day in the Life of a Stuck Transaction**
 
-```
+```text
  🖥️  Your App       ──→  "Submit 50 USDC transfer to 0xABC"
  ⛓️  Blockchain     ──→  "Transaction hash: 0x123... submitted."
  🖥️  Your App       ──→  "Great, it's done! ✅"
@@ -183,7 +183,7 @@ EVM chains use an **account-based model** with sequential nonces and a fee marke
 
 > **🎬 The Nonce Domino Effect**
 
-```
+```text
  🔢 Nonce 0:  Send 100 USDC → 0xAlice     ✅ Confirmed
  🔢 Nonce 1:  Send 50 USDC  → 0xBob       ✅ Confirmed
  🔢 Nonce 2:  Send 200 USDC → 0xCarol     ⏳ Stuck! (gas too low)
@@ -225,7 +225,7 @@ flowchart TB
 
 When a transaction is stuck, there are exactly two options: **speed it up** (resubmit with higher gas, same nonce) or **cancel it** (send 0 ETH to yourself with the same nonce and higher gas). Both rely on the EVM's nonce replacement rule:
 
-```
+```text
  ❌ Original Transaction (stuck)          ✅ Replacement Transaction
  ─────────────────────────────           ──────────────────────────
  🔢 Nonce:     42                        🔢 Nonce:     42  (same!)
@@ -244,7 +244,7 @@ Solana uses a fundamentally different model. There are **no nonces, no mempool i
 
 > **🎬 The 60-Second Clock**
 
-```
+```text
  ⏱️ T+0s     📤 Transaction signed with blockhash abc123
  ⏱️ T+5s     🔄 Forwarded to leader validator...
  ⏱️ T+15s    🔄 Still processing...
@@ -283,7 +283,7 @@ flowchart TB
 
 Solana recovery is simpler in one way and harder in another. There's no nonce replacement — if a transaction isn't confirmed within ~60 seconds, the blockhash expires and the transaction is effectively dead. Recovery means **resubmitting an entirely new transaction**:
 
-```
+```text
  💀 Original Transaction (expired)       ✅ Recovery Transaction
  ────────────────────────────           ──────────────────────────
  🔗 Blockhash:  abc123 (expired ⏰)     🔗 Blockhash:  def456 (fresh 🆕)
@@ -296,7 +296,7 @@ Solana recovery is simpler in one way and harder in another. There's no nonce re
 
 > **⚡ EVM vs Solana: The Critical Difference**
 
-```
+```text
  ⟠  EVM                                 ◎  Solana
  ─────────────────────                  ─────────────────────
  🔢 Nonces: sequential                  🔗 Blockhashes: independent
@@ -320,7 +320,7 @@ Before EIP-1559 (Ethereum's 2021 fee reform), gas pricing was a simple auction: 
 
 EIP-1559 introduced a two-part fee model — think of it like buying a plane ticket:
 
-```
+```text
  ┌─────────────────────────────────────────────────────────────────┐
  │                   ⛽ EIP-1559 Fee Anatomy                       │
  │                                                                 │
@@ -376,7 +376,7 @@ Solana doesn't have a gas auction in the EVM sense. Instead, each transaction sp
 - 🖥️ **Compute units**: The maximum computation budget (similar to gas limit)
 - 💸 **Compute unit price**: Microlamports per compute unit (similar to gas price)
 
-```
+```text
  📐 Priority Fee = compute_units × compute_unit_price
 
  💡 Example:
@@ -396,7 +396,7 @@ On EVM chains, every transaction from an address must have a sequential nonce. T
 
 > **🎬 The Race Condition Nobody Expects**
 
-```
+```text
  🧵 Thread A                    🧵 Thread B
  ───────────                    ───────────
  📖 Read nonce → 42             📖 Read nonce → 42    ← 💥 RACE!
@@ -406,57 +406,84 @@ On EVM chains, every transaction from an address must have a sequential nonce. T
  collide on the same nonce. One succeeds, one fails. 💀
 ```
 
-> **✅ How We Solve It: Redis Atomic Operations**
+> **✅ How We Solve It: Redis WATCH/MULTI/EXEC (Optimistic Locking)**
 
-```
- 🧵 Thread A                    🧵 Thread B
- ───────────                    ───────────
- 🔒 Redis INCR → 42             ⏳ (waits for atomic op)
- 📤 Submit TX (nonce=42) ✅     🔒 Redis INCR → 43
-                                 📤 Submit TX (nonce=43) ✅
+The service uses a Redis **hash** with two fields (`allocated` and `confirmed`) plus an **inflight set** to track pending nonces:
+
+```text
+ 📦 Redis Data Structures:
  
- Redis CAS (compare-and-swap) guarantees strictly
- sequential nonce allocation, even under concurrency. 🎯
+ 🗂️ Hash: str:nonce:{chain}:{address}
+    ├── allocated  = 43   (highest nonce handed out)
+    └── confirmed  = 41   (highest nonce confirmed on-chain)
+ 
+ 📋 Set: str:nonce:inflight:{chain}:{address}
+    └── { 42, 43 }        (nonces in-flight, not yet confirmed)
+```
+
+```text
+ 🧵 Thread A                         🧵 Thread B
+ ───────────                         ───────────
+ 👁️ WATCH hash key                   
+ 📖 Read allocated → 42              👁️ WATCH hash key
+ 🔒 MULTI: HSET allocated=43,        📖 Read allocated → 42
+           SADD inflight 43          🔒 MULTI: HSET allocated=43,
+ ✅ EXEC succeeds                              SADD inflight 43
+ 📤 Submit TX (nonce=43) ✅          ❌ EXEC fails (WATCH detected change!)
+                                     🔄 Retry → reads allocated=43
+                                     🔒 MULTI: HSET allocated=44,
+                                               SADD inflight 44
+                                     ✅ EXEC succeeds
+                                     📤 Submit TX (nonce=44) ✅
+
+ 💡 WATCH/MULTI/EXEC detects concurrent modifications and retries
+    automatically — no duplicate nonces, no locks held. 🎯
 ```
 
 ```mermaid
 sequenceDiagram
     participant App as 🖥️ TX Recovery
-    participant Redis as 🔴 Redis (Nonce Store)
+    participant Redis as 🔴 Redis (Hash + Set)
     participant Chain as ⛓️ Blockchain RPC
 
-    App->>Chain: eth_getTransactionCount(0xSigner) → 42
-    App->>Redis: SETNX nonce:0xSigner = 42
+    Note over App: 📤 Allocate nonce for TX A
+    App->>Redis: 👁️ WATCH str:nonce:{chain}:{addr}
+    App->>Redis: 📖 HGET allocated → 42
+    App->>Chain: eth_getTransactionCount → 42
+    App->>Redis: 🔒 MULTI: HSET allocated=43, SADD inflight 43
+    Redis-->>App: ✅ EXEC success → nonce 43
+    App->>Chain: 📤 Submit TX (nonce=43)
 
-    Note over App: 📤 Submit TX A
-    App->>Redis: 🔒 GET nonce → 42, INCR → 43
-    App->>Chain: Submit TX (nonce=42)
+    Note over App: 📤 Allocate nonce for TX B (concurrent)
+    App->>Redis: 👁️ WATCH → 📖 HGET allocated → 43
+    App->>Redis: 🔒 MULTI: HSET allocated=44, SADD inflight 44
+    Redis-->>App: ✅ EXEC success → nonce 44
+    App->>Chain: 📤 Submit TX (nonce=44)
 
-    Note over App: 📤 Submit TX B (concurrent)
-    App->>Redis: 🔒 GET nonce → 43, INCR → 44
-    App->>Chain: Submit TX (nonce=43)
-
-    Note over App: ⏳ TX A gets stuck...
-    Note over Chain: 🚫 TX B (nonce=43) is BLOCKED<br/>because nonce=42 hasn't confirmed
+    Note over App: ⏳ TX A (nonce=43) gets stuck...
+    Note over Chain: 🚫 TX B (nonce=44) is BLOCKED<br/>because nonce=43 hasn't confirmed
 
     Note over App: 🔧 Recovery bumps gas on TX A
-    App->>Chain: 🔄 Replace TX (nonce=42, higher gas)
-    Note over Chain: ✅ TX A confirms → TX B unblocked → TX B confirms
+    App->>Chain: 🔄 Replace TX (nonce=43, higher gas)
+    Note over Chain: ✅ TX A confirms → TX B unblocked
+
+    Note over App: ✅ Confirm nonce 43
+    App->>Redis: 🔄 Lua script: HSET confirmed=43, SREM inflight 43
 ```
 
 > **🔄 Nonce Sync from Chain**
 
-When the service restarts (or suspects nonce drift), it calls `eth_getTransactionCount` to resynchronize the local counter with on-chain state. This prevents the entire nonce sequence from getting stuck due to a stale local counter.
+When the service restarts (or suspects nonce drift), `syncFromChain` resets both hash fields and clears inflight tracking:
 
-```
+```text
  🔄 Nonce Resync Flow:
  
- 💀 Service crashes with local nonce = 47
+ 💀 Service crashes with allocated = 47, confirmed = 44
  🔄 Service restarts
- 📡 Call eth_getTransactionCount(0xSigner) → 45
- 💡 Two TXs (45, 46) confirmed while we were down!
- 🔒 Redis SET nonce:0xSigner = 47  ← skip confirmed nonces
- ✅ Ready to submit nonce 47
+ 📡 Call eth_getTransactionCount(0xSigner) → 47 (next expected nonce)
+ 🔒 Redis HSET allocated = 46, confirmed = 46
+ 🗑️ Redis DEL inflight set (clear all)
+ ✅ Next allocation returns nonce 47
 ```
 
 > **◎ Solana: Different Problem, Same Pain**
@@ -471,7 +498,7 @@ The mempool is the most misunderstood part of blockchain transaction processing.
 
 > **🎬 A Transaction's Journey Through the Mempool**
 
-```
+```text
  📤 You submit a transaction to Node A
      │
      ▼
@@ -549,14 +576,16 @@ Not all stuck transactions are created equal. A 50 USDC transfer stuck for 15 mi
 
 > **🎬 Two Transactions, Two Escalation Paths**
 
-```
+```text
  ┌─────────────────────────────────────────────────────────────────────┐
  │                                                                     │
  │  💵 Standard Transaction: $200 USDC                                │
  │  ─────────────────────────────────                                 │
- │  ⏱️ +10 min  │ 🟢 Tier 1: Auto gas bump 1.2x         → Still stuck│
- │  ⏱️ +30 min  │ 🟡 Tier 2: Auto gas bump 1.5x         → Still stuck│
- │  ⏱️ +60 min  │ 🔴 Tier 3: Nonce replace 2.0x          → 👤 HUMAN  │
+ │  ⏱️ +0s      │ ⚪ Tier 0: Detect — wait                           │
+ │  ⏱️ +1 min   │ 🟢 Tier 1: Auto gas bump 1.25x        → Still stuck│
+ │  ⏱️ +3 min   │ 🟡 Tier 2: Auto gas bump 2.0x         → Still stuck│
+ │  ⏱️ +10 min  │ 🟠 Tier 3: Aggressive bump 3.0x       → Still stuck│
+ │  ⏱️ +30 min  │ 🔴 Tier 4: FULL STOP                   → 👤 HUMAN  │
  │              │                                                      │
  │  📊 Gas budget: max($200 × 1%, $5) = $5.00                        │
  │  💡 Most resolve at Tier 1 — engineer never knows it happened      │
@@ -565,13 +594,13 @@ Not all stuck transactions are created equal. A 50 USDC transfer stuck for 15 mi
  │                                                                     │
  │  💎 High-Value Transaction: $500,000 USDC                          │
  │  ─────────────────────────────────────────                         │
- │  ⏱️ +5 min   │ 🟢 Tier 1: Auto gas bump 1.1x (gentle) → Still stuck│
- │  ⏱️ +20 min  │ 🟡 Tier 2: Auto gas bump 1.3x          → Still stuck│
- │  ⏱️ +45 min  │ 🔴 Tier 3: FULL STOP                    → 👤 HUMAN │
- │              │         Operator must approve ANY action             │
+ │  ⏱️ +0s      │ ⚪ Tier 0: Detect — wait                           │
+ │  ⏱️ +1 min   │ 🟢 Tier 1: Auto gas bump 1.25x (gentle)           │
+ │  ⏱️ +5 min   │ 🔴 Tier 2: FULL STOP                   → 👤 HUMAN │
+ │              │         Operator must approve ANY further action     │
  │                                                                     │
  │  📊 Gas budget: min($500K × 1%, $500) = $500.00                   │
- │  🛡️ Conservative multipliers — protecting $500K > saving 15 min    │
+ │  🛡️ Escalates to human much faster — protecting $500K > speed      │
  │                                                                     │
  └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -580,31 +609,46 @@ Not all stuck transactions are created equal. A 50 USDC transfer stuck for 15 mi
 flowchart TB
     STUCK["🚨 Transaction detected as STUCK"] --> CHECK{"💰 Value > $50,000?"}
 
-    CHECK -->|"No (standard)"| T1S["🟢 Tier 1: Gas bump 1.2x<br/><i>⏱️ after 10 min stuck</i><br/>🤖 Automatic"]
-    CHECK -->|"Yes (high-value)"| T1H["🟢 Tier 1: Gas bump 1.1x<br/><i>⏱️ after 5 min stuck</i><br/>🤖 Automatic, conservative"]
+    CHECK -->|"No (standard)"| T0S["⚪ Tier 0: Wait<br/><i>⏱️ immediate detection</i><br/>🤖 Automatic"]
+    CHECK -->|"Yes (high-value)"| T0H["⚪ Tier 0: Wait<br/><i>⏱️ immediate detection</i><br/>🤖 Automatic"]
 
-    T1S --> T2S["🟡 Tier 2: Gas bump 1.5x<br/><i>⏱️ after 30 min stuck</i><br/>🤖 Automatic"]
-    T1H --> T2H["🟡 Tier 2: Gas bump 1.3x<br/><i>⏱️ after 20 min stuck</i><br/>🤖 Automatic, still conservative"]
+    T0S --> T1S["🟢 Tier 1: Gas bump 1.25x<br/><i>⏱️ after 1 min stuck</i><br/>🤖 Automatic"]
+    T0H --> T1H["🟢 Tier 1: Gas bump 1.25x<br/><i>⏱️ after 1 min stuck</i><br/>🤖 Automatic"]
 
-    T2S --> T3S["🔴 Tier 3: Nonce replacement 2.0x<br/><i>⏱️ after 60 min stuck</i><br/>👤 Human approval required"]
-    T2H --> T3H["🔴 Tier 3: Human review<br/><i>⏱️ after 45 min stuck</i><br/>👤 Operator must approve ANY action"]
+    T1S --> T2S["🟡 Tier 2: Gas bump 2.0x<br/><i>⏱️ after 3 min stuck</i><br/>🤖 Automatic"]
+    T1H --> T2H["🔴 Tier 2: Human review<br/><i>⏱️ after 5 min stuck</i><br/>👤 Operator must approve"]
 
-    T3S --> |"✅ Approved"| RECOVER["🔧 Execute recovery"]
-    T3S --> |"❌ Rejected"| CANCEL["🚫 Cancel transaction"]
-    T3H --> |"✅ Approved"| RECOVER
-    T3H --> |"❌ Rejected"| CANCEL
+    T2S --> T3S["🟠 Tier 3: Aggressive bump 3.0x<br/><i>⏱️ after 10 min stuck</i><br/>🤖 Automatic"]
+    T3S --> T4S["🔴 Tier 4: Human escalation 3.0x<br/><i>⏱️ after 30 min stuck</i><br/>👤 Human approval required"]
 
-    style T3S fill:#ff9800,color:#000
-    style T3H fill:#f44336,color:#fff
+    T4S --> |"✅ Approved"| RECOVER["🔧 Execute recovery"]
+    T4S --> |"❌ Rejected"| CANCEL["🚫 Cancel transaction"]
+    T2H --> |"✅ Approved"| RECOVER
+    T2H --> |"❌ Rejected"| CANCEL
+
+    style T4S fill:#ff9800,color:#000
+    style T2H fill:#f44336,color:#fff
 ```
 
-**💡 Why tiered?** Aggressive gas bumping costs money. A 2.0x gas multiplier on a congested network might mean paying $200 in fees for a $50 transfer. The tiered approach starts conservative and escalates only when earlier attempts fail:
+**💡 Why tiered?** Aggressive gas bumping costs money. A 3.0x gas multiplier on a congested network might mean paying $200 in fees for a $50 transfer. The tiered approach starts conservative and escalates only when earlier attempts fail:
+
+**Standard transactions (< $50K):**
 
 | | Tier | ⏱️ Trigger | 📈 Multiplier | 🔐 Approval | 💰 Gas Budget Check |
 |---|------|---------|-----------|----------|-----------------|
-| 🟢 | 1 | Stuck > 10 min | 1.2x | 🤖 Automatic | ✅ Must be within budget |
-| 🟡 | 2 | Stuck > 30 min | 1.5x | 🤖 Automatic | ✅ Tighter budget check |
-| 🔴 | 3 | Stuck > 60 min | 2.0x (nonce replace) | 👤 **Human required** | ⚠️ Alerts if budget exceeded |
+| ⚪ | 0 | Immediate | 1.0x (wait) | 🤖 Automatic | — |
+| 🟢 | 1 | Stuck > 1 min | 1.25x | 🤖 Automatic | ✅ Must be within budget |
+| 🟡 | 2 | Stuck > 3 min | 2.0x | 🤖 Automatic | ✅ Budget check |
+| 🟠 | 3 | Stuck > 10 min | 3.0x | 🤖 Automatic | ✅ Tighter budget check |
+| 🔴 | 4 | Stuck > 30 min | 3.0x | 👤 **Human required** | ⚠️ Alerts if budget exceeded |
+
+**High-value transactions (> $50K):**
+
+| | Tier | ⏱️ Trigger | 📈 Multiplier | 🔐 Approval |
+|---|------|---------|-----------|----------|
+| ⚪ | 0 | Immediate | 1.0x (wait) | 🤖 Automatic |
+| 🟢 | 1 | Stuck > 1 min | 1.25x | 🤖 Automatic |
+| 🔴 | 2 | Stuck > 5 min | 1.25x | 👤 **Human required** |
 
 > **💰 Gas Budget Formula**
 >
@@ -628,7 +672,7 @@ A transaction lifecycle can span minutes to hours. During that time, the recover
 
 > **🎬 The Crash That Loses Money**
 
-```
+```text
  ❌ Without Durable Execution:
  ───────────────────────────
  ⏱️ T+0 min    📤 TX submitted (nonce=42)
@@ -803,7 +847,7 @@ sequenceDiagram
 
 ### System Architecture
 
-```
+```text
                                     StableBridge TX Recovery
  ┌──────────────────────────────────────────────────────────────────────────────────────┐
  │                                                                                      │
@@ -854,7 +898,7 @@ sequenceDiagram
 
 The codebase follows strict **Hexagonal Architecture (Ports & Adapters)** with DDD tactical patterns. Dependencies always point inward:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────┐
 │                                                                     │
 │   application/  ──────────►  domain/  ◄──────────  infrastructure/ │
@@ -882,7 +926,7 @@ Rules:
 
 Every transaction follows a deterministic, type-safe state machine:
 
-```
+```text
                               ┌──────────┐
                               │ RECEIVED │  (API submission accepted)
                               └────┬─────┘
@@ -928,21 +972,23 @@ Every transaction follows a deterministic, type-safe state machine:
               └─────────┘
 ```
 
-**Escalation Tiers** — configurable per transaction value:
+**Escalation Tiers** — configurable per transaction value (defaults from `application.yml`):
 
-| Tier | Trigger | Action | Approval |
-|------|---------|--------|----------|
-| 1 | Stuck > 10 min | Gas bump (1.2x multiplier) | Automatic |
-| 2 | Stuck > 30 min | Gas bump (1.5x multiplier) | Automatic |
-| 3 | Stuck > 60 min | Nonce replacement (2.0x gas) | **Human required** |
+| Tier | Trigger | Multiplier | Approval |
+|------|---------|-----------|----------|
+| 0 | Immediate | 1.0x (wait) | Automatic |
+| 1 | Stuck > 1 min | 1.25x gas bump | Automatic |
+| 2 | Stuck > 3 min | 2.0x gas bump | Automatic |
+| 3 | Stuck > 10 min | 3.0x aggressive bump | Automatic |
+| 4 | Stuck > 30 min | 3.0x nonce replacement | **Human required** |
 
-High-value transactions (> $50,000 USD) use a separate, more conservative escalation schedule.
+High-value transactions (> $50,000 USD) use a shorter, more conservative schedule — escalating to human review after just 5 minutes.
 
 ### Temporal Workflow Orchestration
 
 Long-running transaction lifecycles are modeled as **durable Temporal workflows** that survive crashes, restarts, and deployments:
 
-```
+```text
 ┌─────────────────────────── TransactionLifecycleWorkflow ──────────────────────────┐
 │                                                                                    │
 │  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌─────────────┐  │
@@ -985,7 +1031,7 @@ Long-running transaction lifecycles are modeled as **durable Temporal workflows*
 
 All event publishing uses the **Transactional Outbox Pattern** to guarantee reliable at-least-once delivery with no dual-write problem:
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────────┐
 │                        TRANSACTION (atomic)                          │
 │                                                                      │
@@ -1082,7 +1128,7 @@ Each chain is independently configurable: RPC endpoints, rate limits, circuit br
 
 ## Module Structure
 
-```
+```text
 stablebridge-tx-recovery/                      <- Root project
 │
 ├── stablebridge-tx-recovery/                  <- Main Spring Boot application
@@ -1386,7 +1432,7 @@ Per-chain configuration (e.g., `str.chains.ethereum_mainnet`):
 
 ## Resilience & Fault Tolerance
 
-```
+```text
 ┌──────────────────────────────────────────────────────────┐
 │                   Resilience Stack                        │
 │                                                          │
@@ -1454,7 +1500,7 @@ Access Grafana at `http://localhost:3000` (admin/admin) and Prometheus at `http:
 
 Three-tier testing pyramid with strict conventions:
 
-```
+```text
                     ┌───────────────┐
                     │  Integration  │  Infrastructure adapters with real deps
                     │  Tests        │  @PgTest, @KafkaTest (Testcontainers)
@@ -1491,7 +1537,7 @@ Three-tier testing pyramid with strict conventions:
 
 GitHub Actions workflow (`.github/workflows/ci.yml`):
 
-```
+```text
   ┌────────┐
   │  Lint  │  Spotless format check
   └───┬────┘
